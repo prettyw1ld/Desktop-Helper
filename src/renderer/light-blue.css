@@ -81,7 +81,7 @@
 @keyframes les-pulse{0%,100%{box-shadow:0 0 0 0 #a9cfe9}50%{box-shadow:0 0 0 calc(8px * var(--ui-scale,1)) #a9cfe900}}
 @media(prefers-reduced-motion:reduce){.extras button.pulse{animation:none;outline:3px solid #a9cfe9}}
 .lessons .les-progress,.les-list,.les-list li{flex-shrink:0}
-#panel-lessons{width:calc(440px * var(--ui-scale,1))}
+
 
 #inspect-element{display:flex;align-items:center;justify-content:center;gap:12px}
 #inspect-element svg,.extras button svg{flex-shrink:0;min-width:20px}
@@ -106,11 +106,14 @@
 #panel-chat #chat-form{flex-shrink:0}
 #panel-chat #chat-input{min-width:0}
 .lesson-dropdown{flex-shrink:0}
-#panel-lessons{max-height:min(560px,calc(100dvh - 48px));overflow:hidden;gap:8px}
-#panel-lessons>.lesson-dropdown{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;overflow:hidden}
-#panel-lessons>.lesson-dropdown>summary{flex-shrink:0}
-#panel-lessons .les-list{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:2px 3px 12px;flex:1 1 auto}
+/* Больше места урокам, одна прокрутка всей панели вместо списка высотой 200px.
+   Вложенные ограничения создавали два скролла и оставляли видимыми лишь два урока. */
+#panel-lessons{
+  width:calc(560px * var(--ui-scale,1));
+  max-height:min(calc(820px * var(--ui-scale,1)),calc(100dvh - 32px));
+  overflow-y:auto;
+  gap:8px;
+}
+#panel-lessons>.lesson-dropdown{display:block;flex:0 0 auto;overflow:visible}
+#panel-lessons .les-list{max-height:none;overflow:visible;padding:2px 3px 12px}
 #panel-lessons>.big{min-height:44px;padding-top:10px;padding-bottom:10px}
-#panel-lessons{max-height:min(520px,72dvh);overflow-y:auto}
-#panel-lessons>.lesson-dropdown{display:block;flex:0 0 auto}
-#panel-lessons .les-list{max-height:min(200px,30dvh);overflow-y:auto}

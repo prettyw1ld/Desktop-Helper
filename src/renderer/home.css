@@ -1,12 +1,12 @@
-.skill-home,.success-postcard{position:fixed;z-index:6000;left:50%;top:50%;transform:translate(-50%,-50%);width:480px;max-width:calc(100vw - 24px);max-height:calc(100vh - 24px);overflow:auto;border-radius:28px;padding:24px;background:#fffcf3;color:#24251f;box-shadow:0 18px 45px #25384833;font:18px/1.4 'Segoe UI',sans-serif}
+.skill-home,.success-postcard{position:fixed;z-index:6000;left:50%;top:50%;transform:translate(-50%,-50%);width:480px;max-width:calc(100vw - 24px);max-height:calc(100vh - 24px);overflow:auto;border-radius:28px;padding:24px;background:#fffcf3;color:#24251f;box-shadow:0 18px 45px #25384833;font:18px/1.4 var(--font-ui)}
 .skill-home header,.success-postcard header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
 .skill-home h2,.success-postcard h2{font-size:25px;margin:0}.skill-home p{color:#75766b}
-.home-close{border:0;border-radius:50%;background:#d5eaf8;width:44px;height:44px;flex-shrink:0;font:24px 'Segoe UI';cursor:pointer}
+.home-close{border:0;border-radius:50%;background:#d5eaf8;width:44px;height:44px;flex-shrink:0;font:24px var(--font-ui);cursor:pointer}
 .home-room{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;padding:30px 16px 22px;min-height:260px;border:6px solid #ece4d5;border-radius:22px;background:linear-gradient(#e8f2f8 0 75%,#e5d9c3 75%);box-shadow:inset 0 5px 15px #b5c2be22}
 .home-room:before{content:'';position:absolute;width:52px;height:52px;top:12px;right:15px;border:5px solid #fffcf3;border-radius:18px;background:linear-gradient(90deg,transparent 46%,#fffcf3 46% 54%,transparent 54%),linear-gradient(transparent 46%,#fffcf3 46% 54%,transparent 54%),#b9def2;opacity:.6;pointer-events:none}
-.home-object{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:8px;min-height:110px;padding:10px 5px;border:0;border-bottom:5px solid #c6b595;border-radius:14px;background:#fffcf3cf;color:#45565b;font:15px/1.25 'Segoe UI';cursor:pointer;overflow-wrap:anywhere;box-shadow:0 4px 0 #d8c9ad55}
+.home-object{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:8px;min-height:110px;padding:10px 5px;border:0;border-bottom:5px solid #c6b595;border-radius:14px;background:#fffcf3cf;color:#45565b;font:15px/1.25 var(--font-ui);cursor:pointer;overflow-wrap:anywhere;box-shadow:0 4px 0 #d8c9ad55}
 .home-object svg{width:36px;height:36px;flex-shrink:0}.home-object:hover{background:#fffefb;translate:0 -3px}.home-object:focus-visible,.home-action:focus-visible{outline:3px solid #7195ac;outline-offset:3px}
-.home-empty{grid-column:1 / -1;align-self:center;text-align:center;padding:30px 10px}.home-detail{padding:16px 0 0}.home-detail h3{font-size:20px;margin:0 0 8px}.home-action{display:block;width:100%;min-height:48px;margin-top:12px;border:1px solid #e3e1d6;border-radius:22px;padding:12px;background:#d5eaf8;color:#24251f;font:18px 'Segoe UI';cursor:pointer}
+.home-empty{grid-column:1 / -1;align-self:center;text-align:center;padding:30px 10px}.home-detail{padding:16px 0 0}.home-detail h3{font-size:20px;margin:0 0 8px}.home-action{display:block;width:100%;min-height:48px;margin-top:12px;border:1px solid #e3e1d6;border-radius:22px;padding:12px;background:#d5eaf8;color:#24251f;font:18px var(--font-ui);cursor:pointer}
 .success-postcard canvas{display:block;width:100%;height:auto;border-radius:20px;border:1px solid #e8e2d5}.postcard-status{font-size:16px;color:#687567;margin-top:10px}
 @media(max-width:380px){.home-room{grid-template-columns:repeat(2,minmax(0,1fr));padding:18px 10px}.skill-home,.success-postcard{padding:16px}}
 @media(prefers-reduced-motion:reduce){.home-object:hover{translate:none}}
@@ -57,9 +57,9 @@
 .room-object-type{left:44%;top:34%;width:25%!important}
 .room-object-call{left:65%;top:39%;width:20%!important}
 .room-object-mouse{left:17%;top:66%;width:23%!important}
-.room-object-label{position:absolute;left:50%;bottom:-4px;transform:translate(-50%,100%);width:max-content;max-width:160px;padding:5px 8px;border-radius:9px;background:#fffcf3f5;color:#45565b;box-shadow:0 3px 9px #283a4720;font:13px/1.2 'Segoe UI';opacity:0;pointer-events:none;z-index:9}
+.room-object-label{position:absolute;left:50%;bottom:-4px;transform:translate(-50%,100%);width:max-content;max-width:160px;padding:5px 8px;border-radius:9px;background:#fffcf3f5;color:#45565b;box-shadow:0 3px 9px #283a4720;font:13px/1.2 var(--font-ui);opacity:0;pointer-events:none;z-index:9}
 .home-object:hover .room-object-label,.home-object:focus-visible .room-object-label,.home-object.selected .room-object-label{opacity:1}
-.room-object-count{position:absolute;top:10%;right:0;display:grid;place-items:center;width:25px;height:25px;border:2px solid #fffcf3;border-radius:50%;background:#d5eaf8;color:#445d6b;font:bold 12px 'Segoe UI';box-shadow:0 2px 5px #5673}
+.room-object-count{position:absolute;top:10%;right:0;display:grid;place-items:center;width:25px;height:25px;border:2px solid #fffcf3;border-radius:50%;background:#d5eaf8;color:#445d6b;font:bold 12px var(--font-ui);box-shadow:0 2px 5px #5673}
 .home-secondary{background:#f3f1e7;font-size:17px}
 .home-empty{position:absolute;left:8%;right:8%;top:34%;z-index:3;padding:18px;border-radius:18px;background:#fffcf3e8;font-size:17px;color:#667981;box-shadow:0 5px 12px #5671}
 @media(max-width:430px){.skill-home{padding:16px}.home-room{border-width:5px;border-radius:20px}.room-window{border-width:4px}.room-object-count{width:21px;height:21px;font-size:11px}.room-object-label{font-size:11px;max-width:110px}.room-shelf{border-top-width:2px}.room-floor{border-top-width:5px}}
@@ -70,7 +70,7 @@
 .room-object-volume{top:33%}
 
 /* One room-level label: clamped to the interior, never behind the floor or window. */
-.room-tooltip{position:absolute;z-index:30;max-width:calc(100% - 20px);width:max-content;box-sizing:border-box;padding:7px 11px;border-radius:12px;background:#fffcf3;color:#45565b;box-shadow:0 3px 12px #354c6226;font:14px/1.3 'Segoe UI',sans-serif;text-align:center;overflow-wrap:anywhere;pointer-events:none}
+.room-tooltip{position:absolute;z-index:30;max-width:calc(100% - 20px);width:max-content;box-sizing:border-box;padding:7px 11px;border-radius:12px;background:#fffcf3;color:#45565b;box-shadow:0 3px 12px #354c6226;font:14px/1.3 var(--font-ui);text-align:center;overflow-wrap:anywhere;pointer-events:none}
 .home-room .home-object:hover{transform:none}
 .home-room .home-object:hover .home-item-art{filter:drop-shadow(0 0 5px #9bc9e577)}
 @media(max-width:430px){.room-tooltip{font-size:12px;padding:6px 9px}}

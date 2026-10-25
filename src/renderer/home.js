@@ -68,12 +68,14 @@
   }
   function wrap(ctx,text,x,y,maxWidth,lineHeight){let line='';for(const word of String(text).split(/\s+/)){const next=line?line+' '+word:word;if(ctx.measureText(next).width>maxWidth&&line){ctx.fillText(line,x,y);line=word;y+=lineHeight;}else line=next;}ctx.fillText(line,x,y);return y+lineHeight;}
   function drawCard(card){
+    // Canvas не наследует CSS: открытка использует тот же набор шрифтов, что и окна.
+    const fontFamily=getComputedStyle(document.body).fontFamily;
     const canvas=document.createElement('canvas');canvas.width=1000;canvas.height=760;canvas.setAttribute('aria-label','Открытка: первый успех с Пушиком');
     const c=canvas.getContext('2d');c.fillStyle='#fffcf3';c.fillRect(0,0,1000,760);c.fillStyle='#d5eaf8';c.beginPath();c.roundRect(30,30,940,700,35);c.fill();c.fillStyle='#fffcf3';c.beginPath();c.roundRect(55,55,890,650,28);c.fill();
-    c.fillStyle='#718493';c.font='24px Segoe UI';c.fillText('ПУШИК · МАЛЕНЬКИЕ ШАГИ, БОЛЬШИЕ ОТКРЫТИЯ',95,115);
-    c.fillStyle='#24251f';c.font='bold 58px Segoe UI';c.fillText('У меня получилось!',95,210);
-    c.font='30px Segoe UI';c.fillStyle='#61717a';c.fillText('Мой первый успех за компьютером',95,265);
-    c.font='bold 38px Segoe UI';c.fillStyle='#24251f';wrap(c,(card.name.replace(/^Самостоятельно: /,'').slice(0,105)+(card.name.length>105?'…':'')),95,355,650,52);
+    c.fillStyle='#718493';c.font=`24px ${fontFamily}`;c.fillText('ПУШИК · МАЛЕНЬКИЕ ШАГИ, БОЛЬШИЕ ОТКРЫТИЯ',95,115);
+    c.fillStyle='#24251f';c.font=`bold 58px ${fontFamily}`;c.fillText('У меня получилось!',95,210);
+    c.font=`30px ${fontFamily}`;c.fillStyle='#61717a';c.fillText('Мой первый успех за компьютером',95,265);
+    c.font=`bold 38px ${fontFamily}`;c.fillStyle='#24251f';wrap(c,(card.name.replace(/^Самостоятельно: /,'').slice(0,105)+(card.name.length>105?'…':'')),95,355,650,52);
     // Draw a small vector kitten: no external images, so PNG export stays origin-clean.
     c.save();c.translate(790,465);c.lineWidth=5;c.strokeStyle='#637784';c.fillStyle='#fffefa';
     c.beginPath();c.moveTo(35,60);c.bezierCurveTo(100,60,100,-10,76,-5);c.stroke();
@@ -83,8 +85,8 @@
     c.fillStyle='#344b59';for(const x of [-19,19]){c.beginPath();c.ellipse(x,-11,4,6,0,0,Math.PI*2);c.fill();}
     c.fillStyle='#d58e9f';c.beginPath();c.moveTo(-5,0);c.lineTo(5,0);c.lineTo(0,6);c.fill();c.lineWidth=2;c.beginPath();c.moveTo(0,6);c.quadraticCurveTo(-7,16,-12,8);c.moveTo(0,6);c.quadraticCurveTo(7,16,12,8);c.stroke();
     c.strokeStyle='#d5eaf8';c.lineWidth=9;c.beginPath();c.moveTo(-26,34);c.lineTo(26,34);c.stroke();c.fillStyle='#f2cc55';c.beginPath();c.arc(0,39,7,0,Math.PI*2);c.fill();c.restore();
-    c.font='25px Segoe UI';c.fillStyle='#64767f';c.fillText(new Intl.DateTimeFormat('ru-RU',{dateStyle:'long',timeZone:'Europe/Moscow'}).format(new Date(card.at)),95,610);
-    c.font='26px Segoe UI';c.fillText('Мы с Пушиком справились.',95,655);return canvas;
+    c.font=`25px ${fontFamily}`;c.fillStyle='#64767f';c.fillText(new Intl.DateTimeFormat('ru-RU',{dateStyle:'long',timeZone:'Europe/Moscow'}).format(new Date(card.at)),95,610);
+    c.font=`26px ${fontFamily}`;c.fillText('Мы с Пушиком справились.',95,655);return canvas;
   }
   function showPostcard(card){
     closePostcard();postcard=element('section',null,'success-postcard hit');postcard.setAttribute('role','dialog');postcard.setAttribute('aria-label','Первый успех');header(postcard,'Твой первый успех',closePostcard);
