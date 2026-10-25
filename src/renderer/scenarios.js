@@ -12,11 +12,38 @@
      optional шаг можно пропустить, если кнопки нет (например, папки DCIM на флешке нет).
      open     «Открой за меня»: что открыть, если человек не справился (адрес или 'drive').
      skipIf   пропустить шаг, если условие уже выполнено (то же, что wait).
+     btn      надпись на главной кнопке шага вместо «Сделал(а)» (ключ i18n), например 'g.next'.
 */
 (function (root) {
   const BROWSERS = 'msedge|chrome|firefox|browser|yandex|opera|Safari|Google Chrome|Яндекс';
 
   const SCENARIOS = [
+    {
+      // Обзор компьютера: кот показывает главное при первом запуске. Человек жмёт «Дальше».
+      id: 'tour',
+      match: /обзор|что где|покажи компьютер|tour/i,
+      skill: { ru: 'Обзор компьютера', en: 'Computer tour' },
+      words: 'обзор компьютера покажи компьютер',
+      win: [
+        { say: 'Это рабочий стол. На нём лежат значки программ и файлов', btn: 'g.next', wait: { manual: true } },
+        { say: 'Это кнопка «Пуск». Через неё открываются все программы', btn: 'g.next', wait: { manual: true },
+          find: { scope: 'taskbar', name: '^(Пуск|Start)$', types: ['Button'] } },
+        { say: 'Внизу панель задач. Тут значки открытых программ: нажми, и окно появится', btn: 'g.next', wait: { manual: true },
+          find: { scope: 'taskbar', name: 'Проводник|File Explorer|Edge|Chrome|Яндекс', types: ['Button', 'ListItem'] } },
+        { say: 'Справа внизу часы, звук и интернет', btn: 'g.next', wait: { manual: true },
+          find: { scope: 'taskbar', name: '\\d{1,2}:\\d{2}|Часы|Clock', types: ['Button', 'Text', 'Pane'] } },
+        { say: 'У каждого окна справа вверху крестик. Он закрывает окно, если ты запутался', btn: 'g.next', wait: { manual: true },
+          find: { scope: 'top', name: '^(Закрыть|Close)$', types: ['Button'] } },
+      ],
+      mac: [
+        { say: 'Это рабочий стол. На нём лежат файлы и папки', btn: 'g.next', wait: { manual: true } },
+        { say: 'Внизу Док. Тут значки программ: нажми один раз, и программа откроется', btn: 'g.next', wait: { manual: true },
+          find: { scope: 'taskbar', name: 'Finder', types: ['Button'] } },
+        { say: 'Вверху строка меню: справа там часы, звук и интернет', btn: 'g.next', wait: { manual: true } },
+        { say: 'У каждого окна слева вверху красный кружок. Он закрывает окно', btn: 'g.next', wait: { manual: true } },
+      ],
+      done: 'Это самое главное! Всё остальное я покажу в «Уроках»',
+    },
     {
       id: 'photos',
       match: /фото|флеш|картин|снимк|photo|usb|stick/i,
@@ -101,6 +128,24 @@
       done: 'Нашлось! Колёсиком мышки можно листать страницу вниз',
     },
     {
+      id: 'volume',
+      match: /звук|громк|тихо|не слыш|volume|sound|louder/i,
+      skill: { ru: 'Сделать звук громче', en: 'Turn the sound up' },
+      words: 'сделать звук громче громкость погромче тихо не слышно',
+      win: [
+        { say: 'Нажми на значок динамика внизу справа, рядом с часами',
+          find: { scope: 'taskbar', name: 'Громк|Динамик|Volume|Speakers|Звук|Sound', types: ['Button', 'MenuItem'] },
+          wait: { next: true }, open: 'ms-settings:sound' },
+        { say: 'Потяни кружок на полоске вправо. Чем правее, тем громче',
+          find: { scope: 'popup', name: 'Громк|Динамик|Volume|Speakers', types: ['Slider'] },
+          wait: { manual: true }, open: 'ms-settings:sound' },
+      ],
+      mac: [
+        { say: 'Нажми клавишу с громким динамиком вверху клавиатуры. Каждое нажатие делает громче', wait: { manual: true } },
+      ],
+      done: 'Готово! Если стало слишком громко, потяни кружок обратно влево',
+    },
+    {
       id: 'bigger',
       match: /крупн|больш|буквы|шрифт|текст|не вижу|мелк|bigger|font|text/i,
       skill: { ru: 'Сделать буквы крупнее', en: 'Make text bigger' },
@@ -144,5 +189,9 @@
     return SCENARIOS.find((s) => s.match.test(t)) || null;
   }
 
-  root.Scenarios = { list: SCENARIOS, match, grammar };
+  // уроки от простого к сложному
+  const ORDER = ['tour', 'volume', 'bigger', 'search', 'call', 'photos'];
+  SCENARIOS.sort((a, b) => ORDER.indexOf(a.id) - ORDER.indexOf(b.id));
+
+  root.Scenarios = { list: SCENARIOS, match, grammar, byId: (id) => SCENARIOS.find((s) => s.id === id) };
 })(window);

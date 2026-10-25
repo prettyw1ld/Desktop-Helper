@@ -60,3 +60,26 @@
 .panel .ghost{background:#f3f1e7;box-shadow:0 calc(3px * var(--ui-scale,1)) 0 #dcd9cb}
 #panel-settings .row{flex-wrap:wrap;margin-top:calc(6px * var(--ui-scale,1))}
 #panel-settings{width:calc(360px * var(--ui-scale,1))}
+
+/* Уроки */
+.lessons .les-progress{height:calc(12px * var(--ui-scale,1));border-radius:99px;background:#f3f1e7;border:calc(1px * var(--ui-scale,1)) solid #e8e5d8;overflow:hidden;margin:calc(4px * var(--ui-scale,1)) 0}
+.lessons .bar{height:100%;width:0;background:#a9cfe9;border-radius:99px;transition:width .4s ease}
+.lessons #les-count{font-size:calc(17px * var(--ui-scale,1));margin-bottom:calc(10px * var(--ui-scale,1))}
+.les-list{list-style:none;margin:0;padding:0;display:grid;gap:calc(10px * var(--ui-scale,1))}
+.les-list li{display:flex;align-items:center;gap:calc(12px * var(--ui-scale,1));padding:calc(10px * var(--ui-scale,1)) calc(12px * var(--ui-scale,1));border-radius:calc(20px * var(--ui-scale,1));background:#f3f1e7;border:calc(1px * var(--ui-scale,1)) solid #e8e5d8}
+.les-list li.done{background:#eef6fb;border-color:#d5eaf8}
+.les-list li.les-more{display:block;background:none;border:none;padding:calc(4px * var(--ui-scale,1)) calc(4px * var(--ui-scale,1));font-size:calc(14px * var(--ui-scale,1))}
+.les-icon{display:grid;place-items:center;flex-shrink:0;width:calc(40px * var(--ui-scale,1));height:calc(40px * var(--ui-scale,1));border-radius:50%;background:#fffcf3;color:#59625c}
+.les-list li.done .les-icon{background:#d5eaf8;color:#24251f}
+.les-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.les-text b{font-size:calc(17px * var(--ui-scale,1));line-height:1.25}
+.les-text .sub{font-size:calc(14px * var(--ui-scale,1))}
+.les-list .primary,.les-list .ghost{flex-shrink:0;min-height:calc(40px * var(--ui-scale,1));padding:calc(8px * var(--ui-scale,1)) calc(14px * var(--ui-scale,1))}
+.extras button{display:flex;align-items:center;justify-content:center;gap:8px;font-size:calc(17px * var(--ui-scale,1))}
+
+.extras button.pulse{background:#d5eaf8;color:#24251f;animation:les-pulse 1.2s ease-in-out infinite}
+@keyframes les-pulse{0%,100%{box-shadow:0 0 0 0 #a9cfe9}50%{box-shadow:0 0 0 calc(8px * var(--ui-scale,1)) #a9cfe900}}
+@media(prefers-reduced-motion:reduce){.extras button.pulse{animation:none;outline:3px solid #a9cfe9}}
+.lessons .les-progress,.les-list,.les-list li{flex-shrink:0}
+#panel-lessons{width:calc(440px * var(--ui-scale,1))}
+.extras [data-act="lessons"]{background:#d5eaf8;color:#24251f;border-color:#d5eaf8}

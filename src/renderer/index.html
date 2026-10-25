@@ -25,7 +25,6 @@
   <!-- Главное окно новичка: чем помочь -->
   <section id="panel-help" class="panel help hit hidden">
     <header><b data-i18n="help.title"></b><button class="icon" data-close data-i18n-title="close">✕</button></header>
-    <div id="tasks" class="tasks"></div>
     <button id="lost" class="big lost" data-i18n="help.lost"></button>
     <button type="button" id="mic" class="big mic hidden" data-i18n-title="help.mic"></button>
     <div id="mic-state" role="status" aria-live="polite" class="sub big-sub hidden"></div>
@@ -33,14 +32,19 @@
       <input id="ask-input" autocomplete="off" data-i18n-ph="help.ph" />
       <button type="submit" class="big go" data-i18n-title="help.go">➤</button>
     </form>
-    <details id="skills" class="skills">
-      <summary data-i18n="help.skills"></summary>
-      <ul id="skills-list"></ul>
-    </details>
     <div class="extras">
       <button data-act="settings" data-i18n-title="menu.settings"></button>
+      <button data-act="lessons" data-i18n-title="menu.lessons"></button>
       <button data-act="chat" data-i18n-title="menu.chat" class="hidden"></button>
     </div>
+  </section>
+
+  <!-- Уроки: все обучалки, что пройдено и прогресс -->
+  <section id="panel-lessons" class="panel help lessons hit hidden">
+    <header><b data-i18n="les.title"></b><button class="icon" data-close data-i18n-title="close">✕</button></header>
+    <div class="les-progress"><div id="les-bar" class="bar"></div></div>
+    <div id="les-count" class="sub big-sub"></div>
+    <ul id="les-list" class="les-list"></ul>
   </section>
 
   <!-- Чат -->
