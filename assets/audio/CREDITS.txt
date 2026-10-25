@@ -1,0 +1,6 @@
+Cat Purr & Meow by Kerzoven, CC0.
+https://opengameart.org/content/cat-purr-meow
+Sources: cat_softmew.wav, cat_purrsleepy_loop.wav.
+Edits: mono mix, DC removal, silence trimming, level normalization and short fades.
+
+Active meow.mp3: supplied by user as myaukane_koshki_-_myaukane_koshki.mp3; source and license not specified. Prior Kerzoven meow recording is no longer used.
