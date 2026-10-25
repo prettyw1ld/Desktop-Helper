@@ -1,0 +1,45 @@
+{
+  "name": "pushik",
+  "productName": "Пушик",
+  "version": "0.7.0",
+  "description": "Кот Пуш: десктопный питомец-помощник, который гуляет по рабочему столу",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.prettyw1ld.pushik",
+    "productName": "Пушик",
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icon.png",
+      "category": "public.app-category.utilities",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Пушик слушает, что ты хочешь сделать, когда ты нажимаешь на микрофон.",
+        "NSScreenCaptureUsageDescription": "Пушик смотрит на экран, чтобы показать лапкой, куда нажать."
+      }
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.png"
+    }
+  },
+  "author": "prettyw1ld",
+  "license": "MIT",
+  "repository": "https://github.com/prettyw1ld/pushik",
+  "dependencies": {
+    "node-ical": "^0.27.3"
+  }
+}

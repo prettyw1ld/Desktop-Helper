@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' file: data:; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+  <title>Пушик</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="cat" class="cat hit">
+    <div id="focus-badge" class="badge hidden"></div>
+    <div id="bubble" class="bubble hidden"><div id="bubble-text"></div><div id="bubble-actions" class="bubble-actions"></div></div>
+    <div id="body" class="body">
+      <canvas id="sprite" class="sprite"></canvas>
+      <div id="hitbox" class="hitbox"></div>
+      <div id="fx" class="fx"></div>
+    </div>
+  </div>
+
+  <!-- Рамка вокруг кнопки, на которую показывает кот. Клики проходят сквозь неё. -->
+  <div id="ring" class="ring hidden"></div>
+
+  <!-- Главное окно новичка: чем помочь -->
+  <section id="panel-help" class="panel help hit hidden">
+    <header><b data-i18n="help.title"></b><button class="icon" data-close data-i18n-title="close">✕</button></header>
+    <div id="tasks" class="tasks"></div>
+    <button id="lost" class="big lost" data-i18n="help.lost"></button>
+    <form id="ask-form" class="ask">
+      <button type="button" id="mic" class="big mic hidden" data-i18n-title="help.mic">🎤</button>
+      <input id="ask-input" autocomplete="off" data-i18n-ph="help.ph" />
+      <button type="submit" class="big go" data-i18n-title="help.go">➤</button>
+    </form>
+    <div id="mic-state" class="sub big-sub hidden"></div>
+    <details id="skills" class="skills">
+      <summary data-i18n="help.skills"></summary>
+      <ul id="skills-list"></ul>
+    </details>
+    <div class="extras">
+      <button data-act="trainer" data-i18n-title="menu.trainer">🖱</button>
+      <button data-act="pet" data-i18n-title="menu.pet">🤍</button>
+      <button data-act="sleep" data-i18n-title="menu.sleep">😴</button>
+      <button data-act="chat" data-i18n-title="menu.chat">💬</button>
+      <button data-act="reminders" data-i18n-title="menu.reminders">⏰</button>
+      <button data-act="focus" data-i18n-title="menu.focus">🎯</button>
+      <button data-act="settings" data-i18n-title="menu.settings">⚙</button>
+    </div>
+  </section>
+
+  <!-- Чат -->
+  <section id="panel-chat" class="panel hit hidden">
+    <header><b>Пуш</b><span class="sub" data-i18n="chat.sub"></span>
+      <button class="icon" data-reset data-i18n-title="chat.reset">↺</button>
+      <button class="icon" data-close data-i18n-title="close">✕</button></header>
+    <div id="chat-log" class="chat-log"></div>
+    <form id="chat-form" class="row">
+      <input id="chat-input" autocomplete="off" data-i18n-ph="chat.ph" />
+      <button type="submit" class="primary">➤</button>
+    </form>
+  </section>
+
+  <!-- Напоминания и календарь -->
+  <section id="panel-reminders" class="panel hit hidden">
+    <header><b data-i18n="rem.title"></b><button class="icon" data-close data-i18n-title="close">✕</button></header>
+    <form id="rem-form" class="col">
+      <input id="rem-text" data-i18n-ph="rem.ph" required />
+      <div class="row">
+        <input id="rem-min" type="number" min="1" value="15" />
+        <span class="sub" data-i18n="rem.min"></span>
+        <button type="submit" class="primary" data-i18n="rem.add"></button>
+      </div>
+      <div class="chips">
+        <button type="button" data-min="5">5</button>
+        <button type="button" data-min="15">15</button>
+        <button type="button" data-min="30">30</button>
+        <button type="button" data-min="60" data-i18n="rem.hour"></button>
+      </div>
+    </form>
+    <ul id="rem-list" class="rem-list"></ul>
+    <header><b data-i18n="cal.title"></b><span class="sub">📅</span></header>
+    <ul id="cal-list" class="rem-list cal-list"></ul>
+  </section>
+
+  <!-- Настройки -->
+  <section id="panel-settings" class="panel hit hidden">
+    <header><b data-i18n="set.title"></b><button class="icon" data-close data-i18n-title="close">✕</button></header>
+    <form id="settings-form" class="col">
+      <div class="row">
+        <label class="grow"><span data-i18n="set.name"></span><input name="userName" data-i18n-ph="set.namePh" /></label>
+        <label><span data-i18n="set.lang"></span>
+          <select name="lang"><option value="ru">Русский</option><option value="en">English</option></select>
+        </label>
+      </div>
+
+      <label><span data-i18n="set.provider"></span>
+        <select name="provider">
+          <option value="claude" data-i18n="set.provClaude"></option>
+          <option value="ollama" data-i18n="set.provOllama"></option>
+        </select>
+      </label>
+      <div class="group" data-for="claude">
+        <label><span data-i18n="set.key"></span>
+          <input name="apiKey" type="password" placeholder="sk-ant-…" autocomplete="off" />
+          <span class="sub" id="key-state"></span>
+        </label>
+        <label><span data-i18n="set.model"></span>
+          <select name="model">
+            <option value="claude-sonnet-5-5" data-i18n="set.mSonnet"></option>
+            <option value="claude-haiku-5-5" data-i18n="set.mHaiku"></option>
+            <option value="claude-opus-5-5" data-i18n="set.mOpus"></option>
+          </select>
+        </label>
+      </div>
+      <div class="group" data-for="ollama">
+        <label><span data-i18n="set.ollamaUrl"></span><input name="ollamaUrl" placeholder="http://localhost:11434" /></label>
+        <label><span data-i18n="set.ollamaModel"></span><input name="ollamaModel" list="ollama-models" placeholder="qwen3" />
+          <datalist id="ollama-models"></datalist>
+          <span class="sub" id="ollama-state"></span>
+        </label>
+      </div>
+
+      <label><span data-i18n="set.calendar"></span>
+        <input name="calendarUrl" type="password" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics" autocomplete="off" />
+        <span class="sub" id="cal-state"></span>
+      </label>
+      <label><span data-i18n="set.calBefore"></span><input name="calendarBefore" type="number" min="1" max="120" /></label>
+
+      <label><span data-i18n="set.color"></span>
+        <select name="catColor">
+          <option value="white" data-i18n="set.cWhite"></option>
+          <option value="ginger" data-i18n="set.cGinger"></option>
+          <option value="black" data-i18n="set.cBlack"></option>
+        </select>
+      </label>
+      <label class="check"><input name="speak" type="checkbox" /> <span data-i18n="set.speak"></span></label>
+      <label><span data-i18n="set.tasks"></span>
+        <textarea name="tasks" rows="4" data-i18n-ph="set.tasksPh"></textarea>
+      </label>
+      <label><span data-i18n="set.stt"></span>
+        <input name="sttKey" type="password" placeholder="gsk_…" autocomplete="off" />
+        <span class="sub" id="stt-state"></span>
+      </label>
+      <details class="more"><summary data-i18n="set.sttMore"></summary>
+        <label><span data-i18n="set.sttUrl"></span><input name="sttUrl" placeholder="https://api.groq.com/openai/v1" /></label>
+        <label><span data-i18n="set.sttModel"></span><input name="sttModel" placeholder="whisper-large-v3" /></label>
+        <label><span data-i18n="set.visionModel"></span><input name="visionModel" placeholder="qwen2.5vl" /></label>
+      </details>
+
+      <label><span data-i18n="set.size"></span><input name="size" type="range" min="0.5" max="2" step="0.05" /></label>
+      <label><span data-i18n="set.speed"></span><input name="speed" type="range" min="0.3" max="2.5" step="0.1" /></label>
+      <label class="check"><input name="windows" type="checkbox" /> <span data-i18n="set.windows"></span></label>
+      <label class="check"><input name="sound" type="checkbox" /> <span data-i18n="set.sound"></span></label>
+      <label><span data-i18n="set.volume"></span><input name="volume" type="range" min="0" max="1" step="0.05" /></label>
+      <label><span data-i18n="set.break"></span><input name="breakEvery" type="number" min="0" /></label>
+      <label class="check"><input name="chatter" type="checkbox" /> <span data-i18n="set.chatter"></span></label>
+      <label class="check"><input name="autostart" type="checkbox" /> <span data-i18n="set.autostart"></span></label>
+      <div class="row">
+        <button type="submit" class="primary" data-i18n="set.save"></button>
+        <button type="button" id="quit" class="ghost" data-i18n="set.quit"></button>
+      </div>
+    </form>
+  </section>
+
+  <script src="i18n.js"></script>
+  <script src="sound.js"></script>
+  <script src="cats.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
