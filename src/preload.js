@@ -20,6 +20,9 @@ contextBridge.exposeInMainWorld('pushik', {
   transcribe: (audio, mime) => ipcRenderer.invoke('stt:transcribe', { audio, mime }),
   askMic: () => ipcRenderer.invoke('mic:ask'),
   addSkill: (name) => ipcRenderer.invoke('skills:add', name),
+  locate: (q) => ipcRenderer.invoke('locate', q),
+  openUri: (uri) => ipcRenderer.invoke('open:uri', uri),
+  openDrive: (letter) => ipcRenderer.invoke('open:drive', letter),
   on: (channel, cb) => {
     const allowed = ['reminder', 'reminders-changed', 'open', 'settings-changed', 'toggle-visible',
       'calendar-soon', 'calendar-changed', 'windows', 'screen-changed'];
