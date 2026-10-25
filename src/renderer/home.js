@@ -18,16 +18,31 @@
     home=element('section',null,'skill-home hit');home.setAttribute('role','dialog');home.setAttribute('aria-label','Домик освоенных навыков');
     header(home,'Домик Пушика',closeHome);{const back=element('button','←','home-close home-back');back.setAttribute('aria-label','Назад');back.title='Назад';back.onclick=()=>{closeHome();showPanel('lessons');};home.querySelector('header').prepend(back);}home.append(element('p','Каждый предмет — твоё открытие. Нажми, чтобы вспомнить навык.'));
     const room=element('div',null,'home-room'),detail=element('div',null,'home-detail');detail.setAttribute('aria-live','polite');
+    const decor=element('div',null,'room-decor');decor.setAttribute('aria-hidden','true');
+    decor.innerHTML='<div class="room-window"><i></i><i></i><i></i><i></i></div><div class="room-shelf room-shelf-top"></div><div class="room-shelf room-shelf-middle"></div><div class="room-floor"></div><div class="room-rug"></div><div class="room-desk"><i></i><i></i></div><div class="room-plant"><i></i><i></i><i></i><b></b></div><div class="room-sleeping-cat"></div><div class="room-sunlight"></div>';
+    room.append(decor);
     const skills=settings.skills||[];
-    if(!skills.length)room.append(element('div','Домик пока пуст. Пройди первый урок — здесь появится предмет.','home-empty'));
-    skills.forEach(skill=>{
-      const [icon,title]=objectFor(skill.name),button=element('button',null,'home-object');button.type='button';button.title=skill.name;button.setAttribute('aria-label',title+': '+skill.name);const art=element('span',null,'home-item-art home-art-'+icon);art.setAttribute('role','img');art.setAttribute('aria-label',title);button.append(art,element('span',title));
-      button.onclick=()=>{
-        detail.replaceChildren();detail.append(element('h3',skill.name));const studied=skill.name.startsWith('Изучено:');
-        detail.append(element('p',studied?'Ты познакомился с этим элементом. Самостоятельное выполнение ещё можно потренировать.':'Ты уже освоил это действие. Можно повторить его ещё раз.'));
-        if(!studied){const repeat=element('button','Повторить навык','home-action');repeat.onclick=()=>{closeHome();const known=typeof lessons==='function'?lessons().find(l=>l.name===skill.name):null;if(known)known.start();else routeGoal(skill.name.replace(/^Самостоятельно: /,''));};detail.append(repeat);}
-      };room.append(button);
-    });
+    const groups=new Map();
+    skills.forEach(skill=>{const [icon,title]=objectFor(skill.name);if(!groups.has(icon))groups.set(icon,{title,skills:[]});groups.get(icon).skills.push(skill);});
+    function showSkill(skill,group){
+      detail.replaceChildren();detail.append(element('h3',skill.name));const studied=skill.name.startsWith('Изучено:');
+      detail.append(element('p',studied?'Ты познакомился с этим элементом. Самостоятельное выполнение ещё можно потренировать.':'Ты уже освоил это действие. Можно повторить его ещё раз.'));
+      if(!studied){const repeat=element('button','Повторить навык','home-action');repeat.onclick=()=>{closeHome();const known=typeof lessons==='function'?lessons().find(l=>l.name===skill.name):null;if(known)known.start();else routeGoal(skill.name.replace(/^Самостоятельно: /,''));};detail.append(repeat);}
+      if(group.skills.length>1){const back=element('button','Все открытия этого предмета','home-action home-secondary');back.onclick=()=>showGroup(group);detail.append(back);}
+    }
+    function showGroup(group){
+      if(group.skills.length===1){showSkill(group.skills[0],group);return;}
+      detail.replaceChildren();detail.append(element('h3',group.title),element('p','Выбери, что хочешь вспомнить:'));
+      group.skills.forEach(skill=>{const item=element('button',skill.name,'home-action home-secondary');item.onclick=()=>showSkill(skill,group);detail.append(item);});
+    }
+    if(!skills.length)room.append(element('div','Комната ждёт твоих открытий. Пройди первый урок — здесь появится предмет.','home-empty'));
+    for(const [icon,group] of groups){
+      const button=element('button',null,'home-object room-object-'+icon);button.type='button';button.title=group.title;button.setAttribute('aria-label',group.title+': '+group.skills.map(s=>s.name).join(', '));
+      const art=element('span',null,'home-item-art home-art-'+icon);art.setAttribute('aria-hidden','true');button.append(art,element('span',group.title,'room-object-label'));
+      if(group.skills.length>1)button.append(element('span',String(group.skills.length),'room-object-count'));
+      button.onclick=()=>{room.querySelectorAll('.home-object').forEach(b=>b.classList.remove('selected'));button.classList.add('selected');showGroup(group);};room.append(button);
+    }
+    home.append(element('div',skills.length+' открытий · '+groups.size+' предметов в комнате','room-caption'));
     home.append(room,detail);
     if(settings.firstSuccessCard){const card=element('button','Открытка первого успеха','home-action');card.onclick=()=>showPostcard(settings.firstSuccessCard);home.append(card);}
     document.body.append(home);home.querySelector('button')?.focus();

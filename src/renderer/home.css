@@ -26,3 +26,45 @@
 .lesson-dropdown>summary:focus-visible{outline:2px solid #7195ac;border-radius:10px}
 .lesson-dropdown[open]{background:#fffcf3}
 .lesson-dropdown .les-list{margin-top:6px}
+
+/* A small, furnished room. Objects occupy fixed, separate places. */
+.skill-home{width:620px;padding:26px}
+.room-caption{font-size:14px;letter-spacing:.02em;color:#83959b;margin:0 0 12px}
+.home-room{display:block;container-type:inline-size;width:100%;aspect-ratio:1.3;min-height:0;padding:0;border:7px solid #e6ddce;border-radius:28px;overflow:hidden;background:repeating-linear-gradient(90deg,#e9f3f6 0 23px,#e4eff3 23px 25px);box-shadow:inset 0 12px 30px #8aa7ab15}
+.home-room:before{display:none}
+.room-decor{position:absolute;inset:0;pointer-events:none}
+.room-floor{position:absolute;inset:68% 0 0;background:repeating-linear-gradient(0deg,transparent 0 36px,#cfbfa744 36px 38px),repeating-linear-gradient(90deg,#e6d6bc 0 95px,#ddcaad 95px 97px);border-top:8px solid #f9f4e8;box-shadow:0 -2px 0 #bfcac5}
+.room-window{position:absolute;top:8%;right:8%;width:23%;height:31%;border:7px solid #fffaf0;border-radius:35% 35% 8% 8%;background:linear-gradient(#b8deed,#e5f3f7);box-shadow:0 6px 0 #d1c6b5,0 10px 15px #7f9eab14;display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:0;overflow:hidden}
+.room-window:before{content:'';position:absolute;width:20%;aspect-ratio:1;right:15%;top:15%;border-radius:50%;background:#fff2bf;box-shadow:0 0 15px #fff5be}
+.room-window:after{content:'';position:absolute;left:8%;top:56%;width:45%;height:11%;border-radius:50%;background:#ffffffa0}
+.room-window i{position:relative;border-right:3px solid #fffaf0;border-bottom:3px solid #fffaf0}
+.room-shelf{position:absolute;height:3%;border-radius:4px;background:#c8aa80;border-top:4px solid #f1dfbf;box-shadow:0 5px 0 #af926c33,0 10px 12px #5d72781c}
+.room-shelf-top{left:8%;top:30%;width:43%}.room-shelf-middle{left:7%;top:55%;width:31%}
+.room-rug{position:absolute;left:8%;top:77%;width:44%;height:17%;border-radius:50%;background:#b6d7df;border:6px solid #d6e9eb;box-shadow:0 5px 0 #937d6019,inset 0 0 0 2px #9abac533;transform:rotate(-5deg)}
+.room-desk{position:absolute;left:47%;top:61%;width:44%;height:5%;border-radius:8px;background:#c5a27c;border-top:5px solid #f0dcc0;box-shadow:0 4px 0 #a5886833}
+.room-desk i{position:absolute;top:100%;width:7%;height:24cqw;background:#ba9670;border-radius:0 0 5px 5px}.room-desk i:first-child{left:7%}.room-desk i:last-child{right:7%}
+.room-plant{position:absolute;left:80%;top:43%;width:10%;height:18%}.room-plant b{position:absolute;left:10%;bottom:0;width:80%;height:44%;border-radius:5px 5px 12px 12px;background:#d6a18c;border-top:5px solid #ebbdab}.room-plant i{position:absolute;width:50%;height:38%;background:#92b7a4;border-radius:5px 80%;bottom:36%;left:20%;transform:rotate(30deg)}.room-plant i:nth-child(2){left:45%;bottom:48%;transform:rotate(105deg)}.room-plant i:nth-child(3){left:8%;bottom:60%;transform:rotate(15deg)}
+.room-sleeping-cat{position:absolute;left:65%;top:78%;width:25%;aspect-ratio:1;background-image:url('../../assets/achievements/cozy-items.png');background-size:300% 300%;background-position:100% 100%;opacity:.97}
+.room-sunlight{position:absolute;right:1%;top:40%;width:30%;height:50%;background:linear-gradient(160deg,#fff8cf26,transparent);transform:skew(-15deg);filter:blur(6px)}
+.home-room .home-object{position:absolute;width:23%;min-height:0;padding:0;gap:0;background:transparent!important;border:0;border-radius:18px;box-shadow:none;display:block;aspect-ratio:1;z-index:2;transition:transform .18s;overflow:visible}
+.home-room .home-item-art{width:100%;max-width:none;aspect-ratio:1;filter:drop-shadow(0 5px 3px #6f614523);transition:filter .18s}
+.home-room .home-object:hover{translate:0 0;transform:translateY(-4px)}
+.home-room .home-object.selected .home-item-art{filter:drop-shadow(0 0 6px #74bde8aa)}
+.home-room .home-object:focus-visible{outline:3px solid #6f9bb0;outline-offset:0}
+.room-object-photos{left:7%;top:2%;width:24%!important}
+.room-object-search{left:30%;top:7%}
+.room-object-volume{left:9%;top:29%;width:22%!important}
+.room-object-type{left:44%;top:34%;width:25%!important}
+.room-object-call{left:65%;top:39%;width:20%!important}
+.room-object-mouse{left:17%;top:66%;width:23%!important}
+.room-object-label{position:absolute;left:50%;bottom:-4px;transform:translate(-50%,100%);width:max-content;max-width:160px;padding:5px 8px;border-radius:9px;background:#fffcf3f5;color:#45565b;box-shadow:0 3px 9px #283a4720;font:13px/1.2 'Segoe UI';opacity:0;pointer-events:none;z-index:9}
+.home-object:hover .room-object-label,.home-object:focus-visible .room-object-label,.home-object.selected .room-object-label{opacity:1}
+.room-object-count{position:absolute;top:10%;right:0;display:grid;place-items:center;width:25px;height:25px;border:2px solid #fffcf3;border-radius:50%;background:#d5eaf8;color:#445d6b;font:bold 12px 'Segoe UI';box-shadow:0 2px 5px #5673}
+.home-secondary{background:#f3f1e7;font-size:17px}
+.home-empty{position:absolute;left:8%;right:8%;top:34%;z-index:3;padding:18px;border-radius:18px;background:#fffcf3e8;font-size:17px;color:#667981;box-shadow:0 5px 12px #5671}
+@media(max-width:430px){.skill-home{padding:16px}.home-room{border-width:5px;border-radius:20px}.room-window{border-width:4px}.room-object-count{width:21px;height:21px;font-size:11px}.room-object-label{font-size:11px;max-width:110px}.room-shelf{border-top-width:2px}.room-floor{border-top-width:5px}}
+@media(prefers-reduced-motion:reduce){.home-room .home-object,.home-room .home-item-art{transition:none}.home-room .home-object:hover{transform:none}}
+
+.room-sleeping-cat{left:68%;top:70%;width:22%}
+
+.room-object-volume{top:33%}
