@@ -629,7 +629,10 @@ async function trainerDone() {
   say(`${T('tr.done')}\n${T('g.skillSaved')}`, 8000, { guide: true });
   speak(T('tr.done'));
   settings.skills = await api.addSkill(T('tr.skill'));
-  if (!settings.onboarded) settings = await api.saveSettings({ onboarded: true });
+  if (!settings.onboarded) {
+    settings = await api.saveSettings({ onboarded: true });
+    setTimeout(() => { if (!guide.active && !trainer.step) startTourOnce(); }, 6000);
+  }
 }
 function endTrainer(sayBye) {
   if (!trainer.step) return;
@@ -734,34 +737,11 @@ function onCatClick() {
 }
 
 // ---------- Окно «Чем помочь?» ----------
-function taskList() {
-  const own = (settings.tasks || []).map((s) => String(s).trim()).filter(Boolean);
-  return own.length ? own : I18N.list('help.tasks');
-}
 // «📞 Позвонить по видео» → «Позвонить по видео»
 const goalOf = (label) => label.replace(/^[^\p{L}\p{N}]+/u, '').trim();
 
+// Главное окно: «Я запутался», голос и текст. Готовые задачи живут в «Уроках».
 function renderHelp() {
-  const box = $('#tasks');
-  box.innerHTML = '';
-  for (const label of taskList()) {
-    const b = document.createElement('button');
-    b.className = 'big';
-    b.textContent = label;
-    decoratePushikTask(b, label);
-    b.addEventListener('click', () => routeGoal(label));
-    box.appendChild(b);
-  }
-  const ul = $('#skills-list');
-  ul.innerHTML = '';
-  const skills = settings.skills || [];
-  if (!skills.length) emptyLi(ul, T('help.noSkills'));
-  for (const s of skills) {
-    const li = document.createElement('li');
-    li.textContent = s.name;
-    ul.appendChild(li);
-  }
-  $('#skills').open = skills.length > 0 && skills.length <= 4;
   $('#mic-state').classList.add('hidden');
   document.querySelector('.extras [data-act="chat"]').classList.toggle('hidden', !settings.aiReady);
   initMic();
@@ -780,7 +760,7 @@ document.querySelector('.extras').addEventListener('click', (e) => {
   const b = e.target.closest('button');
   if (!b) return;
   const act = b.dataset.act;
-  if (['chat', 'settings'].includes(act)) showPanel(act);
+  if (['chat', 'settings', 'lessons'].includes(act)) showPanel(act);
 });
 
 // ---------- Голосовой ввод (Whisper). Без микрофона или ключа кнопка просто прячется ----------
@@ -893,6 +873,7 @@ function showPanel(name) {
   if (name === 'help') renderHelp();
   if (name === 'reminders') { renderReminders(); renderCalendar(); setTimeout(() => $('#rem-text').focus(), 50); }
   if (name === 'settings') fillSettings();
+  if (name === 'lessons') renderLessons();
   placePanel(panel);
   if (name === 'chat') setTimeout(() => $('#chat-input').focus(), 50);
 }
