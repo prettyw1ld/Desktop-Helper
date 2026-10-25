@@ -4,6 +4,7 @@
 const { desktopCapturer, screen } = require('electron');
 
 const CLAUDE_URL = 'https://api.anthropic.com/v1/messages';
+const { resolve } = require('./llm');
 const SHOT_W = 1280; // ширина снимка для модели (меньше = быстрее ответ)
 
 // Ответ модели всегда в одном формате, через принудительный вызов инструмента.
@@ -135,6 +136,30 @@ async function askClaude({ apiKey, model, system, text, jpeg }) {
   return use.input;
 }
 
+// OpenAI-совместимые сервисы с зрением (Groq llama-4-scout, OpenRouter qwen2.5-vl …): ответ строго JSON
+async function askOpenAI({ apiKey, url, vision, system, text, jpeg }) {
+  const schema = JSON.stringify(STEP_SCHEMA);
+  const res = await fetch(`${url}/chat/completions`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      model: vision,
+      max_tokens: 600,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: `${system}\nAnswer ONLY with a JSON object matching this JSON schema: ${schema}` },
+        { role: 'user', content: [{ type: 'text', text }, { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${jpeg}` } }] },
+      ],
+    }),
+    signal: AbortSignal.timeout(45_000),
+  });
+  if (!res.ok) throw await readError(res);
+  const data = await res.json();
+  const raw = String(data.choices?.[0]?.message?.content || '{}').replace(/<think>[\s\S]*?<\/think>/g, '');
+  const json = raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1) || '{}';
+  return JSON.parse(json);
+}
+
 // Ollama: нужна модель с зрением (qwen2.5vl, llava, gemma3).
 async function askOllama({ ollamaUrl, visionModel, ollamaModel, system, text, jpeg }) {
   let res;
@@ -166,8 +191,9 @@ async function look({ mode, goal, history = [], settings, overlay }) {
   const jpeg = shot.image.toJPEG(80).toString('base64');
   const system = systemPrompt(settings.lang, process.platform);
   const text = `${userText({ mode, goal, history })}\nScreenshot size: ${shot.w}x${shot.h} pixels.`;
-  const fn = settings.provider === 'ollama' ? askOllama : askClaude;
-  const out = await fn({ ...settings, system, text, jpeg });
+  const r = resolve(settings);
+  const fn = r.kind === 'ollama' ? askOllama : r.kind === 'openai' ? askOpenAI : askClaude;
+  const out = await fn({ ...settings, ...(r.kind === 'openai' ? { url: r.url, vision: r.vision } : {}), system, text, jpeg });
   const status = ['step', 'done', 'not_found', 'explain', 'danger'].includes(out.status) ? out.status : 'step';
   return {
     status,

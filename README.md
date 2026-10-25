@@ -103,9 +103,11 @@ npm start
 
 | Поле `team.json` | Что это |
 |---|---|
-| `apiKey`, `model` | ключ Claude с [console.anthropic.com](https://console.anthropic.com) и модель. Без ключа кот работает по готовым сценариям |
-| `provider`, `ollamaUrl`, `ollamaModel`, `visionModel` | вместо Claude можно взять локальную [Ollama](https://ollama.com) (`"provider": "ollama"`) |
-| `voice`, `sttKey`, `sttUrl`, `sttModel` | `"voice": "whisper"` и ключ [Groq](https://console.groq.com) для свободной речи. По умолчанию голос офлайн |
+| `provider`, `apiKey` | `"groq"` и бесплатный ключ с [console.groq.com](https://console.groq.com): один ключ даёт чат (`llama-3.3-70b-versatile`), зрение (`llama-4-scout`) и голос (Whisper). Ещё можно `"openrouter"`, `"claude"`, `"ollama"` или `"openai"` со своим `aiUrl` |
+| `model`, `visionModel` | свои модели вместо стандартных (необязательно) |
+| `voice` | `"whisper"`: свободная речь через тот же ключ Groq. Без ключа голос работает офлайн по словам команд |
+
+Пример лежит в `team.example.json`. Без `team.json` кот работает по готовым урокам, а чат честно говорит, что ИИ не подключён.
 
 На macOS, чтобы кот показывал лапкой, разрешите Пушику «Универсальный доступ», а для ИИ ещё и «Запись экрана».
 

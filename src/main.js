@@ -36,7 +36,8 @@ let tray = null;
 // ---------- Настройки ----------
 const DEFAULTS = {
   lang: '',                // '' = по языку системы
-  provider: 'claude',      // claude | ollama
+  provider: 'claude',      // claude | groq | openrouter | openai | ollama
+  aiUrl: '',               // адрес OpenAI-совместимого сервиса (для provider: openai)
   apiKey: '',
   model: 'claude-sonnet-5-5',
   ollamaUrl: 'http://localhost:11434',
@@ -78,7 +79,7 @@ function loadTeam() {
   for (const f of places) {
     try { team = { ...team, ...JSON.parse(fs.readFileSync(f, 'utf8')) }; } catch { /* файла нет */ }
   }
-  const allowed = ['apiKey', 'provider', 'model', 'ollamaUrl', 'ollamaModel', 'visionModel', 'sttUrl', 'sttKey', 'sttModel', 'voice'];
+  const allowed = ['apiKey', 'provider', 'aiUrl', 'model', 'ollamaUrl', 'ollamaModel', 'visionModel', 'sttUrl', 'sttKey', 'sttModel', 'voice'];
   team = Object.fromEntries(Object.entries(team).filter(([k, v]) => allowed.includes(k) && typeof v === 'string' && v));
 }
 
@@ -125,10 +126,17 @@ function saveSettings(next) {
 }
 
 // В окно секреты целиком не отдаём, только признак, что они заданы.
+// Голос через Groq может взять тот же ключ, что и чат, если ИИ тоже Groq
+function sttKeyFor(s) {
+  if (s.sttKey) return s.sttKey;
+  const groqAi = s.provider === 'groq' || /groq\.com/.test(s.aiUrl || '');
+  return groqAi && /groq\.com/.test(s.sttUrl || stt.DEFAULT_URL) ? s.apiKey : '';
+}
+
 function publicSettings() {
   const { apiKey, calendarUrl, sttKey, ...rest } = settings;
   return {
-    ...rest, hasApiKey: !!apiKey, hasCalendar: !!calendarUrl, hasStt: !!sttKey || !/groq\.com|openai\.com/.test(settings.sttUrl || ''),
+    ...rest, hasApiKey: !!apiKey, hasCalendar: !!calendarUrl, hasStt: !!sttKeyFor(settings) || !/groq\.com|openai\.com/.test(settings.sttUrl || ''),
     hasVosk: fs.existsSync(VOSK_MODEL),
     aiReady: settings.provider === 'ollama' || !!apiKey,
     teamKey: !!team.apiKey && apiKey === team.apiKey,
@@ -325,7 +333,11 @@ function toOverlayRect(r) {
   const d = process.platform === 'win32' ? screen.screenToDipRect(null, { x: r.x, y: r.y, width: r.w, height: r.h }) : { x: r.x, y: r.y, width: r.w, height: r.h };
   return { x: Math.round(d.x - wa.x), y: Math.round(d.y - wa.y), w: Math.round(d.width), h: Math.round(d.height) };
 }
-ipcMain.handle('locate', (_e, q) => locate.ask(q, toOverlayRect));
+ipcMain.handle('locate', (_e, q) => {
+  // всплывающие панели Windows (громкость, «Пуск») тоже «поверх всех»: поднимаем кота выше них
+  if (win && q?.op === 'find') win.moveTop();
+  return locate.ask(q, toOverlayRect);
+});
 // «Открой за меня»: только безопасные адреса (настройки Windows, WhatsApp, Telegram, сайты) и флешка
 ipcMain.handle('open:uri', (_e, uri) => {
   const u = String(uri || '');
@@ -365,7 +377,7 @@ ipcMain.on('guide:unwatch', () => guide.unwatch());
 // ---------- Голос ----------
 ipcMain.handle('stt:transcribe', async (_e, { audio, mime }) => {
   try {
-    const text = await stt.transcribe(settings, Buffer.from(audio), mime);
+    const text = await stt.transcribe({ ...settings, sttKey: sttKeyFor(settings) }, Buffer.from(audio), mime);
     return { text };
   } catch (err) {
     return { error: t('err.stt', { err: err.message }) };
@@ -428,7 +440,8 @@ ipcMain.handle('chat:send', async (_e, text) => {
     return { reply, actions };
   } catch (err) {
     if (err.offline) return { error: t('err.ollama', { url: settings.ollamaUrl }) };
-    return { error: t('err.ask', { who: useOllama ? 'Ollama' : 'Claude', err: err.message }) };
+    const who = { ollama: 'Ollama', groq: 'Groq', openrouter: 'OpenRouter', openai: 'ИИ' }[settings.provider] || 'Claude';
+    return { error: t('err.ask', { who, err: err.message }) };
   }
 });
 

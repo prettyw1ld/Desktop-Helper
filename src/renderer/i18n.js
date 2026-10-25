@@ -56,7 +56,7 @@
       'tray.settings': 'Настройки', 'tray.toggle': 'Спрятать / показать', 'tray.quit': 'Выход',
       'notif.focus': 'Пуш: фокус-сессия закончилась', 'notif.reminder': 'Пуш напоминает', 'notif.calendar': 'Пуш: скоро встреча',
       'rem.default': 'Напоминание',
-      'err.noKey': 'Мяу! Чтобы я мог отвечать, добавь API-ключ Claude в настройках ⚙ или включи Ollama.',
+      'err.noKey': 'Мяу! ИИ пока не подключён, поэтому свободно болтать я не умею. Зато помогу по «Урокам» 🐾',
       'err.ask': 'Ой, не получилось спросить {who}: {err}',
       'err.ollama': 'Ollama не отвечает. Она запущена? Адрес: {url}',
       // помощник для новичка
@@ -213,7 +213,7 @@
       'tray.settings': 'Settings', 'tray.toggle': 'Hide / show', 'tray.quit': 'Quit',
       'notif.focus': 'Push: focus session is over', 'notif.reminder': 'Push reminds you', 'notif.calendar': 'Push: meeting soon',
       'rem.default': 'Reminder',
-      'err.noKey': 'Meow! Add a Claude API key in settings ⚙ or switch to Ollama so I can answer.',
+      'err.noKey': 'Meow! AI is not connected yet, so I cannot chat freely. But I can help with the Lessons 🐾',
       'err.ask': 'Oops, could not ask {who}: {err}',
       'err.ollama': 'Ollama is not answering. Is it running? Address: {url}',
     },
