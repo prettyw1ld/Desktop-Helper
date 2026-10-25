@@ -274,6 +274,7 @@ function tick() {
   if (!['drag', 'fall', 'jump', 'perch'].includes(cat.state)) cat.y = Math.min(cat.y, groundY());
   catEl.style.transform = `translate(${Math.round(cat.x)}px, ${Math.round(cat.y)}px)`;
   updateBadge();
+  if (!bubble.classList.contains('hidden')) placeBubble();
   requestAnimationFrame(tick);
 }
 
@@ -363,6 +364,7 @@ function say(text, ms = 4000, opts = {}) {
   bubble.classList.toggle('guide', !!(opts.guide || opts.actions));
   bubble.classList.toggle('danger', !!opts.danger);
   bubble.classList.remove('hidden', 'below');
+  bubble.scrollTop = 0;
   cat.meowUntil = now() + 800;
   placeBubble();
   clearTimeout(bubbleTimer);
@@ -373,13 +375,24 @@ function hideBubble() {
   bubble.classList.add('hidden');
   bubbleActions.innerHTML = '';
 }
-// не даём облачку уехать за край экрана; если сверху нет места, ставим под кота
+// Общая логика для Mac и Windows: координаты уже в DIP окна Пушика.
+// Пересчитываем сторону карточки при движении, иначе «снизу» остаётся после прыжка вниз.
+// offsetHeight не учитывает анимацию появления. Если места мало — ограничиваем экраном.
+// Границы переноса между ОС описаны в docs/guide-porting.md.
 function placeBubble() {
+  const width = bubble.offsetWidth;
+  const height = bubble.offsetHeight;
+  const above = cat.y + CAT_H - 128 * size() - height;
+  const belowTop = cat.y + CAT_H + 14;
+  const below = above < 8 && belowTop + height <= H() - 8;
+  bubble.classList.toggle('below', below);
+  const top = below ? belowTop : above;
+  const left = cat.x + CAT_W / 2 - width / 2;
+  const dx = clamp(left, 8, Math.max(8, W() - width - 8)) - left;
+  const dy = clamp(top, 8, Math.max(8, H() - height - 8)) - top;
   bubble.style.marginLeft = '0px';
-  let r = bubble.getBoundingClientRect();
-  if (r.top < 8) { bubble.classList.add('below'); r = bubble.getBoundingClientRect(); }
-  if (r.left < 8) bubble.style.marginLeft = `${8 - r.left}px`;
-  else if (r.right > W() - 8) bubble.style.marginLeft = `${W() - 8 - r.right}px`;
+  bubble.style.translate = `${Math.round(dx)}px ${Math.round(dy)}px`;
+  bubble.classList.toggle('detached', Math.abs(dy) > 1);
 }
 
 // Поза на время ms. Старые имена поз из прошлых версий переведены на новые анимации.
@@ -455,6 +468,7 @@ function hideRing() { ring.classList.add('hidden'); }
 
 // Кот подходит (подпрыгивает) к кнопке и встаёт сбоку, лапкой к ней.
 function goPoint(t, then) {
+  if (cat.state === 'drag') { if (then) then(); return; }
   const k = size();
   const half = 52 * k;                       // половина видимой ширины кота
   const right = t.x + t.w / 2 > W() / 2;     // кнопка справа: кот встаёт слева от неё
@@ -657,6 +671,7 @@ document.addEventListener('mousemove', (e) => {
       press.moved = true;
       cat.plat = null;
       cat.climb = null;
+      cat.jump = null;
       setState('drag');
       if (trainer.step !== 'drag') say(T('say.grab'), 1500);
       Sound.meow(1.3);
@@ -683,13 +698,25 @@ document.addEventListener('mouseup', () => {
   press = null;
   if (wasDrag) {
     if (trainer.step === 'drag' || trainer.step === 'landing') { trainer.step = 'landing'; hideBubble(); }
-    else if (guide.active) endGuide(false);
+    else if (guide.active) {
+      // Перенос не завершает сценарий: perch удерживает кота, а текущий шаг сохраняется.
+      // Одинаковое поведение на Mac и Windows; падение здесь снова спрятало бы подсказку.
+      cat.jump = null;
+      cat.plat = null;
+      cat.vy = 0;
+      cat.y = clamp(cat.y, 0, Math.max(0, floorY()));
+      setState('perch');
+      if (guide.kind === 'script') resumeCoachAfterDrag();
+      else if (guide.last?.say) say(guide.last.say, Infinity, { guide: true, actions: stepActions() });
+      placeBubble();
+      return;
+    }
     startFall();
   } else onCatClick();
 });
 
 catEl.addEventListener('dblclick', (e) => {
-  if (e.target.closest('.bubble')) return;
+  if (e.target.closest('.bubble') || guide.active) return;
   if (trainer.step === 'dbl') {
     pet();
     trainer.step = 'drag';
@@ -711,6 +738,7 @@ function onCatClick() {
   }
   if (trainer.step === 'dbl') return;  // ждём двойной клик
   if (trainer.step === 'drag') { say(T('tr.oops'), 2500); return; }
+  if (guide.active) return;
   // много быстрых тыков подряд злят кота
   clicks = clicks.filter((c) => now() - c < 3000);
   clicks.push(now());
@@ -721,7 +749,6 @@ function onCatClick() {
     Sound.hiss();
     return;
   }
-  if (guide.active) return;  // во время подсказки клик по коту ничего не ломает
   if (cat.state === 'sleep') {
     setState('idle', 4000);
     say(T('say.notSleeping'), 2000);

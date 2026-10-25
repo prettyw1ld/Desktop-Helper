@@ -38,11 +38,15 @@ test('Finder lesson waits for the right folder in Finder, not an unrelated windo
   assert.equal(await run("check({filePlace:'postcards'}, {})"), true);
 });
 
-test('manual introduction remains visible; duplicate completion cannot skip a lesson step', async () => {
-  const { run, timers } = coachHarness();
+test('lesson starts with opening the practice folder; duplicate completion cannot skip a step', async () => {
+  const { c, run, timers } = coachHarness();
   run("runScenario(Scenarios.list.find(s => s.id === 'files-learn'))");
   await new Promise(setImmediate);
   assert.equal(run('coach.i'), 0);
+  assert.equal(run('coach.steps[0].find.name'), 'Мои открытки');
+  await run('doneClicked()');
+  assert.equal(run('coach.advancing'), false);
+  c.top = { proc: 'Finder', title: 'Мои открытки' };
   await run('doneClicked()');
   const timer = run('coach.advance');
   await run('doneClicked()');
@@ -59,6 +63,7 @@ test('stopping cancels pending advancement and a delayed lookup cannot resurrect
   const { c, run, timers } = coachHarness();
   run("runScenario(Scenarios.list.find(s => s.id === 'files-learn'))");
   await new Promise(setImmediate);
+  c.top = { proc: 'Finder', title: 'Мои открытки' };
   await run('doneClicked()');
   const timer = run('coach.advance');
   run('stopCoach()');
@@ -122,7 +127,7 @@ test('a Finder control appearing after navigation triggers both the ring and the
   run("runScenario(Scenarios.list.find(s => s.id === 'files-learn'))");
   await new Promise(setImmediate);
   assert.equal(c.bubble[2].explain.includes('files.missing'), false);
-  c.items = [{ name: 'Downloads', type: 'AXStaticText', x: 227, y: 460, w: 96, h: 18 }];
+  c.items = [{ name: 'Мои открытки', type: 'AXStaticText', x: 227, y: 460, w: 96, h: 18 }];
   await timers.get(run('coach.poll'))();
   assert.equal(rings, 1);
   assert.equal(jumps, 1);
@@ -145,4 +150,62 @@ test('macOS fallback returns JSON from its run handler and skips the sharing con
   assert.equal(result.win.title, 'Пушик — учимся работать с файлами');
   assert.equal(result.items[0].name.trim(), 'Мои открытки');
   assert.equal(result.items[0].type, 'AXTextField');
+});
+
+test('dragging the cat preserves the lesson and restores its current instruction', async () => {
+  const { c, run, timers } = coachHarness();
+  const docHandlers = {}; const catHandlers = {};
+  c.document.addEventListener = (name, fn) => { docHandlers[name] = fn; };
+  c.catEl = { addEventListener: (name, fn) => { catHandlers[name] = fn; } };
+  c.cat = { state: 'busy', x: 200, y: 400 };
+  c.trainer = {};
+  c.setState = (state) => { c.cat.state = state; };
+  let falls = 0;
+  c.startFall = () => { falls++; };
+  c.clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  c.floorY = () => 660;
+  c.placeBubble = () => {};
+  c.onCatClick = () => {};
+  const source = fs.readFileSync('src/renderer/app.js', 'utf8');
+  vm.runInContext(source.slice(source.indexOf('let press = null;'), source.indexOf('let clicks = [];')), c);
+  run("runScenario(Scenarios.list.find(s => s.id === 'files-learn'))");
+  await new Promise(setImmediate);
+  catHandlers.mousedown({ button: 0, target: { closest: () => null }, preventDefault() {}, clientX: 230, clientY: 430 });
+  docHandlers.mousemove({ clientX: 330, clientY: 230 });
+  assert.equal(c.cat.state, 'drag');
+  c.top = { proc: 'Finder', title: 'Мои открытки' };
+  await timers.get(run('coach.poll'))();
+  assert.equal(run('coach.advancing'), false);
+  docHandlers.mouseup();
+  assert.equal(c.guide.active, true);
+  assert.equal(run('coach.active'), true);
+  assert.equal(run('coach.i'), 0);
+  assert.equal(run('coach.keepPosition'), true);
+  assert.equal(c.cat.state, 'perch');
+  assert.equal(c.cat.y, 200);
+  assert.equal(falls, 0);
+  assert.ok(c.bubble[0].includes('Мои открытки'));
+  run('stopCoach()');
+});
+
+test('instruction stays inside the viewport as the cat moves from top to bottom', () => {
+  const source = fs.readFileSync('src/renderer/app.js', 'utf8');
+  const classes = new Set();
+  const c = vm.createContext({
+    cat: { x: 20, y: 0 }, CAT_W: 150, CAT_H: 140, size: () => 1,
+    W: () => 1280, H: () => 800,
+    clamp: (v, a, b) => Math.max(a, Math.min(b, v)),
+    bubble: { offsetWidth: 340, offsetHeight: 450, style: {}, classList: { toggle: (name, on) => on ? classes.add(name) : classes.delete(name) } },
+  });
+  vm.runInContext(source.slice(source.indexOf('function placeBubble()'), source.indexOf('// Поза на время')), c);
+  for (const [x, y] of [[20, 0], [1100, 0], [1100, 660], [20, 660], [600, -200]]) {
+    c.cat.x = x; c.cat.y = y;
+    vm.runInContext('placeBubble()', c);
+    const [dx, dy] = c.bubble.style.translate.split(' ').map(parseFloat);
+    const top = (classes.has('below') ? y + 154 : y + 12 - 450) + dy;
+    const left = x + 75 - 170 + dx;
+    assert.ok(top >= 8 && top + 450 <= 792, `vertical position at cat ${x},${y}`);
+    assert.ok(left >= 8 && left + 340 <= 1272, `horizontal position at cat ${x},${y}`);
+    if (y === 660) assert.equal(classes.has('below'), false);
+  }
 });

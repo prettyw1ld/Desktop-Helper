@@ -43,6 +43,8 @@ async function check(cond, step) {
   if (!cond) return false;
   if (cond.manual) return false;
   if (cond.filePlace) {
+    // Пока Mac: для Windows нужны окно Проводника и проверка текущей папки.
+    // См. docs/guide-porting.md; окно Пушика не должно мешать распознаванию перехода.
     const result = await api.locate({ op: 'window', scope: 'proc:^Finder$', firstWindow: true });
     if (result.error) { coach.fileError = result.error; return false; }
     if (cond.foreground) {
@@ -111,6 +113,8 @@ async function showCoachStep(repeat = false) {
   const step = coach.steps[coach.i];
   if (!step || !coach.active) return;
   if (coach.advancing) return;
+  if (cat.state === 'drag') return;
+  coach.keepPosition = false;
   const text = coachText(step);
   const top = step.wait?.titleChange ? await api.locate({ op: 'top' }) : {};
   if (!coach.active || coach.steps[coach.i] !== step || coach.run !== run) return;
@@ -118,6 +122,7 @@ async function showCoachStep(repeat = false) {
   const items = await locate(fillQuery(step.find));
   if (!coach.active || coach.steps[coach.i] !== step || coach.run !== run) return;
   coach.target = items[0] || null;
+  if (cat.state === 'drag') return;
   if (coach.target) coach.seen = true;
   if (!coach.target && step.optional && step.find && !repeat) { nextStep(); return; }
   const sayIt = () => {
@@ -133,7 +138,7 @@ function startPoll() {
   clearInterval(coach.poll);
   clearTimeout(coach.idle);
   coach.poll = setInterval(async () => {
-    if (coach.polling || !coach.active) return;
+    if (coach.polling || !coach.active || cat.state === 'drag') return;
     coach.polling = true;
     const run = coach.run;
     try {
@@ -141,19 +146,23 @@ function startPoll() {
       if (!step) return;
       const complete = !step.wait?.manual && await check(step.wait, step);
       if (!coach.active || coach.steps[coach.i] !== step || coach.run !== run) return;
+      if (cat.state === 'drag') return;
       if (complete) { stepDone(); return; }
       if (step.find) {
         const items = await locate(fillQuery(step.find));
-        if (!coach.active || coach.steps[coach.i] !== step || coach.run !== run || coach.advancing) return;
+        if (!coach.active || coach.steps[coach.i] !== step || coach.run !== run || coach.advancing || cat.state === 'drag') return;
         const previous = coach.target;
         coach.target = items[0] || null;
         if (coach.target) {
           coach.seen = true;
           coach.misses = 0;
           showRing(coach.target);
-          if (!previous) goPoint(coach.target, () => {
-            if (coach.active && coach.run === run && coach.steps[coach.i] === step) say(coachText(step), Infinity, { actions: coachStepActions(step), guide: true, explain: coachExplanation(step) });
-          });
+          if (!previous) {
+            const displayHint = () => {
+              if (coach.active && coach.run === run && coach.steps[coach.i] === step) say(coachText(step), Infinity, { actions: coachStepActions(step), guide: true, explain: coachExplanation(step) });
+            };
+            if (coach.keepPosition) displayHint(); else goPoint(coach.target, displayHint);
+          }
         } else {
           hideRing();
           coach.misses = (coach.misses || 0) + 1;
@@ -164,7 +173,7 @@ function startPoll() {
     } finally { coach.polling = false; }
   }, 1200);
   coach.idle = setTimeout(() => {
-    if (!coach.active) return;
+    if (!coach.active || cat.state === 'drag') return;
     say(T('g.idle'), 3000, { guide: true });
     speak(T('g.idle'));
     setTimeout(() => coach.active && showCoachStep(true), 3000);
@@ -172,7 +181,7 @@ function startPoll() {
 }
 
 function stepDone() {
-  if (!coach.active || coach.advancing) return;
+  if (!coach.active || coach.advancing || cat.state === 'drag') return;
   coach.advancing = true;
   clearInterval(coach.poll);
   hideRing();
@@ -187,6 +196,8 @@ async function nextStep() {
   const run = coach.run;
   coach.advancing = false;
   coach.i++;
+  coach.target = null;
+  coach.keepPosition = false;
   // шаги, которые уже сделаны (флешка уже вставлена, WhatsApp уже открыт), пропускаем
   while (coach.active && coach.run === run && coach.i < coach.steps.length && await check(coach.steps[coach.i].skipIf, coach.steps[coach.i])) coach.i++;
   if (!coach.active || coach.run !== run) return;
@@ -197,7 +208,7 @@ async function nextStep() {
 async function doneClicked() {
   const run = coach.run;
   const step = coach.steps[coach.i];
-  if (!step || coach.advancing) return;
+  if (!step || coach.advancing || cat.state === 'drag') return;
   say(pick(I18N.list('g.checking')), Infinity, { guide: true });
   const complete = step.wait?.manual || step.allowConfirm || await check(step.wait, step) || (!coach.sc.fileLesson && await check({ next: true }, step));
   if (!coach.active || coach.steps[coach.i] !== step || coach.run !== run) return;
@@ -240,6 +251,18 @@ async function finishScenario() {
   celebrate();
   settings.skills = await api.addSkill(sc.skill[I18N.lang] || sc.skill.ru);
   setTimeout(() => { if (cat.state === 'perch') startFall(); }, 2500);
+}
+
+// После переноса сохраняем шаг и выбранное место. Это общая логика для обеих ОС.
+// Новый прыжок нужен только для следующего шага или явного повтора подсказки.
+function resumeCoachAfterDrag() {
+  if (!coach.active || coach.advancing) return;
+  const step = coach.steps[coach.i];
+  if (!step) return;
+  coach.keepPosition = true;
+  say(coachText(step), Infinity, { guide: true, actions: coachStepActions(step), explain: coachExplanation(step) });
+  if (coach.target) showRing(coach.target);
+  startPoll();
 }
 
 function stopCoach() {
