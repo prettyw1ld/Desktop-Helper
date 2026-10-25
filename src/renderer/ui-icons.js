@@ -14,7 +14,6 @@ document.addEventListener('DOMContentLoaded',()=>{
 window.refreshPushikIcons=()=>{
   const labeled=(el,name)=>{if(!el)return;const label=el.textContent.replace(/^[^\p{L}\p{N}]+/u,'').trim();el.replaceChildren();el.insertAdjacentHTML('beforeend',PushikIcon(name));const text=document.createElement('span');text.textContent=label;el.append(text);};
   labeled(document.querySelector('#inspect-element'),'inspect');
-  labeled(document.querySelector('#lost'),'help');
   labeled(document.querySelector('#skills summary'),'award');
   const extras={chat:'chat',settings:'gear',lessons:'book'};
   for(const [action,name] of Object.entries(extras)){
