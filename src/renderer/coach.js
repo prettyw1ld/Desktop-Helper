@@ -81,7 +81,7 @@ async function check(cond, step) {
   return false;
 }
 
-function stepActions(step) {
+function coachStepActions(step) {
   const acts = [[T(step.btn || 'g.done'), () => doneClicked(), true]];
   if (step.find) acts.push([T('g.again'), () => showCoachStep(true)]);
   if (step.open) acts.push([T('coach.open'), () => openForMe(step)]);
@@ -101,7 +101,7 @@ async function showCoachStep(repeat = false) {
   if (coach.target) coach.seen = true;
   if (!coach.target && step.optional && step.find && !repeat) { nextStep(); return; }
   const sayIt = () => {
-    say(text, Infinity, { actions: stepActions(step), guide: true });
+    say(text, Infinity, { actions: coachStepActions(step), guide: true });
     speak(text);
   };
   if (coach.target) { showRing(coach.target); goPoint(coach.target, sayIt); } else { hideRing(); if (cat.state === 'perch') startFall(); sayIt(); }
@@ -126,7 +126,7 @@ function startPoll() {
           coach.target = items[0];
           coach.seen = true;
           showRing(coach.target);
-          goPoint(coach.target, () => say(stepSay(step), Infinity, { actions: stepActions(step), guide: true }));
+          goPoint(coach.target, () => say(stepSay(step), Infinity, { actions: coachStepActions(step), guide: true }));
         }
       }
     } finally { coach.polling = false; }
@@ -160,7 +160,7 @@ async function doneClicked() {
   if (step.wait?.volumeUp && !coach.ctx.vol0) { stepDone(); return; }
   say(pick(I18N.list('g.checking')), Infinity, { guide: true });
   if (await check(step.wait, step) || await check({ next: true }, step) || step.wait?.manual) { stepDone(); return; }
-  say(T('coach.notYet'), Infinity, { actions: stepActions(step), guide: true });
+  say(T('coach.notYet'), Infinity, { actions: coachStepActions(step), guide: true });
   speak(T('coach.notYet'));
   if (coach.target) goPoint(coach.target);
 }
