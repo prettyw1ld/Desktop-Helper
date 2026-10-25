@@ -19,7 +19,7 @@ const badge = $('#focus-badge');
 const ring = $('#ring');
 const sprite = new Cats.CatSprite($('#sprite'));
 
-let settings = { speed: 1, chatter: true, breakEvery: 0, size: 1, windows: true, sound: true, volume: 0.4, lang: 'ru', catColor: 'white', speak: true, skills: [] };
+let settings = { speed: 1, chatter: false, breakEvery: 0, size: 1, windows: true, sound: true, volume: 0.4, lang: 'ru', catColor: 'white', speak: true, skills: [] };
 let reminders = [];
 
 const W = () => window.innerWidth;
@@ -497,13 +497,8 @@ function startWatch() {
   // ждём, пока кот допрыгнет и облачко встанет на место
   setTimeout(() => { if (guide.active && !guide.busy) api.guideWatch(guideMasks()); }, 900);
   clearTimeout(guide.idleTimer);
-  // F12: человек долго ничего не делает, кот сам предлагает помощь
-  guide.idleTimer = setTimeout(() => {
-    if (!guide.active || guide.busy || !guide.last) return;
-    say(T('g.idle'), 3000, { guide: true });
-    speak(T('g.idle'));
-    setTimeout(() => guide.active && !guide.busy && showStep(guide.last, true), 3000);
-  }, 50_000);
+  guide.stepAt = Date.now();
+  guide.autoChecked = false;
 }
 
 function stepActions() {
@@ -616,8 +611,13 @@ function endGuide(sayBye) {
 // бесплатный ИИ попросил подождать: кот говорит, что думает, вместо тишины
 api.on('ai-wait', (sec) => say(T('ai.wait', { sec }), (sec + 1) * 1000, { guide: true }));
 
+// Сам проверяем не больше одного раза на шаг и не раньше чем через 3 с:
+// иначе любое движение на экране (видео, прокрутка) заставляет кота говорить без спроса.
 api.on('screen-changed', () => {
   if (!guide.active || guide.busy || guide.kind !== 'ai' || guide.mode === 'confused') return;
+  if (guide.autoChecked || Date.now() - (guide.stepAt || 0) < 3000) return;
+  guide.autoChecked = true;
+  api.guideUnwatch();
   setTimeout(() => { if (guide.active && !guide.busy) look('check'); }, 1200);
 });
 

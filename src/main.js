@@ -51,7 +51,7 @@ const DEFAULTS = {
   sound: true,
   volume: 0.4,
   breakEvery: 0,           // минут между напоминаниями о перерыве, 0 = выключено
-  chatter: true,           // кот иногда сам что-то говорит
+  chatter: false,          // кот сам что-то говорит без спроса (выключено: новичка это сбивает)
   speed: 1,                // множитель скорости ходьбы
   autostart: false,
   // помощник для новичка
@@ -97,6 +97,7 @@ function loadSettings() {
       delete s[`${k}Enc`];
     }
   } catch { /* первый запуск */ }
+  s.chatter = false; // в настройках этого пункта больше нет, старое «вкл» не тянем
   if (team.provider || team.apiKey) {
     for (const k of TEAM_AI) s[k] = k in team ? team[k] : DEFAULTS[k];
   }

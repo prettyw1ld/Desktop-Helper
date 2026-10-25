@@ -131,12 +131,7 @@ function startPoll() {
       }
     } finally { coach.polling = false; }
   }, 1200);
-  coach.idle = setTimeout(() => {
-    if (!coach.active) return;
-    say(T('g.idle'), 3000, { guide: true });
-    speak(T('g.idle'));
-    setTimeout(() => coach.active && showCoachStep(true), 3000);
-  }, 50_000);
+  // кот не заговаривает сам: подсказка просто остаётся на экране, пока человек не нажмёт кнопку
 }
 
 function stepDone() {
