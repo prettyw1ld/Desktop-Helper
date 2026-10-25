@@ -127,6 +127,7 @@ function saveSettings(next) {
   app.setLoginItemSettings({ openAtLogin: !!s.autostart });
   I18N.setLang(s.lang);
   if (prev.lang !== s.lang) createTrayMenu();
+  if (prev.catColor !== s.catColor && tray) tray.setImage(trayImage());
   if (prev.calendarUrl !== s.calendarUrl || prev.calendarBefore !== s.calendarBefore) startCalendar();
   if (prev.windows !== s.windows) startWindowsWatch();
   return publicSettings();
@@ -319,8 +320,14 @@ function createTrayMenu() {
   ]));
 }
 
+// Значок в трее — тот же пиксельный кот, что на экране, в выбранном цвете (рядом лежит @2x для чётких экранов)
+function trayImage() {
+  const color = ['white', 'ginger', 'black'].includes(settings.catColor) ? settings.catColor : 'white';
+  const img = nativeImage.createFromPath(path.join(ASSETS, `tray-${color}.png`));
+  return img.isEmpty() ? nativeImage.createFromPath(path.join(ASSETS, 'tray.png')) : img;
+}
 function createTray() {
-  tray = new Tray(nativeImage.createFromPath(path.join(ASSETS, 'tray.png')));
+  tray = new Tray(trayImage());
   tray.setToolTip('Пушик');
   createTrayMenu();
   tray.on('click', toggleVisible);
