@@ -82,7 +82,6 @@
 @media(prefers-reduced-motion:reduce){.extras button.pulse{animation:none;outline:3px solid #a9cfe9}}
 .lessons .les-progress,.les-list,.les-list li{flex-shrink:0}
 #panel-lessons{width:calc(440px * var(--ui-scale,1))}
-.extras [data-act="lessons"]{background:#d5eaf8;color:#24251f;border-color:#d5eaf8}
 
 #inspect-element{display:flex;align-items:center;justify-content:center;gap:12px}
 #inspect-element svg,.extras button svg{flex-shrink:0;min-width:20px}
