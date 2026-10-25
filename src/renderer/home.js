@@ -16,7 +16,7 @@
   function openHome(){
     closeHome();closePanels();
     home=element('section',null,'skill-home hit');home.setAttribute('role','dialog');home.setAttribute('aria-label','Домик освоенных навыков');
-    header(home,'Домик Пушика',closeHome);home.append(element('p','Каждый предмет — твоё открытие. Нажми, чтобы вспомнить навык.'));
+    header(home,'Домик Пушика',closeHome);{const back=element('button','←','home-close home-back');back.setAttribute('aria-label','Назад');back.title='Назад';back.onclick=()=>{closeHome();showPanel('lessons');};home.querySelector('header').prepend(back);}home.append(element('p','Каждый предмет — твоё открытие. Нажми, чтобы вспомнить навык.'));
     const room=element('div',null,'home-room'),detail=element('div',null,'home-detail');detail.setAttribute('aria-live','polite');
     const skills=settings.skills||[];
     if(!skills.length)room.append(element('div','Домик пока пуст. Пройди первый урок — здесь появится предмет.','home-empty'));

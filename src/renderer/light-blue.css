@@ -88,3 +88,7 @@
 #inspect-element svg,.extras button svg{flex-shrink:0;min-width:20px}
 .extras button[data-act="settings"]{display:flex;align-items:center;justify-content:center;gap:6px;padding-left:8px;padding-right:8px}
 .extras button[data-act="settings"] span{font-size:16px}
+
+/* «Назад» слева в шапке окна, такого же размера, как крестик */
+.panel header .icon.back{display:grid;place-items:center;width:calc(48px * var(--ui-scale, 1));height:calc(48px * var(--ui-scale, 1));min-width:calc(48px * var(--ui-scale, 1));padding:0;border-radius:50%;background:#f3f1e7;border:calc(1px * var(--ui-scale, 1)) solid #e8e5d8;margin-right:calc(8px * var(--ui-scale, 1))}
+.panel header:has(> .back){justify-content:flex-start}.panel header > .back + b{margin-right:auto;flex:1}
