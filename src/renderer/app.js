@@ -263,7 +263,7 @@ function tick() {
   if (cat.plat && cat.state === 'walk' && !currentPlat()) startFall();
 
   if (t > cat.until) {
-    if (cat.state === 'sleep') { say(T('say.wake'), 2500); Sound.meow(1.1); showPose('yawn', 1400); } else decideNext();
+    if (cat.state === 'sleep') { say(T('say.wake'), 2500); void 0; showPose('yawn', 1400); } else decideNext();
   }
 
   render(t);
@@ -281,13 +281,14 @@ function land() {
   if (cat.afterLand) { const f = cat.afterLand; cat.afterLand = null; setState('idle', rand(1500, 3000)); f(); return; }
   if (trainer.step === 'landing') { trainerDone(); return; }
   setState('idle', rand(1500, 3000));
-  if (Math.random() < 0.5) { say(T('say.land'), 2200); if (Math.random() < 0.5) Sound.meow(1.15); }
+  if (Math.random() < 0.5) { say(T('say.land'), 2200); if (Math.random() < 0.5) void 0; }
 }
 
 // Какую анимацию показать сейчас. Возвращает имя анимации или конкретный кадр {row, col}.
 function pickAnim(t) {
   const d = cat.dir;
   if (catEl.classList.contains('happy')) return 'hind';
+  if (cat.lookUntil && t < cat.lookUntil) return cat.lookPose;
   const talking = t < cat.meowUntil;
   switch (cat.state) {
     case 'walk': return dirAnim(cat.running ? 'run' : 'walk', d);
@@ -411,7 +412,7 @@ function happy(ms = 1200) {
 function celebrate() {
   happy(1800);
   for (let i = 0; i < 8; i++) setTimeout(() => spawnFx('h', pick(['⭐', '🎉', '💛', '✨'])), i * 140);
-  Sound.meow(1.2);
+  void 0;
   setTimeout(() => Sound.purr(1.5), 500);
 }
 
@@ -454,7 +455,21 @@ function showRing(t) {
 function hideRing() { ring.classList.add('hidden'); }
 
 // Кот подходит (подпрыгивает) к кнопке и встаёт сбоку, лапкой к ней.
+let pointGazeTimer=null;
+function cancelPointGaze(){clearTimeout(pointGazeTimer);cat.lookUntil=0;}
 function goPoint(t, then) {
+  cancelPointGaze();
+  const dx=t.x+t.w/2-cx(),dy=t.y+t.h/2-(cat.y+CAT_H/2);
+  cat.dir=dx>=0?1:-1;
+  cat.lookPose=Math.abs(dx)<70?(dy<0?'standB':'standF'):(dx<0?'standL':'standR');
+  cat.lookUntil=now()+320;
+  setState('busy');
+  pointGazeTimer=setTimeout(()=>{
+    if(cat.state!=='busy'||!cat.lookUntil)return;
+    cat.lookUntil=0;moveToPoint(t,then);
+  },320);
+}
+function moveToPoint(t, then) {
   const k = size();
   const half = 52 * k;                       // половина видимой ширины кота
   const right = t.x + t.w / 2 > W() / 2;     // кнопка справа: кот встаёт слева от неё
@@ -496,25 +511,31 @@ function startWatch() {
   }, 50_000);
 }
 
-function stepActions() {
-  return [
+function aiStepActions() {
+  const actions = [
     [T('g.done'), () => look('check'), true],
     [T('g.again'), () => showStep(guide.last, true)],
     [T('g.stop'), () => endGuide(true)],
   ];
+  if(guide.last?.whatChanged) actions.splice(1,0,['Что сейчас произошло?',()=>showChange(guide.last.whatChanged,()=>showStep(guide.last,true))]);
+  return actions;
+}
+function showChange(text,back){
+  say(text,Infinity,{guide:true,actions:[['Повторить',()=>speak(text)],['Назад',back],['Завершить',()=>endGuide(false)]]});
+  speak(text);
 }
 
 function showStep(res, repeat = false) {
   guide.last = res;
   showRing(res.target);
   const sayIt = () => {
-    say(res.say, Infinity, { actions: stepActions(), guide: true });
+    say(res.say, Infinity, { actions: aiStepActions(), guide: true });
     speak(res.say);
     startWatch();
   };
   if (res.target) goPoint(res.target, sayIt);
   else { setState('busy'); sayIt(); }
-  if (repeat) Sound.meow(1.1);
+  if (repeat) void 0;
 }
 
 async function look(mode) {
@@ -528,7 +549,7 @@ async function look(mode) {
   catEl.classList.add('thinking');
   if (cat.state !== 'perch' && !['fall', 'jump'].includes(cat.state)) setState('busy');
   say(T(mode === 'check' ? 'g.checking' : 'g.looking'), Infinity, { guide: true });
-  const res = await api.guideLook({ mode, goal: guide.goal, history: guide.history });
+  const res = await api.guideLook({ mode, goal: guide.goal, history: guide.history, previousSummary: guide.screenSummary || '' });
   catEl.classList.remove('thinking');
   guide.busy = false;
   if (!guide.active) return;
@@ -537,6 +558,7 @@ async function look(mode) {
     speak(res.error);
     return;
   }
+  if(res.screenSummary) guide.screenSummary=res.screenSummary;
   const s = res.status;
   if (s === 'step') {
     if (res.say) guide.history.push(res.say);
@@ -544,7 +566,9 @@ async function look(mode) {
   } else if (s === 'done') {
     hideRing();
     const skill = res.skill || guide.goal;
-    say(`${res.say || T('g.success')}\n${T('g.skillSaved')}`, 7000, { guide: true });
+    const completion = `${res.say || T('g.success')}\n${T('g.skillSaved')}`;
+    const doneActions = res.whatChanged ? [['Что сейчас произошло?',()=>showChange(res.whatChanged,()=>say(completion,Infinity,{guide:true,actions:[['Закрыть',()=>endGuide(false)]]}))],['Закрыть',()=>endGuide(false)]] : [];
+    say(completion, doneActions.length ? Infinity : 7000, { guide: true, actions:doneActions });
     speak(res.say || T('g.success'));
     celebrate();
     if (skill) settings.skills = await api.addSkill(skill);
@@ -575,6 +599,7 @@ function startGuide(goal) {
   guide.kind = 'ai';
   guide.goal = goal;
   guide.history = [];
+  guide.screenSummary = '';
   guide.last = null;
   look('start');
 }
@@ -589,6 +614,7 @@ function imLost() {
 }
 
 function endGuide(sayBye) {
+  cancelPointGaze();
   guide.active = false;
   guide.last = null;
   api.guideUnwatch();
@@ -658,12 +684,13 @@ document.addEventListener('mousemove', (e) => {
     const dy = e.clientY - press.y;
     if (!press.moved && Math.hypot(dx, dy) > 5) {
       press.moved = true;
+      cancelPointGaze();
       // кота взяли: окна и подсказки прячем, чтобы не мешали
       if (!trainer.step) { closePanels(); if (!guide.active) hideBubble(); }
       cat.plat = null;
       cat.climb = null;
       setState('drag');
-      Sound.meow(1.3);
+      void 0;
     }
     if (press.moved) {
       cat.x = press.catX + dx;
@@ -708,7 +735,7 @@ let clicks = [];
 function onCatClick() {
   if (trainer.step === 'click') {
     happy(800);
-    Sound.meow(1.2);
+    void 0;
     trainer.step = 'dbl';
     setTimeout(() => trainer.step === 'dbl' && trainerSay('tr.dbl'), 300);
     return;
@@ -732,8 +759,9 @@ function onCatClick() {
   }
   if (cat.state === 'walk') { cat.climb = null; setState('idle', 6000); }
   hideBubble();
+  Sound.meow();
   if (openPanel === 'help') closePanels();
-  else showPanel('help');
+  else { showPanel('help'); }
 }
 
 // ---------- Окно «Чем помочь?» ----------
@@ -1070,7 +1098,7 @@ api.on('calendar-soon', (e) => {
   Sound.bell();
   if (busyWithPerson()) return;
   if (cat.state === 'sleep' || cat.state === 'drag') setState('idle', 8000);
-  setTimeout(() => Sound.meow(), 700);
+  setTimeout(() => void 0, 700);
   showPose('wave', 6000);
   say(e.text, 20_000);
   if (openPanel === 'reminders') renderCalendar();
@@ -1149,7 +1177,7 @@ api.on('open', (what) => {
     closePanels();
     const run = () => { walkTo(W() / 2, true); say(T('say.coming'), 2000); };
     if (cat.plat || cat.state === 'perch') { cat.afterLand = run; startFall(); } else run();
-    Sound.meow();
+    void 0;
   } else if (what === 'help') {
     if (cat.state === 'sleep') setState('idle', 4000);
     showPanel('help');
@@ -1180,7 +1208,7 @@ function resetBreakTimer() {
     if (reminders.some((r) => r.kind === 'focus') || busyWithPerson()) return;
     if (cat.state === 'sleep') setState('idle', 8000);
     showPose('coffee', 9000, T('say.break', { min: settings.breakEvery }));
-    Sound.meow();
+    void 0;
   }, settings.breakEvery * 60_000);
 }
 
@@ -1191,10 +1219,10 @@ function scheduleChatter() {
         cat.wantsAttention = true;
         setState('idle', 12_000);
         say(T('say.beg'), 4000);
-        Sound.meow(1.2);
+        void 0;
       } else {
         say(T('say.chatter'), 3500);
-        if (Math.random() < 0.3) Sound.meow();
+        if (Math.random() < 0.3) void 0;
       }
     }
     scheduleChatter();
@@ -1220,7 +1248,7 @@ window.addEventListener('resize', () => { cat.y = Math.min(cat.y, floorY()); com
   cat.y = floorY();
   setState('intro');
   cat.onDone = () => {
-    Sound.meow();
+    void 0;
     if (!settings.onboarded) startTrainer();
     else say(greeting(), 4500);
   };

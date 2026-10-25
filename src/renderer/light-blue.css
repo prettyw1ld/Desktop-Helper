@@ -83,3 +83,8 @@
 .lessons .les-progress,.les-list,.les-list li{flex-shrink:0}
 #panel-lessons{width:calc(440px * var(--ui-scale,1))}
 .extras [data-act="lessons"]{background:#d5eaf8;color:#24251f;border-color:#d5eaf8}
+
+#inspect-element{display:flex;align-items:center;justify-content:center;gap:12px}
+#inspect-element svg,.extras button svg{flex-shrink:0;min-width:20px}
+.extras button[data-act="settings"]{display:flex;align-items:center;justify-content:center;gap:6px;padding-left:8px;padding-right:8px}
+.extras button[data-act="settings"] span{font-size:16px}
