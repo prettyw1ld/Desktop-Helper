@@ -1159,7 +1159,7 @@ function applyWindowScale(value) {
 }
 
 // В настройках только то, что понятно новичку. ИИ, ключи и голосовые сервисы задаёт команда в team.json.
-const TEXT_FIELDS = ['userName', 'contact', 'catColor', 'size', 'uiScale'];
+const TEXT_FIELDS = ['userName', 'catColor', 'size', 'uiScale'];
 const CHECK_FIELDS = ['speak', 'sound', 'autostart'];
 
 async function fillSettings() {
@@ -1178,7 +1178,6 @@ form.addEventListener('submit', async (e) => {
   const f = e.target;
   settings = await api.saveSettings({
     userName: f.userName.value.trim(),
-    contact: f.contact.value.trim(),
     catColor: f.catColor.value,
     size: Number(f.size.value) || 1,
     uiScale: Math.min(1.4, Math.max(0.7, Number(f.uiScale.value) || 1)),
