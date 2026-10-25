@@ -178,7 +178,7 @@ let nextZ = 0;
 let animName = '';
 let animStart = 0;
 
-function tick() {
+function tickFrame() {
   const t = now();
   const dt = Math.min(0.05, (t - last) / 1000);
   last = t;
@@ -212,8 +212,10 @@ function tick() {
         cat.y = j.ty;
         cat.plat = j.plat;
         if (j.plat && !currentPlat()) { startFall(); break; }
-        if (j.after) j.after();
-        else setState('idle', rand(2000, 5000));
+        const after = j.after;
+        j.after = null; // только один раз, даже если внутри что-то упадёт
+        setState('idle', rand(2000, 5000));
+        if (after) after();
       } else {
         cat.x = j.x0 + j.vx * e;
         cat.y = j.y0 + j.vy * e + 0.5 * G * e * e;
@@ -274,6 +276,11 @@ function tick() {
   if (!['drag', 'fall', 'jump', 'perch'].includes(cat.state)) cat.y = Math.min(cat.y, groundY());
   catEl.style.transform = `translate(${Math.round(cat.x)}px, ${Math.round(cat.y)}px)`;
   updateBadge();
+}
+
+// Одна ошибка в кадре не должна останавливать кота: иначе он замирает посреди прыжка, а облачко не появляется.
+function tick() {
+  try { tickFrame(); } catch (err) { console.error('tick', err); }
   requestAnimationFrame(tick);
 }
 
