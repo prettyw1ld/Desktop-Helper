@@ -947,7 +947,30 @@ $('#mic').addEventListener('click', async () => {
 });
 
 // ---------- Панели ----------
+// «Назад» возвращает в окно, из которого пришли (по умолчанию в главное), а не только закрывает всё крестиком.
+const panelFrom = {};
+function goBack() {
+  const to = panelFrom[openPanel] || 'help';
+  closePanels();
+  showPanel(to);
+}
+function addBackButtons() {
+  document.querySelectorAll('.panel').forEach((p) => {
+    const h = p.querySelector(':scope > header');
+    if (!h || p.id === 'panel-help' || h.querySelector('.back')) return;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'icon back';
+    b.title = T('back');
+    b.setAttribute('aria-label', T('back'));
+    b.innerHTML = typeof PushikIcon === 'function' ? PushikIcon('back') : '←';
+    b.addEventListener('click', (e) => { e.stopPropagation(); goBack(); });
+    h.prepend(b);
+  });
+}
 function showPanel(name) {
+  addBackButtons();
+  if (name !== openPanel) panelFrom[name] = openPanel && openPanel !== name ? openPanel : 'help';
   document.querySelectorAll('.panel').forEach((p) => p.classList.add('hidden'));
   const panel = $(`#panel-${name}`);
   panel.classList.remove('hidden');
