@@ -996,7 +996,7 @@ function placePanel(panel) {
     left = cx() + half + 14 + pw < W() ? cx() + half + 14 : cx() - half - pw - 14;
   }
   panel.style.left = `${Math.max(8, Math.min(W() - pw - 8, left))}px`;
-  panel.style.top = `${Math.max(8, top)}px`;
+  panel.style.top = `${Math.max(8, Math.min(H() - ph - 12, top))}px`;
 }
 
 function closePanels() {
@@ -1017,6 +1017,22 @@ document.addEventListener('keydown', (e) => {
   else if (guide.active) endGuide(true);
   else if (trainer.step) endTrainer(true);
 });
+
+// Keep expanding panels inside the work-area viewport, including details and chat replies.
+let panelLayoutFrame=0;
+function schedulePanelLayout(){
+  if(panelLayoutFrame)return;
+  panelLayoutFrame=requestAnimationFrame(()=>{
+    panelLayoutFrame=0;
+    if(!openPanel)return;
+    const panel=$('#panel-'+openPanel);
+    if(panel&&!panel.classList.contains('hidden'))placePanel(panel);
+  });
+}
+const panelSizeObserver=new ResizeObserver(schedulePanelLayout);
+document.querySelectorAll('.panel').forEach(panel=>panelSizeObserver.observe(panel));
+document.addEventListener('toggle',e=>{if(e.target.closest?.('.panel'))schedulePanelLayout();},true);
+window.addEventListener('resize',schedulePanelLayout);
 
 // ---------- Чат ----------
 const log = $('#chat-log');

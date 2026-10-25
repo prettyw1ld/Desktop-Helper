@@ -1,6 +1,6 @@
 (() => {
-  let home=null,postcard=null;
-  function closeHome(){home?.remove();home=null;}
+  let home=null,postcard=null,roomObserver=null;
+  function closeHome(){roomObserver?.disconnect();roomObserver=null;home?.remove();home=null;}
   function closePostcard(){postcard?.remove();postcard=null;}
   function element(tag,text,cls){const e=document.createElement(tag);if(text)e.textContent=text;if(cls)e.className=cls;return e;}
   function header(container,title,close){const h=element('header'),b=element('button','×','home-close');b.setAttribute('aria-label','Закрыть');b.onclick=close;h.append(element('h2',title),b);container.append(h);}
@@ -21,6 +21,21 @@
     const decor=element('div',null,'room-decor');decor.setAttribute('aria-hidden','true');
     decor.innerHTML='<div class="room-window"><i></i><i></i><i></i><i></i></div><div class="room-shelf room-shelf-top"></div><div class="room-shelf room-shelf-middle"></div><div class="room-floor"></div><div class="room-rug"></div><div class="room-desk"><i></i><i></i></div><div class="room-plant"><i></i><i></i><i></i><b></b></div><div class="room-sleeping-cat"></div><div class="room-sunlight"></div>';
     room.append(decor);
+    const tooltip=element('div',null,'room-tooltip hidden');tooltip.setAttribute('role','tooltip');room.append(tooltip);
+    let pointed=null;
+    function positionLabel(){
+      if(!pointed||tooltip.classList.contains('hidden'))return;
+      const box=pointed.getBoundingClientRect(),bounds=room.getBoundingClientRect();
+      const pad=10,w=tooltip.offsetWidth,h=tooltip.offsetHeight;
+      const cx=box.left-bounds.left-room.clientLeft+box.width/2;
+      const top=box.top-bounds.top-room.clientTop;
+      const below=top+box.height+6;
+      const y=top-h-7>=pad?top-h-7:below;
+      tooltip.style.left=Math.max(pad,Math.min(room.clientWidth-w-pad,cx-w/2))+'px';
+      tooltip.style.top=Math.max(pad,Math.min(room.clientHeight-h-pad,y))+'px';
+    }
+    function labelFor(button,title){pointed=button;tooltip.textContent=title;tooltip.classList.remove('hidden');positionLabel();}
+    roomObserver=new ResizeObserver(positionLabel);roomObserver.observe(room);
     const skills=settings.skills||[];
     const groups=new Map();
     skills.forEach(skill=>{const [icon,title]=objectFor(skill.name);if(!groups.has(icon))groups.set(icon,{title,skills:[]});groups.get(icon).skills.push(skill);});
@@ -37,10 +52,14 @@
     }
     if(!skills.length)room.append(element('div','Комната ждёт твоих открытий. Пройди первый урок — здесь появится предмет.','home-empty'));
     for(const [icon,group] of groups){
-      const button=element('button',null,'home-object room-object-'+icon);button.type='button';button.title=group.title;button.setAttribute('aria-label',group.title+': '+group.skills.map(s=>s.name).join(', '));
-      const art=element('span',null,'home-item-art home-art-'+icon);art.setAttribute('aria-hidden','true');button.append(art,element('span',group.title,'room-object-label'));
+      const button=element('button',null,'home-object room-object-'+icon);button.type='button';button.setAttribute('aria-label',group.title+': '+group.skills.map(s=>s.name).join(', '));
+      const art=element('span',null,'home-item-art home-art-'+icon);art.setAttribute('aria-hidden','true');button.append(art);
+      button.addEventListener('mouseenter',()=>labelFor(button,group.title));
+      button.addEventListener('focus',()=>labelFor(button,group.title));
+      button.addEventListener('mouseleave',()=>{if(!button.classList.contains('selected')&&document.activeElement!==button)tooltip.classList.add('hidden');});
+      button.addEventListener('blur',()=>{if(!button.classList.contains('selected'))tooltip.classList.add('hidden');});
       if(group.skills.length>1)button.append(element('span',String(group.skills.length),'room-object-count'));
-      button.onclick=()=>{room.querySelectorAll('.home-object').forEach(b=>b.classList.remove('selected'));button.classList.add('selected');showGroup(group);};room.append(button);
+      button.onclick=()=>{room.querySelectorAll('.home-object').forEach(b=>b.classList.remove('selected'));button.classList.add('selected');labelFor(button,group.title);showGroup(group);};room.append(button);
     }
     home.append(element('div',skills.length+' открытий · '+groups.size+' предметов в комнате','room-caption'));
     home.append(room,detail);

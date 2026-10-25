@@ -91,3 +91,26 @@
 /* «Назад» слева в шапке окна, такого же размера, как крестик */
 .panel header .icon.back{display:grid;place-items:center;width:calc(48px * var(--ui-scale, 1));height:calc(48px * var(--ui-scale, 1));min-width:calc(48px * var(--ui-scale, 1));padding:0;border-radius:50%;background:#f3f1e7;border:calc(1px * var(--ui-scale, 1)) solid #e8e5d8;margin-right:calc(8px * var(--ui-scale, 1))}
 .panel header:has(> .back){justify-content:flex-start}.panel header > .back + b{margin-right:auto;flex:1}
+
+.extras{display:flex;flex-wrap:wrap;gap:calc(8px * var(--ui-scale,1));align-items:stretch}
+.extras button[data-act]{width:auto;height:auto;min-width:0;min-height:calc(48px * var(--ui-scale,1));flex:1 1 calc(80px * var(--ui-scale,1));display:flex;align-items:center;justify-content:center;gap:calc(6px * var(--ui-scale,1));padding:calc(10px * var(--ui-scale,1));box-sizing:border-box}
+.extras button[data-act="settings"]{flex-basis:calc(120px * var(--ui-scale,1));padding:calc(10px * var(--ui-scale,1))}
+.extras button[data-act] span,.extras button[data-act="settings"] span{min-width:0;font-size:calc(15px * var(--ui-scale,1));line-height:1.25;overflow-wrap:anywhere;text-align:center}
+.extras button[data-act] svg{flex:0 0 calc(19px * var(--ui-scale,1));width:calc(19px * var(--ui-scale,1));height:calc(19px * var(--ui-scale,1));min-width:0}
+
+/* Panels stay inside Electron's work-area viewport. Extra content scrolls inside. */
+.panel{max-height:calc(100dvh - 24px);min-height:0;overflow-y:auto;overscroll-behavior:contain}
+.panel>*{flex-shrink:0}
+.panel>header{position:sticky;top:0;z-index:5;background:var(--paper)}
+#panel-chat .chat-log{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;overflow-wrap:anywhere}
+#panel-chat #chat-form{flex-shrink:0}
+#panel-chat #chat-input{min-width:0}
+.lesson-dropdown{flex-shrink:0}
+#panel-lessons{max-height:min(560px,calc(100dvh - 48px));overflow:hidden;gap:8px}
+#panel-lessons>.lesson-dropdown{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;overflow:hidden}
+#panel-lessons>.lesson-dropdown>summary{flex-shrink:0}
+#panel-lessons .les-list{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:2px 3px 12px;flex:1 1 auto}
+#panel-lessons>.big{min-height:44px;padding-top:10px;padding-bottom:10px}
+#panel-lessons{max-height:min(520px,72dvh);overflow-y:auto}
+#panel-lessons>.lesson-dropdown{display:block;flex:0 0 auto}
+#panel-lessons .les-list{max-height:min(200px,30dvh);overflow-y:auto}
