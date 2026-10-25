@@ -265,7 +265,18 @@ function createWindow() {
       autoplayPolicy: 'no-user-gesture-required',
     },
   });
-  win.setAlwaysOnTop(true, 'floating');
+  // Кот всегда поверх окон. На Windows новое окно или программа «поверх всех» может его перекрыть,
+  // поэтому самый высокий уровень и регулярно поднимаем окно наверх (без перехвата фокуса).
+  const keepOnTop = () => {
+    if (!win || win.isDestroyed() || !win.isVisible()) return;
+    win.setAlwaysOnTop(true, 'screen-saver');
+    win.moveTop();
+  };
+  keepOnTop();
+  win.on('always-on-top-changed', (_e, on) => { if (!on) setTimeout(keepOnTop, 50); });
+  win.on('blur', () => setTimeout(keepOnTop, 150));
+  const topTimer = setInterval(keepOnTop, 1500);
+  win.on('closed', () => clearInterval(topTimer));
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   win.setIgnoreMouseEvents(true, { forward: true });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
