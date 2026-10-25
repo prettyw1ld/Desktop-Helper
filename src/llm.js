@@ -1,7 +1,22 @@
-// Чат Пуша: Claude (Messages API) или локальная Ollama.
-// Оба варианта умеют вызывать инструменты: напоминания, фокус, календарь.
+// Чат Пуша: Claude (Messages API), любой сервис, совместимый с OpenAI (Groq, OpenRouter, LM Studio…),
+// или локальная Ollama. Claude и Ollama ещё умеют вызывать инструменты (напоминания).
 
 const CLAUDE_URL = 'https://api.anthropic.com/v1/messages';
+
+// Готовые настройки для OpenAI-совместимых сервисов: команде достаточно вписать ключ в team.json.
+const OPENAI_PRESETS = {
+  groq: { url: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile', vision: 'meta-llama/llama-4-scout-17b-16e-instruct' },
+  openrouter: { url: 'https://openrouter.ai/api/v1', model: 'meta-llama/llama-3.3-70b-instruct:free', vision: 'qwen/qwen2.5-vl-72b-instruct:free' },
+};
+// provider: claude | ollama | openai | groq | openrouter → { kind, url, model, vision }
+function resolve(s) {
+  const p = s.provider || 'claude';
+  if (p === 'claude' || p === 'ollama') return { kind: p };
+  const pre = OPENAI_PRESETS[p] || {};
+  const url = (s.aiUrl || pre.url || OPENAI_PRESETS.groq.url).replace(/\/+$/, '');
+  const claudeModel = /^claude-/.test(s.model || '');
+  return { kind: 'openai', url, model: (!claudeModel && s.model) || pre.model || OPENAI_PRESETS.groq.model, vision: s.visionModel || pre.vision || OPENAI_PRESETS.groq.vision };
+}
 
 const TOOLS = [
   {
@@ -43,9 +58,10 @@ function systemPrompt({ userName, lang }) {
   const now = new Date().toLocaleString(locale, { dateStyle: 'full', timeStyle: 'short' });
   const ru = [
     'Ты Пушик, добрый пиксельный кот.',
-    'Ты живёшь на рабочем столе пользователя и помогаешь ему: отвечаешь на вопросы,',
-    'помогаешь с текстами и задачами, ставишь напоминания и фокус-сессии, смотришь его календарь через инструменты.',
-    'Отвечай коротко и дружелюбно, по-русски, если пользователь не пишет на другом языке.',
+    'Ты живёшь на рабочем столе и помогаешь человеку, который только знакомится с компьютером.',
+    'Объясняй очень просто, без компьютерных терминов, по одному действию за раз. Описывай, где что на экране и как выглядит.',
+    'Никогда не проси пароли, номера карт и коды из СМС. Если что-то похоже на обман, предупреди.',
+    'Отвечай коротко и тепло, по-русски, если человек не пишет на другом языке.',
     'Иногда можно вставить «мяу» или «мур», но без перебора. Ответ показывается в маленьком окошке,',
     'поэтому избегай длинных простыней текста и сложной разметки.',
     userName ? `Пользователя зовут ${userName}.` : '',
@@ -53,8 +69,8 @@ function systemPrompt({ userName, lang }) {
   ];
   const en = [
     'You are Pushik, a kind pixel cat.',
-    "You live on the user's desktop and help them: answer questions, help with texts and tasks,",
-    'set reminders and focus sessions, and check their calendar using tools.',
+    'You live on the desktop and help a person who is just getting to know the computer.',
+    'Explain very simply, without computer jargon, one action at a time. Never ask for passwords, card numbers or SMS codes.',
     'Answer briefly and kindly, in English unless the user writes in another language.',
     'You may add a "meow" or "purr" now and then, but not too often. Replies are shown in a small window,',
     'so avoid long walls of text and complex formatting.',
@@ -109,6 +125,20 @@ async function askClaude({ apiKey, model, history, text, tools, system }) {
     messages.push({ role: 'user', content: results });
   }
   throw new Error('too many steps');
+}
+
+// ---------- OpenAI-совместимые (Groq, OpenRouter, …) ----------
+async function askOpenAI({ apiKey, url, model, history, text, system }) {
+  const res = await fetch(`${url}/chat/completions`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ model, max_tokens: 700, messages: [{ role: 'system', content: system }, ...history, { role: 'user', content: text }] }),
+    signal: AbortSignal.timeout(45_000),
+  });
+  if (!res.ok) throw await readError(res);
+  const data = await res.json();
+  const reply = String(data.choices?.[0]?.message?.content || '').replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+  return { reply, actions: [] };
 }
 
 // ---------- Ollama ----------
@@ -171,8 +201,9 @@ async function ollamaModels(url) {
  */
 async function ask(opts) {
   const system = systemPrompt(opts);
-  const fn = opts.provider === 'ollama' ? askOllama : askClaude;
-  const { reply, actions } = await fn({ ...opts, system });
+  const r = resolve(opts);
+  const fn = r.kind === 'ollama' ? askOllama : r.kind === 'openai' ? askOpenAI : askClaude;
+  const { reply, actions } = await fn({ ...opts, ...(r.kind === 'openai' ? { url: r.url, model: r.model } : {}), system });
   const text = reply || (opts.lang === 'en' ? 'Purr!' : 'Мур!');
   return {
     reply: text,
@@ -181,4 +212,4 @@ async function ask(opts) {
   };
 }
 
-module.exports = { ask, ollamaModels, systemPrompt };
+module.exports = { ask, ollamaModels, systemPrompt, resolve, OPENAI_PRESETS };

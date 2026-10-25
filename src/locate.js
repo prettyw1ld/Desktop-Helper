@@ -24,9 +24,11 @@ public static class PushTop {
   [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr h, int i);
   [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
   [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
+  [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
   [DllImport("user32.dll")] static extern IntPtr FindWindow(string cls, string title);
   [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr h, int a, out int v, int s);
-  public static void Init() { SetProcessDPIAware(); }
+  // Настоящие пиксели на любом экране и масштабе (125%, 150%, два монитора). Старые Windows: как раньше.
+  public static void Init() { try { if (SetProcessDpiAwarenessContext(new IntPtr(-4))) return; } catch { } SetProcessDPIAware(); }
   public static long Tray() { return FindWindow("Shell_TrayWnd", null).ToInt64(); }
   // Окна программ сверху вниз (без кота и без невидимых): "hwnd:pid"
   public static string[] List(uint skipPid, int max) {
