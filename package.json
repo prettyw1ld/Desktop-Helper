@@ -10,7 +10,10 @@
     "dist:win": "electron-builder --win",
     "dist:mac": "electron-builder --mac",
     "postinstall": "node tools/fetch-vosk-model.js",
-    "vosk": "node tools/fetch-vosk-model.js"
+    "vosk": "node tools/fetch-vosk-model.js",
+    "prestart": "node tools/build-mac-locator.js",
+    "predist": "node tools/build-mac-locator.js",
+    "predist:mac": "node tools/build-mac-locator.js"
   },
   "devDependencies": {
     "electron": "^33.2.1",
@@ -45,6 +48,9 @@
           "team.json"
         ]
       }
+    ],
+    "asarUnpack": [
+      "assets/mac/**"
     ]
   },
   "author": "prettyw1ld",

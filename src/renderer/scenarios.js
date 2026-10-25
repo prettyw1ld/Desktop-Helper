@@ -19,7 +19,93 @@
 (function (root) {
   const BROWSERS = 'msedge|chrome|firefox|browser|yandex|opera|Safari|Google Chrome|Яндекс';
 
+  const finder = (name, types = ['Button']) => ({ scope: 'proc:^Finder$', firstWindow: true, name, types });
+  // Проводник Windows: только окно с папкой, рядом с котом других окон может быть много
+  const explorer = (name, types = ['Button']) => ({ scope: 'proc:^explorer$', name, types });
   const SCENARIOS = [
+    {
+      id: 'files-learn', fileLesson: true, place: 'practice',
+      match: /обуч.*(папк|файл|finder|проводник)|науч.*папк/i,
+      skill: { ru: 'Папки, файлы и поиск', en: 'Folders, files and search' },
+      words: 'обучение папки файлы проводник finder',
+      mac: [
+        { say: 'Нажми два раза на папку «Мои открытки».',
+          find: finder('Мои открытки', ['ListItem']), wait: { filePlace: 'postcards' },
+          hint: 'Это учебные файлы. Быстро нажми на название папки два раза.' },
+        { say: 'Нажми стрелку «Назад» слева вверху.',
+          find: finder('назад|back|previous'), wait: { filePlace: 'practice' },
+          hint: 'Стрелка возвращает в предыдущую папку. Ещё можно нажать ⌘ и [.' },
+        { say: 'Нажми два раза на «Привет от Пушика.txt».',
+          find: finder('Привет от Пушика', ['ListItem']), wait: { top: 'TextEdit|Текстовый редактор|CotEditor|BBEdit|Code' },
+          allowConfirm: true,
+          hint: 'Откроется короткое письмо. Прочитай его и нажми «Сделал».' },
+        { say: 'Вернёмся к учебной папке. Нажми «Открыть папку».',
+          wait: { filePlace: 'practice', foreground: true }, openFolder: 'practice',
+          hint: 'Документ можно оставить открытым: сейчас снова нужен Finder.' },
+        { say: 'Нажми на лупу справа вверху окна Finder.',
+          find: finder('поиск|search', ['Button', 'Edit']), wait: { focus: true },
+          allowConfirm: true,
+          hint: 'Если лупы нет, нажми ⌘ и F. Затем нажми «Сделал».' },
+        { say: 'Напиши «Привет от Пушика» в строке поиска.',
+          find: finder('поиск|search', ['Edit']), wait: { manual: true },
+          hint: 'Если предлагается искать на всём Mac, выбери учебную папку. Когда увидишь файл, нажми «Нашёл файл».' },
+      ],
+      win: [
+        { say: 'Это Проводник: в нём лежат папки и файлы. Нажми два раза на папку «Мои открытки».',
+          find: explorer('^Мои открытки$', ['ListItem', 'DataItem']), wait: { filePlace: 'postcards' },
+          hint: 'Это учебные файлы, их не жалко. Быстро нажми два раза левой кнопкой мыши.' },
+        { say: 'Нажми стрелку «Назад» слева вверху окна.',
+          find: explorer('^(Назад|Back)'), wait: { filePlace: 'practice' },
+          hint: 'Стрелка влево возвращает в прошлую папку. Ещё можно нажать Alt и стрелку влево.' },
+        { say: 'Нажми два раза на файл «Привет от Пушика».',
+          find: explorer('Привет от Пушика', ['ListItem', 'DataItem']), wait: { top: 'notepad|Notepad|wordpad|winword|code' },
+          allowConfirm: true,
+          hint: 'Откроется короткое письмо. Прочитай его и нажми «Сделал».' },
+        { say: 'Вернёмся к учебной папке. Нажми «Открыть папку».',
+          wait: { filePlace: 'practice', foreground: true }, openFolder: 'practice',
+          hint: 'Письмо можно не закрывать: сейчас снова нужен Проводник.' },
+        { say: 'Нажми на строку поиска справа вверху окна, где лупа.',
+          find: explorer('Поиск|Search', ['Edit']), wait: { focus: true }, allowConfirm: true,
+          hint: 'Если строки не видно, нажми Ctrl и F. Затем нажми «Сделал».' },
+        { say: 'Напиши в ней «Привет». Проводник сам покажет файл.',
+          find: explorer('Поиск|Search', ['Edit']), wait: { manual: true },
+          hint: 'Когда увидишь файл в списке, нажми «Нашёл файл».' },
+      ],
+      done: 'Мур! Ты потренировался открывать папки, возвращаться назад и искать файлы.',
+    },
+    {
+      id: 'files-downloads', fileLesson: true, place: 'downloads',
+      match: /скачан|загрузк|download/i,
+      skill: { ru: 'Найти скачанный файл', en: 'Find a downloaded file' },
+      words: 'скачанный скачал загрузки документ файл',
+      mac: [
+        { say: 'Это «Загрузки». Здесь обычно лежит скачанное из интернета.',
+          find: finder('Загрузки|Downloads', ['ListItem']), wait: { manual: true },
+          hint: 'Посмотри на имена файлов. Если нужного нет, поищем по названию.' },
+        { say: 'Нажми на лупу справа вверху.',
+          find: finder('поиск|search', ['Button', 'Edit']), wait: { focus: true }, allowConfirm: true,
+          hint: 'Если лупы не видно, нажми ⌘ и F.' },
+        { say: 'Напиши часть имени файла. Выбери поиск в «Загрузках».',
+          find: finder('поиск|search', ['Edit']), wait: { manual: true },
+          hint: 'Когда найдёшь файл, нажми «Нашёл файл». Если не помнишь имя, вернись назад и просмотри список.' },
+        { say: 'Нажми два раза на найденный файл.', wait: { manual: true }, allowConfirm: true,
+          hint: 'Нажми «Сделал», только если файл открылся. Если не вышло, я повторю подсказку.' },
+      ],
+      win: [
+        { say: 'Это папка «Загрузки». Сюда попадает всё, что скачано из интернета.',
+          find: explorer('^(Загрузки|Downloads)$', ['TreeItem', 'ListItem']), wait: { manual: true },
+          hint: 'Посмотри на имена файлов. Самые новые обычно сверху. Если нужного нет, поищем по имени.' },
+        { say: 'Нажми на строку поиска справа вверху, где лупа.',
+          find: explorer('Поиск|Search', ['Edit']), wait: { focus: true }, allowConfirm: true,
+          hint: 'Если строки не видно, нажми Ctrl и F.' },
+        { say: 'Напиши часть имени файла.',
+          find: explorer('Поиск|Search', ['Edit']), wait: { manual: true },
+          hint: 'Когда найдёшь файл, нажми «Нашёл файл». Если не помнишь имя, просто просмотри список.' },
+        { say: 'Нажми два раза на найденный файл.', wait: { manual: true }, allowConfirm: true,
+          hint: 'Нажми «Сделал», когда файл откроется. Если не вышло, я повторю подсказку.' },
+      ],
+      done: 'Теперь ты знаешь, где искать скачанное и как открыть найденный файл.',
+    },
     {
       // Обзор компьютера: кот показывает главное при первом запуске. Человек жмёт «Дальше».
       id: 'tour',
@@ -189,12 +275,13 @@
   // Какой сценарий подходит к тексту задачи («📞 Позвонить по видео» → call).
   function match(text) {
     const t = String(text || '');
-    if (/запута|не понима|потерял|lost|confused/i.test(t)) return { id: 'lost' };
-    return SCENARIOS.find((s) => s.match.test(t)) || null;
+    if (/запута|не понима|lost|confused/i.test(t)) return { id: 'lost' };
+    // уроки про файлы точнее общего «найти в интернете»: «найти скачанный файл» — это файлы
+    return SCENARIOS.find((s) => s.fileLesson && s.match.test(t)) || SCENARIOS.find((s) => s.match.test(t)) || null;
   }
 
   // уроки от простого к сложному
-  const ORDER = ['tour', 'volume', 'bigger', 'search', 'call', 'photos'];
+  const ORDER = ['tour', 'volume', 'bigger', 'search', 'call', 'photos', 'files-learn', 'files-downloads'];
   SCENARIOS.sort((a, b) => ORDER.indexOf(a.id) - ORDER.indexOf(b.id));
 
   root.Scenarios = { list: SCENARIOS, match, grammar, byId: (id) => SCENARIOS.find((s) => s.id === id) };
