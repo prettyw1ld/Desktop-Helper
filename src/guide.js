@@ -5,8 +5,8 @@ const { desktopCapturer, screen } = require('electron');
 
 const CLAUDE_URL = 'https://api.anthropic.com/v1/messages';
 const { resolve, pickModel, extraFor, cleanReply } = require('./llm');
-const { fetchAI } = require('./http');
-const SHOT_W = 1280; // ширина снимка для модели (меньше = быстрее ответ)
+const { fetchAI, fetchAIRetry } = require('./http');
+const SHOT_W = 1024; // ширина снимка для модели (меньше = быстрее ответ)
 
 // Ответ модели всегда в одном формате, через принудительный вызов инструмента.
 const STEP_SCHEMA = {
@@ -141,7 +141,7 @@ async function askClaude({ apiKey, model, system, text, jpeg }) {
 async function askOpenAI({ apiKey, url, vision, system, text, jpeg }) {
   const schema = JSON.stringify(STEP_SCHEMA);
   const model = await pickModel({ url, apiKey, want: vision, vision: true });
-  const send = (strict) => fetchAI(`${url}/chat/completions`, {
+  const send = (strict) => fetchAIRetry(`${url}/chat/completions`, {
     method: 'POST',
     headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
     body: JSON.stringify({
@@ -194,7 +194,7 @@ async function askOllama({ ollamaUrl, visionModel, ollamaModel, system, text, jp
  */
 async function look({ mode, goal, history = [], settings, overlay }) {
   const shot = await capture(overlay);
-  const jpeg = shot.image.toJPEG(80).toString('base64');
+  const jpeg = shot.image.toJPEG(70).toString('base64');
   const system = systemPrompt(settings.lang, process.platform);
   const text = `${userText({ mode, goal, history })}\nScreenshot size: ${shot.w}x${shot.h} pixels.`;
   const r = resolve(settings);

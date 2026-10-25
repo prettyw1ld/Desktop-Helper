@@ -1,7 +1,7 @@
 // Чат Пуша: Claude (Messages API), любой сервис, совместимый с OpenAI (Groq, OpenRouter, LM Studio…),
 // или локальная Ollama. Claude и Ollama ещё умеют вызывать инструменты (напоминания).
 
-const { fetchAI } = require('./http');
+const { fetchAI, fetchAIRetry } = require('./http');
 const CLAUDE_URL = 'https://api.anthropic.com/v1/messages';
 
 // Готовые настройки для OpenAI-совместимых сервисов: команде достаточно вписать ключ в team.json.
@@ -47,7 +47,8 @@ async function pickModel({ url, apiKey, want, vision }) {
 }
 // gpt-oss сначала «думает», и на короткий лимит ответа не остаётся: просим думать поменьше
 const extraFor = (model) => (/gpt-oss/.test(model) ? { reasoning_effort: 'low' } : {});
-const cleanReply = (txt) => String(txt || '').replace(/<think>[\s\S]*?<\/think>/g, '').replace(/^[\s\S]*?<\/think>/, '').trim();
+const cleanReply = (txt) => String(txt || '').replace(/<think>[\s\S]*?<\/think>/g, '').replace(/^[\s\S]*?<\/think>/, '')
+  .replace(/\*\*(.+?)\*\*/g, '$1').replace(/^#+\s*/gm, '').trim(); // окошко не показывает разметку
 
 const TOOLS = [
   {
@@ -94,7 +95,7 @@ function systemPrompt({ userName, lang }) {
     'Никогда не проси пароли, номера карт и коды из СМС. Если что-то похоже на обман, предупреди.',
     'Отвечай коротко и тепло, по-русски, если человек не пишет на другом языке.',
     'Иногда можно вставить «мяу» или «мур», но без перебора. Ответ показывается в маленьком окошке,',
-    'поэтому избегай длинных простыней текста и сложной разметки.',
+    'поэтому избегай длинных простыней текста. Не используй разметку: ни звёздочек, ни решёток, ни таблиц.',
     userName ? `Пользователя зовут ${userName}.` : '',
     `Сейчас: ${now}.`,
   ];
@@ -161,7 +162,7 @@ async function askClaude({ apiKey, model, history, text, tools, system }) {
 // ---------- OpenAI-совместимые (Groq, OpenRouter, …) ----------
 async function askOpenAI({ apiKey, url, model, history, text, system }) {
   const use = await pickModel({ url, apiKey, want: model });
-  const res = await fetchAI(`${url}/chat/completions`, {
+  const res = await fetchAIRetry(`${url}/chat/completions`, {
     method: 'POST',
     headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
     body: JSON.stringify({ model: use, max_tokens: 1500, ...extraFor(use), messages: [{ role: 'system', content: system }, ...history, { role: 'user', content: text }] }),

@@ -22,4 +22,21 @@ async function fetchAI(url, opts = {}) {
   throw Object.assign(new Error(last?.message || 'network'), { network: true, cause: last });
 }
 
-module.exports = { fetchAI, isNetErr };
+// Бесплатный Groq ограничивает число слов в минуту (снимок экрана ~2700). На 429 ждём,
+// сколько просит сервис (до 25 с), и пробуем ещё раз, чтобы человек не видел ошибку.
+async function fetchAIRetry(url, opts = {}) {
+  let res = await fetchAI(url, opts);
+  for (let i = 0; i < 2 && res.status === 429; i++) {
+    let wait = Number(res.headers.get('retry-after')) || 0;
+    if (!wait) {
+      try { wait = Number((await res.clone().text()).match(/try again in ([\d.]+)\s*s/i)?.[1]) || 0; } catch { /* пусто */ }
+    }
+    wait = Math.ceil(wait || 10);
+    if (wait > 25) break;
+    await new Promise((r) => setTimeout(r, wait * 1000 + 300));
+    res = await fetchAI(url, opts);
+  }
+  return res;
+}
+
+module.exports = { fetchAI, fetchAIRetry, isNetErr };
