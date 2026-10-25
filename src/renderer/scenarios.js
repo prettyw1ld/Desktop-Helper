@@ -16,7 +16,60 @@
 (function (root) {
   const BROWSERS = 'msedge|chrome|firefox|browser|yandex|opera|Safari|Google Chrome|Яндекс';
 
+  const finder = (name, types = ['Button']) => ({ scope: 'proc:^Finder$', firstWindow: true, name, types });
   const SCENARIOS = [
+    {
+      id: 'files-learn', fileLesson: true, place: 'practice',
+      match: /обуч.*(папк|файл|finder|проводник)|науч.*папк/i,
+      skill: { ru: 'Папки, файлы и поиск в Finder', en: 'Folders, files and Finder search' },
+      words: 'обучение папки файлы проводник finder',
+      mac: [
+        { say: 'Это учебная папка. Слева — быстрый переход к другим папкам.',
+          find: finder('Загрузки|Downloads', ['ListItem']), wait: { manual: true },
+          hint: 'Сейчас просто осмотрись и нажми «Дальше». Настоящие файлы мы не меняем.' },
+        { say: 'Нажми два раза на папку «Мои открытки».',
+          find: finder('Мои открытки', ['ListItem']), wait: { filePlace: 'postcards' },
+          hint: 'Папка хранит файлы внутри. Быстро нажми на её название два раза.' },
+        { say: 'Нажми стрелку «Назад» слева вверху.',
+          find: finder('назад|back|previous'), wait: { filePlace: 'practice' },
+          hint: 'Стрелка возвращает в предыдущую папку. Ещё можно нажать ⌘ и [.' },
+        { say: 'Нажми два раза на «Привет от Пушика.txt».',
+          find: finder('Привет от Пушика', ['ListItem']), wait: { top: 'TextEdit|Текстовый редактор|CotEditor|BBEdit|Code' },
+          allowConfirm: true,
+          hint: 'Откроется короткое письмо. Прочитай его и нажми «Сделал».' },
+        { say: 'Вернёмся к учебной папке. Нажми «Открыть папку».',
+          wait: { filePlace: 'practice', foreground: true }, openFolder: 'practice',
+          hint: 'Документ можно оставить открытым: сейчас снова нужен Finder.' },
+        { say: 'Нажми на лупу справа вверху окна Finder.',
+          find: finder('поиск|search', ['Button', 'Edit']), wait: { focus: true },
+          allowConfirm: true,
+          hint: 'Если лупы нет, нажми ⌘ и F. Затем нажми «Сделал».' },
+        { say: 'Напиши «Привет от Пушика» в строке поиска.',
+          find: finder('поиск|search', ['Edit']), wait: { manual: true },
+          hint: 'Если предлагается искать на всём Mac, выбери учебную папку. Когда увидишь файл, нажми «Нашёл файл».' },
+      ],
+      done: 'Мур! Ты потренировался открывать папки, возвращаться назад и искать файлы.',
+    },
+    {
+      id: 'files-downloads', fileLesson: true, place: 'downloads',
+      match: /скачан|загрузк|download/i,
+      skill: { ru: 'Найти скачанный файл', en: 'Find a downloaded file' },
+      words: 'скачанный скачал загрузки документ файл',
+      mac: [
+        { say: 'Это «Загрузки». Здесь обычно лежит скачанное из интернета.',
+          find: finder('Загрузки|Downloads', ['ListItem']), wait: { manual: true },
+          hint: 'Посмотри на имена файлов. Если нужного нет, поищем по названию.' },
+        { say: 'Нажми на лупу справа вверху.',
+          find: finder('поиск|search', ['Button', 'Edit']), wait: { focus: true }, allowConfirm: true,
+          hint: 'Если лупы не видно, нажми ⌘ и F.' },
+        { say: 'Напиши часть имени файла. Выбери поиск в «Загрузках».',
+          find: finder('поиск|search', ['Edit']), wait: { manual: true },
+          hint: 'Когда найдёшь файл, нажми «Нашёл файл». Если не помнишь имя, вернись назад и просмотри список.' },
+        { say: 'Нажми два раза на найденный файл.', wait: { manual: true }, allowConfirm: true,
+          hint: 'Нажми «Сделал», только если файл открылся. Если не вышло, я повторю подсказку.' },
+      ],
+      done: 'Теперь ты знаешь, где искать скачанное и как открыть найденный файл.',
+    },
     {
       id: 'photos',
       match: /фото|флеш|картин|снимк|photo|usb|stick/i,
@@ -140,7 +193,7 @@
   // Какой сценарий подходит к тексту задачи («📞 Позвонить по видео» → call).
   function match(text) {
     const t = String(text || '');
-    if (/запута|не понима|потерял|lost|confused/i.test(t)) return { id: 'lost' };
+    if (/запута|не понима|lost|confused/i.test(t)) return { id: 'lost' };
     return SCENARIOS.find((s) => s.match.test(t)) || null;
   }
 

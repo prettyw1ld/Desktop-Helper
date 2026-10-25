@@ -1,10 +1,11 @@
 // Находим кнопки на экране без ИИ и без интернета, через системную «доступность».
 // Windows: UI Automation (PowerShell держим запущенным, запросы идут строками JSON через stdin).
-// macOS: Accessibility через System Events (JXA). Нужна галочка «Универсальный доступ» для Пушика.
+// macOS: native Accessibility reader; JXA is a fallback for older checkouts.
 // Все координаты на выходе в экранных точках (DIP), как у окна кота.
 
 const { spawn, execFile } = require('child_process');
 const fs = require('fs');
+const path = require('path');
 
 // ---------- Windows ----------
 const WIN_SCRIPT = (skipPid) => `
@@ -216,7 +217,7 @@ function winAsk(q, timeout = 6000) {
 const ROLES = {
   Button: ['AXButton', 'AXDockItem', 'AXMenuButton', 'AXPopUpButton'],
   Edit: ['AXTextField', 'AXTextArea', 'AXComboBox', 'AXSearchField'],
-  ListItem: ['AXRow', 'AXCell', 'AXStaticText', 'AXImage'],
+  ListItem: ['AXRow', 'AXCell', 'AXStaticText', 'AXImage', 'AXTextField'],
   TreeItem: ['AXRow', 'AXCell', 'AXStaticText'],
   DataItem: ['AXRow', 'AXCell'],
   Text: ['AXStaticText'],
@@ -225,30 +226,40 @@ const ROLES = {
 
 const MAC_SCRIPT = (q, skipPid) => `
 ObjC.import('CoreGraphics');
+ObjC.import('Foundation');
 const se = Application('System Events');
 const q = ${JSON.stringify(q)};
 function topPid() {
   const list = ObjC.deepUnwrap(ObjC.castRefToObject($.CGWindowListCopyWindowInfo(17, 0))) || [];
-  for (const w of list) if (w.kCGWindowLayer === 0 && w.kCGWindowOwnerPID !== ${skipPid} && w.kCGWindowAlpha !== 0) return w.kCGWindowOwnerPID;
+  for (const w of list) if (w.kCGWindowLayer === 0 && w.kCGWindowOwnerPID !== ${skipPid} && w.kCGWindowAlpha !== 0 && w.kCGWindowBounds?.Width >= 100 && w.kCGWindowBounds?.Height >= 80) return w.kCGWindowOwnerPID;
   return 0;
 }
 function rectOf(e) { try { const p = e.position(); const s = e.size(); if (!p || !s || s[0] < 2 || s[1] < 2) return null; return { x: p[0], y: p[1], w: s[0], h: s[1] }; } catch (_) { return null; } }
 function label(e) { const out = []; for (const k of ['name', 'title', 'description', 'value']) { try { const v = e[k](); if (v && typeof v === 'string') out.push(v); } catch (_) {} } return out.join(' '); }
+// macOS can put WindowSharingSessionButton's tiny AXWindow before real windows.
+function usableWindows(p) {
+  return p.windows().filter((w) => {
+    const r = rectOf(w);
+    if (!r || r.w < 100 || r.h < 80) return false;
+    try { if (w.attributes.byName('AXMinimized').value()) return false; } catch (_) {}
+    return true;
+  });
+}
 function roots() {
   if (q.scope === 'taskbar') return [[se.processes.byName('Dock').lists[0], 'Dock']];
   const out = [];
   if (q.scope && q.scope.startsWith('proc:')) {
     const rx = new RegExp(q.scope.slice(5), 'i');
-    for (const p of se.processes.whose({ backgroundOnly: false })()) { try { if (rx.test(p.name())) for (const w of p.windows()) out.push([w, p.name()]); } catch (_) {} }
+    for (const p of se.processes.whose({ backgroundOnly: false })()) { try { if (rx.test(p.name())) for (const w of usableWindows(p)) { out.push([w, p.name()]); if (q.firstWindow) break; } } catch (_) {} }
     return out;
   }
   const pid = topPid();
   if (!pid) return out;
   const p = se.processes.whose({ unixId: pid })[0];
-  try { const w = p.windows[0]; w.name(); out.push([w, p.name()]); } catch (_) {}
+  try { const w = usableWindows(p)[0]; if (w) out.push([w, p.name()]); } catch (_) {}
   return out;
 }
-function run() {
+function query() {
   if (q.op === 'drives') {
     const fm = $.NSFileManager.defaultManager;
     const names = ObjC.deepUnwrap(fm.contentsOfDirectoryAtPathError('/Volumes', null)) || [];
@@ -262,7 +273,7 @@ function run() {
   }
   const rs = roots();
   const win = rs[0] ? { title: (() => { try { return rs[0][0].name(); } catch (_) { return ''; } })(), proc: rs[0][1] } : null;
-  if (q.op === 'top') {
+  if (q.op === 'top' || q.op === 'window') {
     if (!rs[0]) return { win: null };
     let close = null;
     try { const b = rs[0][0].buttons.whose({ subrole: 'AXCloseButton' })[0]; close = rectOf(b); } catch (_) {}
@@ -290,19 +301,30 @@ function run() {
   }
   return { items, win };
 }
-JSON.stringify(run());
+// osascript calls the run handler, ignoring the last top-level expression.
+function run() {
+  try { return JSON.stringify(query()); }
+  catch (error) { return JSON.stringify({ error: String(error) }); }
+}
 `;
 
 function macAsk(q, timeout = 8000) {
+  const helper = path.join(__dirname, '..', 'assets', 'mac', `locator-${process.arch}`);
   const roles = [...new Set((q.types || []).flatMap((t) => ROLES[t] || []))];
   return new Promise((resolve) => {
-    execFile('/usr/bin/osascript', ['-l', 'JavaScript', '-e', MAC_SCRIPT({ ...q, roles }, process.pid)], { timeout }, (err, out, errOut) => {
+    const native = fs.existsSync(helper) && q.op !== 'drives';
+    const executable = native ? helper : '/usr/bin/osascript';
+    const args = native ? [JSON.stringify({ ...q, roles, skipPid: process.pid })] : ['-l', 'JavaScript', '-e', MAC_SCRIPT({ ...q, roles }, process.pid)];
+    execFile(executable, args, { timeout }, (err, out, errOut) => {
       if (err) {
-        const access = /not allowed|assistive|-1719|-25211/i.test(String(errOut || err.message));
-        resolve({ error: access ? 'access' : String(errOut || err.message).slice(0, 200) });
+        const message = String(errOut || err.message);
+        const access = /not allowed|assistive|-1719|-25211/i.test(message);
+        resolve({ error: access ? 'access' : /-1743|not authorized/i.test(message) ? 'automation' : err.killed ? 'timeout' : 'locator' });
         return;
       }
-      try { resolve(JSON.parse(out)); } catch { resolve({ error: 'bad output' }); }
+      try { const res = JSON.parse(out);
+        if (res.error) res.error = /not authorized|-1743/i.test(res.error) ? 'automation' : /not allowed|assistive|-1719|-25211/i.test(res.error) ? 'access' : res.error;
+        resolve(res); } catch { resolve({ error: 'bad output' }); }
     });
   });
 }
@@ -311,7 +333,7 @@ function macAsk(q, timeout = 8000) {
 const supported = () => process.platform === 'win32' || process.platform === 'darwin';
 
 /**
- * ask(q, toOverlay) — q: { op: 'find'|'top'|'drives', scope, name (regex), types }.
+ * ask(q, toOverlay) — q: { op: 'find'|'top'|'window'|'drives', scope, name (regex), types }.
  * toOverlay(rect) переводит экранный прямоугольник в координаты окна кота.
  */
 async function ask(q, toOverlay = (r) => r) {
@@ -327,4 +349,4 @@ function stop() {
   if (ps) { try { ps.kill(); } catch { /* уже нет */ } ps = null; }
 }
 
-module.exports = { ask, stop, supported, _WIN_SCRIPT: WIN_SCRIPT, _MAC_SCRIPT: MAC_SCRIPT, _exists: fs.existsSync };
+module.exports = { ask, stop, supported, _WIN_SCRIPT: WIN_SCRIPT, _MAC_SCRIPT: MAC_SCRIPT, _MAC_ROLES: ROLES, _exists: fs.existsSync };

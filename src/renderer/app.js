@@ -1276,13 +1276,13 @@ function mockApi() {
   window.__emit = (ch, data) => handlers[ch]?.(data);
   const s = {
     speed: 1, chatter: true, breakEvery: 50, size: 1, windows: true, sound: false, volume: 0.4,
-    lang: (navigator.language || 'ru').startsWith('ru') ? 'ru' : 'en',
+    lang: new URLSearchParams(location.search).get('lang') || ((navigator.language || 'ru').startsWith('ru') ? 'ru' : 'en'),
     provider: 'claude', model: 'claude-sonnet-5-5', ollamaUrl: 'http://localhost:11434', ollamaModel: 'qwen3',
     calendarBefore: 10, hasApiKey: true, hasCalendar: true, hasStt: true,
     catColor: new URLSearchParams(location.search).get('color') || 'ginger', speak: false, tasks: [], skills: [],
     onboarded: new URLSearchParams(location.search).has('onboarded'),
     sttUrl: 'https://api.groq.com/openai/v1', sttModel: 'whisper-large-v3', visionModel: '',
-    contact: new URLSearchParams(location.search).get('contact') ?? 'Маша', voice: 'offline', hasVosk: false, aiReady: new URLSearchParams(location.search).has('ai'), locator: true, platform: 'win32',
+    contact: new URLSearchParams(location.search).get('contact') ?? 'Маша', voice: 'offline', hasVosk: false, aiReady: new URLSearchParams(location.search).has('ai'), locator: true, platform: new URLSearchParams(location.search).get('platform') || 'win32',
   };
   const day = new Date();
   const at = (h, m, plus = 0) => new Date(day.getFullYear(), day.getMonth(), day.getDate() + plus, h, m).getTime();
@@ -1328,6 +1328,7 @@ function mockApi() {
       const list = (t.items[q.scope] || []).filter((it) => !q.name || new RegExp(q.name, 'i').test(it.name));
       return { items: list };
     },
+    filesAction: async ({ op }) => op === 'access' ? { trusted: true } : { ok: true },
     openUri: async () => true,
     openDrive: async () => true,
     transcribe: async () => ({ text: 'Хочу позвонить по видео' }),

@@ -47,6 +47,19 @@
     </div>
   </section>
 
+  <section id="panel-files" class="panel help hit hidden">
+    <header><b data-i18n="files.title"></b><button class="icon" data-close data-i18n-title="close">✕</button></header>
+    <p class="files-intro" data-i18n="files.intro"></p>
+    <div class="tasks">
+      <button class="big" data-files="learn"><span data-i18n="files.learn"></span><small data-i18n="files.learnSub"></small></button>
+      <button class="big" data-files="downloads"><span data-i18n="files.downloads"></span><small data-i18n="files.downloadsSub"></small></button>
+      <button class="big" data-files="choose"><span data-i18n="files.choose"></span><small data-i18n="files.chooseSub"></small></button>
+      <button class="big" data-files="photos"><span data-i18n="files.photos"></span></button>
+    </div>
+    <div id="files-status" class="files-status" role="status" aria-live="polite"></div>
+    <button class="big" id="files-back" data-i18n="files.back"></button>
+  </section>
+
   <!-- Чат -->
   <section id="panel-chat" class="panel hit hidden">
     <header><b>Пуш</b><span class="sub" data-i18n="chat.sub"></span>

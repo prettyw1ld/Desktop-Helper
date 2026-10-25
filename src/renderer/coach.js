@@ -2,7 +2,7 @@
    Кот находит нужную кнопку через системную «доступность», показывает на неё лапкой
    и сам замечает, что шаг сделан (открылось окно, вставили флешку, пропала кнопка). */
 
-const coach = { active: false, sc: null, steps: [], i: -1, ctx: {}, target: null, seen: false, baseTitle: '', poll: null, polling: false, idle: null, warnedAccess: false };
+const coach = { active: false, sc: null, steps: [], i: -1, ctx: {}, target: null, seen: false, baseTitle: '', poll: null, polling: false, run: 0, idle: null, warnedAccess: false };
 
 const plat = () => (settings.platform === 'darwin' ? 'mac' : 'win');
 const stepSay = (step) => fillText(!coach.ctx.contact && step.sayNoContact ? step.sayNoContact : step.say);
@@ -22,12 +22,13 @@ function fillQuery(q) {
   name = name.replace(/\{contact\}/g, esc(coach.ctx.contact))
     .replace(/\{drive\}/g, esc(coach.ctx.drive || 'Z'))
     .replace(/\{label\}/g, coach.ctx.label ? esc(coach.ctx.label) : 'USB|Съёмный|Removable');
-  return { op: 'find', scope: q.scope, name, types: q.types || [], enabled: q.enabled };
+  return { op: 'find', scope: q.scope, name, types: q.types || [], enabled: q.enabled, firstWindow: q.firstWindow };
 }
 
 async function locate(q) {
   if (!q || !settings.locator) return [];
   const res = await api.locate(q);
+  coach.locateError = res.error || '';
   if (res.error === 'access' && !coach.warnedAccess) {
     coach.warnedAccess = true;
     say(T('coach.noAccess'), 6000, { guide: true });
@@ -41,6 +42,16 @@ async function locate(q) {
 async function check(cond, step) {
   if (!cond) return false;
   if (cond.manual) return false;
+  if (cond.filePlace) {
+    const result = await api.locate({ op: 'window', scope: 'proc:^Finder$', firstWindow: true });
+    if (result.error) { coach.fileError = result.error; return false; }
+    if (cond.foreground) {
+      const front = await api.locate({ op: 'top' });
+      if (front.win?.proc !== 'Finder') return false;
+    }
+    const titles = { practice: 'Пушик — учимся работать с файлами', postcards: 'Мои открытки', downloads: 'Загрузки|Downloads' };
+    return result.win?.proc === 'Finder' && new RegExp(`^(${titles[cond.filePlace]})$`, 'i').test(result.win.title);
+  }
   if (cond.drive) {
     const res = await api.locate({ op: 'drives' });
     const d = (res.drives || [])[0];
@@ -64,29 +75,56 @@ async function check(cond, step) {
   return false;
 }
 
-function stepActions(step) {
-  const acts = [[T('g.done'), () => doneClicked(), true], [T('g.again'), () => showCoachStep(true)]];
+function coachStepActions(step) {
+  const acts = [[coach.sc.fileLesson && step.wait?.manual ? (step.find?.types?.includes('Edit') ? 'Нашёл файл' : T('files.next')) : T('g.done'), () => doneClicked(), true], [T(coach.sc.fileLesson ? 'files.again' : 'g.again'), () => showCoachStep(true)]];
+  if (coach.sc.fileLesson) acts.push([T('files.help'), () => {
+    clearInterval(coach.poll);
+    clearTimeout(coach.idle);
+    hideRing();
+    say(stepSay(step), Infinity, { guide: true, explain: coach.fileError === 'automation' ? T('files.automation') : step.hint, actions: [[T('files.again'), () => showCoachStep(true), true], [T('files.menu'), () => { endGuide(false); showPanel('files'); }]] });
+  }]);
+  if (step.openFolder) acts.push(['Открыть папку', async () => {
+    const result = await api.filesAction({ op: 'open', place: step.openFolder });
+    if (!coach.active) return;
+    if (result.error) say(T('files.error'), Infinity, { guide: true, actions: coachStepActions(step) });
+    else showCoachStep(true);
+  }]);
   if (step.open) acts.push([T('coach.open'), () => openForMe(step)]);
   acts.push([T('g.stop'), () => endGuide(true)]);
   return acts;
 }
 
+function coachExplanation(step, missing = false) {
+  if (!coach.sc.fileLesson) return '';
+  const error = coach.locateError;
+  const prefix = error === 'access' ? T('files.access')
+    : error === 'automation' ? T('files.automation')
+    : error && error !== 'no_window' ? T('files.readError')
+    : missing ? T('files.missing') : '';
+  return [prefix, step.hint].filter(Boolean).join(' ');
+}
+function coachText(step) {
+  return coach.sc.fileLesson ? `${T('files.progress', { n: coach.i + 1, total: coach.steps.length })}\n${stepSay(step)}` : stepSay(step);
+}
 async function showCoachStep(repeat = false) {
+  const run = coach.run;
   const step = coach.steps[coach.i];
   if (!step || !coach.active) return;
-  const text = stepSay(step);
-  const top = await api.locate({ op: 'top' });
-  if (!repeat) { coach.baseTitle = top.win?.title || ''; coach.seen = false; }
+  if (coach.advancing) return;
+  const text = coachText(step);
+  const top = step.wait?.titleChange ? await api.locate({ op: 'top' }) : {};
+  if (!coach.active || coach.steps[coach.i] !== step || coach.run !== run) return;
+  if (!repeat) { coach.baseTitle = top.win?.title || ''; coach.seen = false; coach.misses = 0; }
   const items = await locate(fillQuery(step.find));
-  if (!coach.active || coach.steps[coach.i] !== step) return;
+  if (!coach.active || coach.steps[coach.i] !== step || coach.run !== run) return;
   coach.target = items[0] || null;
   if (coach.target) coach.seen = true;
   if (!coach.target && step.optional && step.find && !repeat) { nextStep(); return; }
   const sayIt = () => {
-    say(text, Infinity, { actions: stepActions(step), guide: true });
-    speak(text);
+    say(text, Infinity, { actions: coachStepActions(step), guide: true, explain: coachExplanation(step, repeat && !coach.target && !!step.find) });
+    speak(stepSay(step));
   };
-  if (coach.target) { showRing(coach.target); goPoint(coach.target, sayIt); } else { hideRing(); if (cat.state === 'perch') startFall(); sayIt(); }
+  if (coach.target) { showRing(coach.target); goPoint(coach.target, () => { if (coach.active && coach.run === run && coach.steps[coach.i] === step) sayIt(); }); } else { hideRing(); if (cat.state === 'perch') startFall(); sayIt(); }
   if (repeat) Sound.meow(1.1);
   startPoll();
 }
@@ -97,18 +135,30 @@ function startPoll() {
   coach.poll = setInterval(async () => {
     if (coach.polling || !coach.active) return;
     coach.polling = true;
+    const run = coach.run;
     try {
       const step = coach.steps[coach.i];
       if (!step) return;
-      if (await check(step.wait, step)) { stepDone(); return; }
-      // кнопки не было видно, а теперь появилась: показываем
-      if (step.find && !coach.target) {
+      const complete = !step.wait?.manual && await check(step.wait, step);
+      if (!coach.active || coach.steps[coach.i] !== step || coach.run !== run) return;
+      if (complete) { stepDone(); return; }
+      if (step.find) {
         const items = await locate(fillQuery(step.find));
-        if (items[0] && coach.active && coach.steps[coach.i] === step) {
-          coach.target = items[0];
+        if (!coach.active || coach.steps[coach.i] !== step || coach.run !== run || coach.advancing) return;
+        const previous = coach.target;
+        coach.target = items[0] || null;
+        if (coach.target) {
           coach.seen = true;
+          coach.misses = 0;
           showRing(coach.target);
-          goPoint(coach.target, () => say(stepSay(step), Infinity, { actions: stepActions(step), guide: true }));
+          if (!previous) goPoint(coach.target, () => {
+            if (coach.active && coach.run === run && coach.steps[coach.i] === step) say(coachText(step), Infinity, { actions: coachStepActions(step), guide: true, explain: coachExplanation(step) });
+          });
+        } else {
+          hideRing();
+          coach.misses = (coach.misses || 0) + 1;
+          // Allow Finder to finish opening/navigating before declaring a missing control.
+          if (coach.sc.fileLesson && coach.misses === 3) say(coachText(step), Infinity, { actions: coachStepActions(step), guide: true, explain: coachExplanation(step, true) });
         }
       }
     } finally { coach.polling = false; }
@@ -122,29 +172,37 @@ function startPoll() {
 }
 
 function stepDone() {
+  if (!coach.active || coach.advancing) return;
+  coach.advancing = true;
   clearInterval(coach.poll);
   hideRing();
   happy(700);
   Sound.meow(1.25);
-  setTimeout(nextStep, 500);
+  clearTimeout(coach.advance);
+  coach.advance = setTimeout(nextStep, 500);
 }
 
 async function nextStep() {
   if (!coach.active) return;
+  const run = coach.run;
+  coach.advancing = false;
   coach.i++;
   // шаги, которые уже сделаны (флешка уже вставлена, WhatsApp уже открыт), пропускаем
-  while (coach.i < coach.steps.length && await check(coach.steps[coach.i].skipIf, coach.steps[coach.i])) coach.i++;
-  if (!coach.active) return;
+  while (coach.active && coach.run === run && coach.i < coach.steps.length && await check(coach.steps[coach.i].skipIf, coach.steps[coach.i])) coach.i++;
+  if (!coach.active || coach.run !== run) return;
   if (coach.i >= coach.steps.length) { finishScenario(); return; }
   showCoachStep();
 }
 
 async function doneClicked() {
+  const run = coach.run;
   const step = coach.steps[coach.i];
-  if (!step) return;
+  if (!step || coach.advancing) return;
   say(pick(I18N.list('g.checking')), Infinity, { guide: true });
-  if (await check(step.wait, step) || await check({ next: true }, step) || step.wait?.manual) { stepDone(); return; }
-  say(T('coach.notYet'), Infinity, { actions: stepActions(step), guide: true });
+  const complete = step.wait?.manual || step.allowConfirm || await check(step.wait, step) || (!coach.sc.fileLesson && await check({ next: true }, step));
+  if (!coach.active || coach.steps[coach.i] !== step || coach.run !== run) return;
+  if (complete) { stepDone(); return; }
+  say(T('coach.notYet'), Infinity, { actions: coachStepActions(step), guide: true });
   speak(T('coach.notYet'));
   if (coach.target) goPoint(coach.target);
 }
@@ -186,6 +244,8 @@ async function finishScenario() {
 
 function stopCoach() {
   coach.active = false;
+  coach.run++;
+  clearTimeout(coach.advance);
   clearInterval(coach.poll);
   clearTimeout(coach.idle);
 }
@@ -195,6 +255,10 @@ function runScenario(sc) {
   endTrainer();
   if (guide.active) endGuide(false);
   stopCoach();
+  coach.advancing = false;
+  coach.fileError = '';
+  coach.locateError = '';
+  coach.misses = 0;
   coach.sc = sc;
   coach.steps = sc[plat()] || sc.win;
   coach.i = -1;
@@ -209,8 +273,11 @@ function runScenario(sc) {
 
 // Кнопка-задача или фраза человека → готовый сценарий, иначе ИИ (если есть), иначе подсказка.
 function routeGoal(text) {
+  if (/помо[гщ].*(файл|проводник|finder)|help with files/i.test(text)) { showPanel('files'); return; }
   const m = Scenarios.match(text);
+  if (m?.fileLesson) { startFileLesson(m.id); return; }
   if (m?.id === 'lost') { imLost(); return; }
+  if (m?.id === 'photos' && /посмотреть фото с флешки|look at photos from a usb stick/i.test(text)) { showPanel('files'); return; }
   if (m) { runScenario(m); return; }
   if (settings.aiReady) { startGuide(goalOf(text)); return; }
   showPanel('help');
@@ -271,3 +338,42 @@ endGuide = function endGuideAll(sayBye) {
   stopCoach();
   endGuideAI(sayBye);
 };
+
+// File menu: prepare a real Finder window before starting the existing coach.
+let fileLaunch = 0;
+async function startFileLesson(id) {
+  const launch = ++fileLaunch;
+  showPanel('files');
+  const status = document.querySelector('#files-status');
+  if (settings.platform !== 'darwin') { status.textContent = T('files.unsupported'); return; }
+  const access = await api.filesAction({ op: 'access' });
+  if (launch !== fileLaunch || openPanel !== 'files') return;
+  if (!access.trusted) {
+    status.textContent = T('files.access');
+    for (const [label, fn] of [[T('files.permissions'), () => api.filesAction({ op: 'permissions' })], [T('files.retry'), () => startFileLesson(id)]]) {
+      const b = document.createElement('button'); b.className = 'big'; b.textContent = label;
+      b.addEventListener('click', fn); status.appendChild(b);
+    }
+    return;
+  }
+  status.textContent = T('files.opening');
+  const sc = Scenarios.list.find((s) => s.id === id);
+  const result = await api.filesAction({ op: 'open', place: sc.place });
+  if (launch !== fileLaunch || openPanel !== 'files') return;
+  if (result.error) { status.textContent = T('files.error'); return; }
+  // Finder may still be creating its window. Polling will find the controls when ready.
+  runScenario(sc);
+}
+document.querySelector('#files-back').addEventListener('click', () => { fileLaunch++; showPanel('help'); });
+document.querySelectorAll('[data-files]').forEach((button) => button.addEventListener('click', async () => {
+  const task = button.dataset.files;
+  if (task === 'learn' || task === 'downloads') { await startFileLesson(`files-${task}`); return; }
+  if (task === 'photos') { fileLaunch++; runScenario(Scenarios.list.find((s) => s.id === 'photos')); return; }
+  const status = document.querySelector('#files-status');
+  button.disabled = true;
+  status.textContent = 'Выбери документ и нажми «Открыть».';
+  try {
+    const result = await api.filesAction({ op: 'choose' });
+    status.textContent = result.error ? T('files.error') : result.canceled ? 'Можно выбрать другой файл, когда будешь готов.' : 'Файл открыт в своей программе.';
+  } finally { button.disabled = false; }
+}));

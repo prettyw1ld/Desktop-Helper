@@ -10,6 +10,7 @@ const calendar = require('./calendar');
 const windowsWatch = require('./windows');
 const guide = require('./guide');
 const locate = require('./locate');
+const files = require('./files');
 const stt = require('./stt');
 const I18N = require('./renderer/i18n');
 
@@ -325,6 +326,7 @@ function toOverlayRect(r) {
   const d = process.platform === 'win32' ? screen.screenToDipRect(null, { x: r.x, y: r.y, width: r.w, height: r.h }) : { x: r.x, y: r.y, width: r.w, height: r.h };
   return { x: Math.round(d.x - wa.x), y: Math.round(d.y - wa.y), w: Math.round(d.width), h: Math.round(d.height) };
 }
+ipcMain.handle('files:action', (_e, req) => files.action(req, win));
 ipcMain.handle('locate', (_e, q) => locate.ask(q, toOverlayRect));
 // «Открой за меня»: только безопасные адреса (настройки Windows, WhatsApp, Telegram, сайты) и флешка
 ipcMain.handle('open:uri', (_e, uri) => {
