@@ -68,7 +68,7 @@
     for(const task of goals){const b=document.createElement('button');b.textContent=task;b.onclick=()=>begin(task);p.append(b);}
     const form=document.createElement('form');const input=document.createElement('input');input.placeholder='Например, открыть папку Загрузки';input.setAttribute('aria-label','Задача для самостоятельного выполнения');input.required=true;input.maxLength=200;const submit=document.createElement('button');submit.type='submit';submit.className='primary';submit.textContent='Попробовать без подсказок';form.append(input,submit);form.onsubmit=e=>{e.preventDefault();begin(input.value);};p.append(form);const cancel=document.createElement('button');cancel.textContent='Назад';cancel.onclick=()=>{stopTeach();showPanel('lessons');};p.append(cancel);input.focus();
   }
-  document.querySelector('#teach-cat').onclick=chooseTeach;
+  const teachBtn=document.querySelector('#teach-cat');if(teachBtn)teachBtn.onclick=chooseTeach;
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&guide.kind==='recall')stopTeach();});
   window.PushikPlayful={chooseTeach,stopTeach};
 })();
