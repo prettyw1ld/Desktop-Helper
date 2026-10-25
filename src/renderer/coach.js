@@ -37,10 +37,27 @@ async function locate(q) {
   return items;
 }
 
+async function readVolume() {
+  const res = settings.locator ? await api.locate({ op: 'volume' }) : {};
+  return typeof res.volume === 'number' ? { volume: res.volume, muted: !!res.muted } : null;
+}
+
 // Выполнено ли условие шага
 async function check(cond, step) {
   if (!cond) return false;
+  if (cond.any) {
+    for (const c of cond.any) if (await check(c, step)) return true;
+    return false;
+  }
   if (cond.manual) return false;
+  if (cond.volumeUp || cond.volumeMax) {
+    // громкость меряем сами: человеку не надо ничего подтверждать
+    const v = await readVolume();
+    if (!v) return false;
+    if (cond.volumeMax) return !v.muted && v.volume >= 0.97;
+    const v0 = coach.ctx.vol0;
+    return !!v0 && ((v0.muted && !v.muted) || (!v.muted && v.volume > v0.volume + 0.03));
+  }
   if (cond.drive) {
     const res = await api.locate({ op: 'drives' });
     const d = (res.drives || [])[0];
@@ -144,6 +161,8 @@ async function doneClicked() {
   const step = coach.steps[coach.i];
   if (!step) return;
   if (step.wait?.manual) { stepDone(); return; }
+  // громкость прочитать не удалось: верим человеку на слово
+  if (step.wait?.volumeUp && !coach.ctx.vol0) { stepDone(); return; }
   say(pick(I18N.list('g.checking')), Infinity, { guide: true });
   if (await check(step.wait, step) || await check({ next: true }, step) || step.wait?.manual) { stepDone(); return; }
   say(T('coach.notYet'), Infinity, { actions: stepActions(step), guide: true });
@@ -178,7 +197,8 @@ async function finishScenario() {
   stopCoach();
   guide.active = false;
   hideRing();
-  const text = sc.done || pick(I18N.list('g.success'));
+  const maxed = sc.id === 'volume' && coach.ctx.vol0 && !coach.ctx.vol0.muted && coach.ctx.vol0.volume >= 0.97;
+  const text = (maxed && T('coach.volMax')) || sc.done || pick(I18N.list('g.success'));
   say(`${text}\n${T('g.skillSaved')}`, 8000, { guide: true });
   speak(text);
   celebrate();
@@ -226,6 +246,11 @@ function runScenario(sc) {
   guide.kind = 'script';
   guide.goal = '';
   if (!settings.locator) say(T('coach.noLocator'), 3500, { guide: true });
+  if (sc.id === 'volume') {
+    // запоминаем громкость в начале, чтобы потом самому заметить, что стало громче
+    readVolume().then((v) => { if (coach.sc === sc && coach.active) { coach.ctx.vol0 = v; nextStep(); } });
+    return;
+  }
   nextStep();
 }
 

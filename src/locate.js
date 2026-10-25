@@ -47,6 +47,35 @@ public static class PushTop {
 }
 "@
 [PushTop]::Init()
+# Громкость системы (Core Audio). Если не получилось, урок просто попросит нажать «Сделал».
+try {
+Add-Type -TypeDefinition @"
+using System; using System.Runtime.InteropServices;
+[Guid("5CDF2C82-841E-4546-9722-0CF74078229A"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IPushVol {
+  int f1(); int f2(); int f3(); int f4(); int f5(); int f6();
+  int GetMasterVolumeLevelScalar(out float level);
+  int f8(); int f9(); int f10(); int f11(); int f12();
+  int GetMute(out bool mute);
+}
+[Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IPushDev { int Activate(ref Guid id, int ctx, IntPtr p, [MarshalAs(UnmanagedType.IUnknown)] out object o); }
+[Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IPushEnum { int f1(); int GetDefaultAudioEndpoint(int flow, int role, out IPushDev dev); }
+[ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")] class PushEnumCls { }
+public static class PushVol {
+  static IPushVol Get() {
+    var en = (IPushEnum)(new PushEnumCls());
+    IPushDev dev; Marshal.ThrowExceptionForHR(en.GetDefaultAudioEndpoint(0, 1, out dev));
+    var iid = typeof(IPushVol).GUID; object o;
+    Marshal.ThrowExceptionForHR(dev.Activate(ref iid, 23, IntPtr.Zero, out o));
+    return (IPushVol)o;
+  }
+  public static float Level() { float v; Marshal.ThrowExceptionForHR(Get().GetMasterVolumeLevelScalar(out v)); return v; }
+  public static bool Muted() { bool m; Marshal.ThrowExceptionForHR(Get().GetMute(out m)); return m; }
+}
+"@
+} catch { }
 $AE = [System.Windows.Automation.AutomationElement]
 $TS = [System.Windows.Automation.TreeScope]
 
@@ -149,6 +178,10 @@ function Top() {
   return @{ win = @{ title = $el.Current.Name; proc = $w[0][1]; rect = (Rect $el); close = $close } }
 }
 
+function Volume() {
+  return @{ volume = [Math]::Round([PushVol]::Level(), 3); muted = [PushVol]::Muted() }
+}
+
 function Drives() {
   $out = @()
   foreach ($d in (Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=2')) {
@@ -166,6 +199,7 @@ while ($true) {
     if ($q.op -eq 'find') { $res = Find $q }
     elseif ($q.op -eq 'top') { $res = Top }
     elseif ($q.op -eq 'drives') { $res = Drives }
+    elseif ($q.op -eq 'volume') { $res = Volume }
     $res.id = $q.id
   } catch {
     $res = @{ id = $q.id; error = [string]$_ }
@@ -257,6 +291,12 @@ function roots() {
   return out;
 }
 function run() {
+  if (q.op === 'volume') {
+    const a = Application.currentApplication();
+    a.includeStandardAdditions = true;
+    const v = a.getVolumeSettings();
+    return { volume: Math.round(v.outputVolume) / 100, muted: !!v.outputMuted };
+  }
   if (q.op === 'drives') {
     const fm = $.NSFileManager.defaultManager;
     const names = ObjC.deepUnwrap(fm.contentsOfDirectoryAtPathError('/Volumes', null)) || [];
@@ -319,7 +359,7 @@ function macAsk(q, timeout = 8000) {
 const supported = () => process.platform === 'win32' || process.platform === 'darwin';
 
 /**
- * ask(q, toOverlay) — q: { op: 'find'|'top'|'drives', scope, name (regex), types }.
+ * ask(q, toOverlay) — q: { op: 'find'|'top'|'drives'|'volume', scope, name (regex), types }.
  * toOverlay(rect) переводит экранный прямоугольник в координаты окна кота.
  */
 async function ask(q, toOverlay = (r) => r) {

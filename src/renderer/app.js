@@ -1286,6 +1286,7 @@ function mockApi() {
       } });
       if (q.op === 'top') return { win: t.top };
       if (q.op === 'drives') return { drives: [] };
+      if (q.op === 'volume') return { volume: t.volume ?? 0.3, muted: false };
       const list = (t.items[q.scope] || []).filter((it) => !q.name || new RegExp(q.name, 'i').test(it.name));
       return { items: list };
     },
