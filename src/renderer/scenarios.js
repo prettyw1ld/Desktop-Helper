@@ -7,7 +7,9 @@
               scope: taskbar (панель задач / Dock), top (окно сверху), start (меню «Пуск»), proc:<имя программы>.
      wait     когда шаг сделан: { next: true } (появилась кнопка следующего шага), { top: 'регулярка программы' },
               { drive: true } (вставили флешку), { gone: true } (кнопка пропала), { focus: true } (курсор в поле),
-              { titleChange: true } (у окна сменился заголовок), { find: {...} }.
+              { titleChange: true } (у окна сменился заголовок), { find: {...} },
+              { volumeUp: true } (звук стал громче), { volumeMax: true } (звук уже на максимуме),
+              { any: [условия] } (хватит любого), { manual: true } (только кнопкой).
      sayNoContact что сказать, если имя контакта в настройках не задано.
      optional шаг можно пропустить, если кнопки нет (например, папки DCIM на флешке нет).
      open     «Открой за меня»: что открыть, если человек не справился (адрес или 'drive').
@@ -132,16 +134,18 @@
       match: /звук|громк|тихо|не слыш|volume|sound|louder/i,
       skill: { ru: 'Сделать звук громче', en: 'Turn the sound up' },
       words: 'сделать звук громче громкость погромче тихо не слышно',
+      // кот сам меряет громкость системы и замечает, что стало громче
       win: [
         { say: 'Нажми на значок динамика внизу справа, рядом с часами',
           find: { scope: 'taskbar', name: 'Громк|Динамик|Volume|Speakers|Звук|Sound', types: ['Button', 'MenuItem'] },
-          wait: { next: true }, open: 'ms-settings:sound' },
+          wait: { any: [{ next: true }, { volumeUp: true }] }, skipIf: { volumeMax: true }, open: 'ms-settings:sound' },
         { say: 'Потяни кружок на полоске вправо. Чем правее, тем громче',
           find: { scope: 'popup', name: 'Громк|Динамик|Volume|Speakers', types: ['Slider'] },
-          wait: { manual: true }, open: 'ms-settings:sound' },
+          wait: { volumeUp: true }, skipIf: { any: [{ volumeMax: true }, { volumeUp: true }] }, open: 'ms-settings:sound' },
       ],
       mac: [
-        { say: 'Нажми клавишу с громким динамиком вверху клавиатуры. Каждое нажатие делает громче', wait: { manual: true } },
+        { say: 'Нажми клавишу с громким динамиком вверху клавиатуры. Каждое нажатие делает громче',
+          wait: { volumeUp: true }, skipIf: { volumeMax: true } },
       ],
       done: 'Готово! Если стало слишком громко, потяни кружок обратно влево',
     },
