@@ -376,7 +376,8 @@ ipcMain.handle('guide:look', async (_e, req) => {
   } catch (err) {
     if (err.code === 'noShot') return { error: t('err.screen') };
     if (err.offline && settings.provider === 'ollama') return { error: t('err.ollama', { url: settings.ollamaUrl }) };
-    return { error: t('err.look', { err: err.message }) };
+    console.error('guide:look', err.message, err.cause?.code || err.cause?.message || '');
+    return { error: t(err.network ? 'err.net' : 'err.look') };
   }
 });
 ipcMain.on('guide:watch', (_e, masks) => {
@@ -390,7 +391,8 @@ ipcMain.handle('stt:transcribe', async (_e, { audio, mime }) => {
     const text = await stt.transcribe({ ...settings, sttKey: sttKeyFor(settings) }, Buffer.from(audio), mime);
     return { text };
   } catch (err) {
-    return { error: t('err.stt', { err: err.message }) };
+    console.error('stt', err.message, err.cause?.code || err.cause?.message || '');
+    return { error: t(err.network ? 'err.net' : 'err.stt') };
   }
 });
 ipcMain.handle('mic:ask', async () => {
@@ -449,8 +451,8 @@ ipcMain.handle('chat:send', async (_e, text) => {
     return { reply, actions };
   } catch (err) {
     if (err.offline && settings.provider === 'ollama') return { error: t('err.ollama', { url: settings.ollamaUrl }) };
-    const who = { ollama: 'Ollama', groq: 'Groq', openrouter: 'OpenRouter', openai: 'ИИ' }[settings.provider] || 'Claude';
-    return { error: t('err.ask', { who, err: err.message }) };
+    console.error('chat:send', err.message, err.cause?.code || err.cause?.message || '');
+    return { error: t(err.network ? 'err.net' : 'err.ask') };
   }
 });
 
