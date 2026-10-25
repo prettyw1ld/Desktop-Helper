@@ -280,6 +280,7 @@ function tickFrame() {
 
 // Одна ошибка в кадре не должна останавливать кота: иначе он замирает посреди прыжка, а облачко не появляется.
 function tick() {
+  if (!bubble.classList.contains('hidden')) { try { placeBubble(); } catch { /* пусто */ } }
   try { tickFrame(); } catch (err) { console.error('tick', err); }
   requestAnimationFrame(tick);
 }
@@ -370,6 +371,7 @@ function say(text, ms = 4000, opts = {}) {
   bubble.classList.toggle('guide', !!(opts.guide || opts.actions));
   bubble.classList.toggle('danger', !!opts.danger);
   bubble.classList.remove('hidden', 'below');
+  bubble.scrollTop = 0;
   cat.meowUntil = now() + 800;
   placeBubble();
   clearTimeout(bubbleTimer);
@@ -380,13 +382,24 @@ function hideBubble() {
   bubble.classList.add('hidden');
   bubbleActions.innerHTML = '';
 }
-// не даём облачку уехать за край экрана; если сверху нет места, ставим под кота
+// Общая логика для Mac и Windows: координаты уже в DIP окна Пушика.
+// Пересчитываем сторону карточки при движении, иначе «снизу» остаётся после прыжка вниз.
+// offsetHeight не учитывает анимацию появления. Если места мало — ограничиваем экраном.
+// Границы переноса между ОС описаны в docs/guide-porting.md.
 function placeBubble() {
+  const width = bubble.offsetWidth;
+  const height = bubble.offsetHeight;
+  const above = cat.y + CAT_H - 128 * size() - height;
+  const belowTop = cat.y + CAT_H + 14;
+  const below = above < 8 && belowTop + height <= H() - 8;
+  bubble.classList.toggle('below', below);
+  const top = below ? belowTop : above;
+  const left = cat.x + CAT_W / 2 - width / 2;
+  const dx = clamp(left, 8, Math.max(8, W() - width - 8)) - left;
+  const dy = clamp(top, 8, Math.max(8, H() - height - 8)) - top;
   bubble.style.marginLeft = '0px';
-  let r = bubble.getBoundingClientRect();
-  if (r.top < 8) { bubble.classList.add('below'); r = bubble.getBoundingClientRect(); }
-  if (r.left < 8) bubble.style.marginLeft = `${8 - r.left}px`;
-  else if (r.right > W() - 8) bubble.style.marginLeft = `${W() - 8 - r.right}px`;
+  bubble.style.translate = `${Math.round(dx)}px ${Math.round(dy)}px`;
+  bubble.classList.toggle('detached', Math.abs(dy) > 1);
 }
 
 // Поза на время ms. Старые имена поз из прошлых версий переведены на новые анимации.
@@ -468,6 +481,7 @@ function hideRing() { ring.classList.add('hidden'); }
 
 // Кот подходит (подпрыгивает) к кнопке и встаёт сбоку, лапкой к ней.
 function goPoint(t, then) {
+  if (cat.state === 'drag') { if (then) then(); return; }
   const k = size();
   const half = 52 * k;                       // половина видимой ширины кота
   const right = t.x + t.w / 2 > W() / 2;     // кнопка справа: кот встаёт слева от неё
@@ -682,6 +696,7 @@ document.addEventListener('mousemove', (e) => {
       if (!trainer.step) { closePanels(); if (!guide.active) hideBubble(); }
       cat.plat = null;
       cat.climb = null;
+      cat.jump = null;
       setState('drag');
       void 0;
     }
@@ -707,13 +722,25 @@ document.addEventListener('mouseup', () => {
   press = null;
   if (wasDrag) {
     if (trainer.step === 'drag' || trainer.step === 'landing') { trainer.step = 'landing'; hideBubble(); }
-    else if (guide.active) endGuide(false);
+    else if (guide.active) {
+      // Перенос не завершает сценарий: perch удерживает кота, а текущий шаг сохраняется.
+      // Одинаковое поведение на Mac и Windows; падение здесь снова спрятало бы подсказку.
+      cat.jump = null;
+      cat.plat = null;
+      cat.vy = 0;
+      cat.y = clamp(cat.y, 0, Math.max(0, floorY()));
+      setState('perch');
+      if (guide.kind === 'script') resumeCoachAfterDrag();
+      else if (guide.last?.say) say(guide.last.say, Infinity, { guide: true, actions: stepActions() });
+      placeBubble();
+      return;
+    }
     startFall();
   } else onCatClick();
 });
 
 catEl.addEventListener('dblclick', (e) => {
-  if (e.target.closest('.bubble')) return;
+  if (e.target.closest('.bubble') || guide.active) return;
   if (trainer.step === 'dbl') {
     pet();
     trainer.step = 'drag';
@@ -748,7 +775,9 @@ function onCatClick() {
   // во время подсказки клик по коту ничего не ломает, но всегда даёт выход: повторить или закончить
   if (guide.active) {
     if (guide.busy) return;
-    const acts = guide.kind === 'ai' && guide.last ? aiStepActions() : [[T('g.stop'), () => endGuide(true), true]];
+    const acts = guide.kind === 'ai' && guide.last ? aiStepActions()
+      : guide.kind === 'script' && coach.active && coach.steps[coach.i] ? coachStepActions(coach.steps[coach.i])
+      : [[T('g.stop'), () => endGuide(true), true]];
     say(guide.last?.say || T('g.stopAsk'), Infinity, { actions: acts, guide: true });
     return;
   }
@@ -1264,13 +1293,13 @@ function mockApi() {
   window.__emit = (ch, data) => handlers[ch]?.(data);
   const s = {
     speed: 1, chatter: true, breakEvery: 50, size: 1, windows: true, sound: false, volume: 0.4,
-    lang: (navigator.language || 'ru').startsWith('ru') ? 'ru' : 'en',
+    lang: new URLSearchParams(location.search).get('lang') || ((navigator.language || 'ru').startsWith('ru') ? 'ru' : 'en'),
     provider: 'claude', model: 'claude-sonnet-5-5', ollamaUrl: 'http://localhost:11434', ollamaModel: 'qwen3',
     calendarBefore: 10, hasApiKey: true, hasCalendar: true, hasStt: true,
     catColor: new URLSearchParams(location.search).get('color') || 'ginger', speak: false, tasks: [], skills: [],
     onboarded: new URLSearchParams(location.search).has('onboarded'),
     sttUrl: 'https://api.groq.com/openai/v1', sttModel: 'whisper-large-v3', visionModel: '',
-    contact: new URLSearchParams(location.search).get('contact') ?? 'Маша', voice: 'offline', hasVosk: true, uiScale: Number(new URLSearchParams(location.search).get('scale')) || 1, aiReady: new URLSearchParams(location.search).has('ai'), locator: true, platform: 'win32',
+    contact: new URLSearchParams(location.search).get('contact') ?? 'Маша', voice: 'offline', hasVosk: true, uiScale: Number(new URLSearchParams(location.search).get('scale')) || 1, aiReady: new URLSearchParams(location.search).has('ai'), locator: true, platform: new URLSearchParams(location.search).get('platform') || 'win32',
   };
   const day = new Date();
   const at = (h, m, plus = 0) => new Date(day.getFullYear(), day.getMonth(), day.getDate() + plus, h, m).getTime();
@@ -1317,6 +1346,7 @@ function mockApi() {
       const list = (t.items[q.scope] || []).filter((it) => !q.name || new RegExp(q.name, 'i').test(it.name));
       return { items: list };
     },
+    filesAction: async ({ op }) => op === 'access' ? { trusted: true } : { ok: true },
     openUri: async () => true,
     openDrive: async () => true,
     transcribe: async () => ({ text: 'Хочу позвонить по видео' }),

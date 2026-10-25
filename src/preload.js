@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('pushik', {
   addSkill: (name) => ipcRenderer.invoke('skills:add', name),
   locate: (q) => ipcRenderer.invoke('locate', q),
   openUri: (uri) => ipcRenderer.invoke('open:uri', uri),
+  filesAction: (req) => ipcRenderer.invoke('files:action', req),
   openDrive: (letter) => ipcRenderer.invoke('open:drive', letter),
   on: (channel, cb) => {
     const allowed = ['reminder', 'reminders-changed', 'open', 'settings-changed', 'toggle-visible',

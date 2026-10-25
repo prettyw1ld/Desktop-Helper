@@ -10,6 +10,7 @@ const calendar = require('./calendar');
 const windowsWatch = require('./windows');
 const guide = require('./guide');
 const locate = require('./locate');
+const files = require('./files');
 const stt = require('./stt');
 const I18N = require('./renderer/i18n');
 
@@ -357,6 +358,7 @@ function toOverlayRect(r, keep = false) {
   if (!keep && (cx < 0 || cy < 0 || cx > wa.width || cy > wa.height)) return null;
   return o;
 }
+ipcMain.handle('files:action', (_e, req) => files.action(req, win));
 ipcMain.handle('locate', (_e, q) => {
   // всплывающие панели Windows (громкость, «Пуск») тоже «поверх всех»: поднимаем кота выше них
   if (win && q?.op === 'find') win.moveTop();
