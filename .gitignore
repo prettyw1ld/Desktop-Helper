@@ -2,3 +2,6 @@ node_modules/
 dist/
 __pycache__/
 .DS_Store
+assets/vosk/*.tar.gz
+assets/vosk/*.part
+team.json

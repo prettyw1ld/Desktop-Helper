@@ -1,18 +1,35 @@
 const {
   app, BrowserWindow, screen, ipcMain, Tray, Menu, Notification,
-  nativeImage, globalShortcut, safeStorage, session, systemPreferences,
+  nativeImage, globalShortcut, safeStorage, session, systemPreferences, protocol, shell,
 } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { Readable } = require('stream');
 const { ask, ollamaModels } = require('./llm');
 const calendar = require('./calendar');
 const windowsWatch = require('./windows');
 const guide = require('./guide');
+const locate = require('./locate');
 const stt = require('./stt');
 const I18N = require('./renderer/i18n');
 
 const t = (k, v) => I18N.t(k, v);
 const ASSETS = path.join(__dirname, '..', 'assets');
+const VOSK_MODEL = path.join(ASSETS, 'vosk', 'model-ru.tar.gz');
+
+// pushik://vosk/model-ru.tar.gz: так распознаватель речи (он работает в Web Worker) может скачать модель из приложения
+protocol.registerSchemesAsPrivileged([{
+  scheme: 'pushik', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true },
+}]);
+function serveAssets() {
+  protocol.handle('pushik', (req) => {
+    const u = new URL(req.url);
+    const file = path.normalize(path.join(ASSETS, u.hostname, decodeURIComponent(u.pathname)));
+    if (!file.startsWith(ASSETS) || !fs.existsSync(file)) return new Response('not found', { status: 404 });
+    const headers = { 'access-control-allow-origin': '*', 'content-length': String(fs.statSync(file).size) };
+    return new Response(Readable.toWeb(fs.createReadStream(file)), { headers });
+  });
+}
 let win = null;
 let tray = null;
 
@@ -46,12 +63,27 @@ const DEFAULTS = {
   tasks: [],               // свои кнопки-задачи; пусто = стандартные
   skills: [],              // «Что я уже умею»: [{ name, at }]
   onboarded: false,        // пройден ли тренажёр мыши при первом запуске
+  contact: '',             // кому чаще всего звонят: имя, как в WhatsApp (для сценария «Позвонить»)
+  voice: 'offline',        // offline = Vosk в самом приложении, whisper = сервис по ключу
 };
 const SECRETS = ['apiKey', 'calendarUrl', 'sttKey'];
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
 
+// Ключи команды: team.json рядом с приложением (кладётся при сборке) или в папке настроек.
+// Новичку ничего вводить не нужно. Свои значения из настроек важнее командных.
+let team = {};
+function loadTeam() {
+  const places = [path.join(__dirname, '..', 'team.json'), path.join(process.resourcesPath || '', 'team.json'), path.join(app.getPath('userData'), 'team.json')];
+  for (const f of places) {
+    try { team = { ...team, ...JSON.parse(fs.readFileSync(f, 'utf8')) }; } catch { /* файла нет */ }
+  }
+  const allowed = ['apiKey', 'provider', 'model', 'ollamaUrl', 'ollamaModel', 'visionModel', 'sttUrl', 'sttKey', 'sttModel', 'voice'];
+  team = Object.fromEntries(Object.entries(team).filter(([k, v]) => allowed.includes(k) && typeof v === 'string' && v));
+}
+
 function loadSettings() {
-  let s = { ...DEFAULTS };
+  loadTeam();
+  let s = { ...DEFAULTS, ...team };
   try {
     const raw = JSON.parse(fs.readFileSync(settingsFile(), 'utf8'));
     s = { ...s, ...raw };
@@ -70,8 +102,11 @@ function saveSettings(next) {
   const prev = settings;
   const s = { ...settings, ...next };
   const toDisk = { ...s };
+  // командные ключи не копируем в настройки человека
+  for (const [k, v] of Object.entries(team)) if (toDisk[k] === v) delete toDisk[k];
   // ключ API и адрес календаря секретные: шифруем средствами системы
   for (const k of SECRETS) {
+    if (!(k in toDisk)) continue;
     if (s[k] && safeStorage.isEncryptionAvailable()) {
       toDisk[`${k}Enc`] = safeStorage.encryptString(s[k]).toString('base64');
       delete toDisk[k];
@@ -93,6 +128,10 @@ function publicSettings() {
   const { apiKey, calendarUrl, sttKey, ...rest } = settings;
   return {
     ...rest, hasApiKey: !!apiKey, hasCalendar: !!calendarUrl, hasStt: !!sttKey || !/groq\.com|openai\.com/.test(settings.sttUrl || ''),
+    hasVosk: fs.existsSync(VOSK_MODEL),
+    aiReady: settings.provider === 'ollama' || !!apiKey,
+    teamKey: !!team.apiKey && apiKey === team.apiKey,
+    locator: locate.supported(),
     platform: process.platform,
   };
 }
@@ -280,6 +319,27 @@ ipcMain.handle('calendar:list', (_e, days) => calendarList(days || 2));
 ipcMain.on('app:quit', () => app.quit());
 ipcMain.on('app:hide', () => win?.hide());
 
+// ---------- Поиск кнопок без ИИ ----------
+function toOverlayRect(r) {
+  const wa = screen.getPrimaryDisplay().workArea;
+  const d = process.platform === 'win32' ? screen.screenToDipRect(null, { x: r.x, y: r.y, width: r.w, height: r.h }) : { x: r.x, y: r.y, width: r.w, height: r.h };
+  return { x: Math.round(d.x - wa.x), y: Math.round(d.y - wa.y), w: Math.round(d.width), h: Math.round(d.height) };
+}
+ipcMain.handle('locate', (_e, q) => locate.ask(q, toOverlayRect));
+// «Открой за меня»: только безопасные адреса (настройки Windows, WhatsApp, Telegram, сайты) и флешка
+ipcMain.handle('open:uri', (_e, uri) => {
+  const u = String(uri || '');
+  if (!/^(ms-settings:|whatsapp:|tg:|https:\/\/)/.test(u)) return false;
+  shell.openExternal(u);
+  return true;
+});
+ipcMain.handle('open:drive', (_e, letter) => {
+  const l = String(letter || '');
+  if (process.platform === 'win32' && /^[A-Z]$/i.test(l)) shell.openPath(`${l}:\\`);
+  else if (process.platform === 'darwin' && l && !l.includes('/')) shell.openPath(`/Volumes/${l}`);
+  return true;
+});
+
 // ---------- Помощник: снимок экрана и подсказка ----------
 function screenAccess() {
   if (process.platform !== 'darwin') return 'granted';
@@ -384,6 +444,7 @@ if (!app.requestSingleInstanceLock()) {
     // микрофон нужен для голосового ввода, остальное окну не нужно
     session.defaultSession.setPermissionRequestHandler((_wc, perm, cb) => cb(perm === 'media'));
     session.defaultSession.setPermissionCheckHandler((_wc, perm) => perm === 'media');
+    serveAssets();
     createWindow();
     createTray();
     globalShortcut.register('CommandOrControl+Shift+P', () => {
@@ -394,6 +455,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on('will-quit', () => {
     globalShortcut.unregisterAll();
     guide.unwatch();
+    locate.stop();
     windowsWatch.stop();
   });
   app.on('window-all-closed', () => app.quit());
