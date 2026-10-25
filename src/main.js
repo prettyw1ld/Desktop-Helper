@@ -99,6 +99,7 @@ function loadSettings() {
     }
   } catch { /* первый запуск */ }
   s.chatter = false; // в настройках этого пункта больше нет, старое «вкл» не тянем
+  s.contact = ''; // поле «Кому звонишь» убрано: урок звонка общий, без имени
   if (team.provider || team.apiKey) {
     for (const k of TEAM_AI) s[k] = k in team ? team[k] : DEFAULTS[k];
   }
