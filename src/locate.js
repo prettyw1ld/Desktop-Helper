@@ -79,6 +79,14 @@ function Roots($scope) {
     foreach ($el in $AE::RootElement.FindAll($TS::Children, $cond)) {
       if (-not $el.Current.IsOffscreen) { $roots += ,@($el, 'start') }
     }
+  } elseif ($scope -eq 'popup') {
+    # всплывающие панели Windows (громкость, быстрые настройки) и верхнее окно (Параметры)
+    $cond = New-Object System.Windows.Automation.PropertyCondition($AE::ClassNameProperty, 'Windows.UI.Core.CoreWindow')
+    foreach ($el in $AE::RootElement.FindAll($TS::Children, $cond)) {
+      if (-not $el.Current.IsOffscreen) { $roots += ,@($el, 'popup') }
+    }
+    $w = Wins 1
+    if ($w.Count) { $roots += ,$w[0] }
   } elseif ($scope -eq 'top') {
     $w = Wins 1
     if ($w.Count) { $roots += ,$w[0] }

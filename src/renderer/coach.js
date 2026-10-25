@@ -65,7 +65,8 @@ async function check(cond, step) {
 }
 
 function stepActions(step) {
-  const acts = [[T('g.done'), () => doneClicked(), true], [T('g.again'), () => showCoachStep(true)]];
+  const acts = [[T(step.btn || 'g.done'), () => doneClicked(), true]];
+  if (step.find) acts.push([T('g.again'), () => showCoachStep(true)]);
   if (step.open) acts.push([T('coach.open'), () => openForMe(step)]);
   acts.push([T('g.stop'), () => endGuide(true)]);
   return acts;
@@ -142,6 +143,7 @@ async function nextStep() {
 async function doneClicked() {
   const step = coach.steps[coach.i];
   if (!step) return;
+  if (step.wait?.manual) { stepDone(); return; }
   say(pick(I18N.list('g.checking')), Infinity, { guide: true });
   if (await check(step.wait, step) || await check({ next: true }, step) || step.wait?.manual) { stepDone(); return; }
   say(T('coach.notYet'), Infinity, { actions: stepActions(step), guide: true });
@@ -156,13 +158,13 @@ async function openForMe(step) {
   clearInterval(coach.poll);
   hideRing();
   // после «открой за меня» следующий осмысленный шаг: тот, где открытое окно уже нужно
-  const after = { 'ms-settings:easeofaccess-display': 'Slider', drive: null };
+  const after = { 'ms-settings:easeofaccess-display': 'Slider', 'ms-settings:sound': 'Slider', drive: null };
   const want = after[step.open];
   setTimeout(() => {
     if (!coach.active) return;
     if (want) {
       const j = coach.steps.findIndex((s) => s.find?.types?.includes(want));
-      if (j > coach.i) coach.i = j - 1;
+      if (j >= coach.i) coach.i = j - 1;
     } else if (step.open === 'drive') {
       const j = coach.steps.findIndex((s, k) => k > coach.i && s.optional);
       if (j > coach.i) coach.i = j - 1;
@@ -182,6 +184,26 @@ async function finishScenario() {
   celebrate();
   settings.skills = await api.addSkill(sc.skill[I18N.lang] || sc.skill.ru);
   setTimeout(() => { if (cat.state === 'perch') startFall(); }, 2500);
+  if (sc.id === 'tour') setTimeout(pointToLessons, 4000);
+}
+
+// После обзора: открываем главное окно и подсвечиваем кнопку «Уроки»
+function pointToLessons() {
+  if (guide.active || trainer.step) return;
+  hideBubble();
+  showPanel('help');
+  const b = document.querySelector('.extras [data-act="lessons"]');
+  b.classList.add('pulse');
+  micState(T('les.here'));
+  speak(T('les.here'));
+  setTimeout(() => b.classList.remove('pulse'), 12000);
+}
+
+// Первый запуск: после тренировки мышки сразу обзор компьютера
+function startTourOnce() {
+  const name = Scenarios.byId('tour').skill[I18N.lang] || Scenarios.byId('tour').skill.ru;
+  if ((settings.skills || []).some((x) => x.name === name)) return;
+  runScenario(Scenarios.byId('tour'));
 }
 
 function stopCoach() {
@@ -240,7 +262,8 @@ async function lostOffline() {
     if (wasCoach && coach.active) showCoachStep(true);
     else { guide.active = false; if (cat.state === 'perch') startFall(); }
   };
-  const acts = [[T('g.ok'), back, true], [T('g.stop'), () => endGuide(true)]];
+  const okLost = () => { back(); api.addSkill(T('les.lost')).then((sk) => { settings.skills = sk; }); };
+  const acts = [[T('g.ok'), okLost, true], [T('g.stop'), () => endGuide(true)]];
   if (!w) {
     say(T('lost.desktop'), Infinity, { actions: acts, guide: true });
     speak(T('lost.desktop'));
@@ -271,3 +294,52 @@ endGuide = function endGuideAll(sayBye) {
   stopCoach();
   endGuideAI(sayBye);
 };
+
+// «Уроки»: все обучалки по порядку, что пройдено и общий прогресс.
+const LESSON_ICONS = { tour: 'paw', photos: 'photos', call: 'call', search: 'search', volume: 'volume', bigger: 'type' };
+function lessons() {
+  const lang = I18N.lang;
+  return [
+    { name: T('les.mouse'), icon: 'mouse', start: () => startTrainer() },
+    ...Scenarios.list.map((sc) => ({ name: sc.skill[lang] || sc.skill.ru, icon: LESSON_ICONS[sc.id] || 'paw', start: () => runScenario(sc) })),
+    { name: T('les.lost'), icon: 'help', start: () => imLost() },
+  ];
+}
+function renderLessons() {
+  const done = new Set((settings.skills || []).map((x) => x.name.toLowerCase()));
+  const list = lessons();
+  const passed = list.filter((l) => done.has(l.name.toLowerCase())).length;
+  $('#les-bar').style.width = `${Math.round((passed / list.length) * 100)}%`;
+  $('#les-count').textContent = passed === list.length ? T('les.all') : T('les.progress', { done: passed, all: list.length });
+  const ul = $('#les-list');
+  ul.innerHTML = '';
+  for (const l of list) {
+    const ok = done.has(l.name.toLowerCase());
+    const li = document.createElement('li');
+    li.className = ok ? 'done' : '';
+    li.insertAdjacentHTML('beforeend', `<span class="les-icon">${PushikIcon(ok ? 'check' : l.icon)}</span>`);
+    const text = document.createElement('div');
+    text.className = 'les-text';
+    const b = document.createElement('b');
+    b.textContent = l.name;
+    const st = document.createElement('span');
+    st.className = 'sub';
+    st.textContent = T(ok ? 'les.done' : 'les.todo');
+    text.append(b, st);
+    const go = document.createElement('button');
+    go.className = ok ? 'ghost' : 'primary';
+    go.textContent = T(ok ? 'les.again' : 'les.start');
+    go.addEventListener('click', () => { closePanels(); l.start(); });
+    li.append(text, go);
+    ul.appendChild(li);
+  }
+  // что ещё получилось с ИИ (свободные задачи)
+  const names = new Set(list.map((l) => l.name.toLowerCase()));
+  const extra = (settings.skills || []).filter((x) => !names.has(x.name.toLowerCase()));
+  if (extra.length) {
+    const li = document.createElement('li');
+    li.className = 'les-more sub';
+    li.textContent = `${T('les.more')}: ${extra.map((x) => x.name).join(', ')}`;
+    ul.appendChild(li);
+  }
+}
