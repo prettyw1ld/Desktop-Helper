@@ -99,6 +99,18 @@ function Rect($el) {
   return @{ x = [int]$r.X; y = [int]$r.Y; w = [int]$r.Width; h = [int]$r.Height }
 }
 
+# Кнопку не закрывает другое окно: в её середине на экране именно эта программа.
+# Иначе кот показывал бы на кнопку из окна, которое лежит позади.
+function Visible($el, $r) {
+  try {
+    $pt = New-Object System.Windows.Point(($r.x + $r.w / 2), ($r.y + $r.h / 2))
+    $hit = $AE::FromPoint($pt)
+    if (-not $hit) { return $true }
+    $hp = $hit.Current.ProcessId
+    return ($hp -eq $el.Current.ProcessId -or $hp -eq ${skipPid})
+  } catch { return $true }
+}
+
 function Roots($scope) {
   $roots = @()
   if ($scope -eq 'taskbar') {
@@ -154,6 +166,7 @@ function Find($q) {
       if ($q.name -and -not ($c.Name -match $q.name -or $c.AutomationId -match $q.name)) { continue }
       $r = Rect $el
       if (-not $r) { continue }
+      if (-not (Visible $el $r)) { continue }
       $r.name = $c.Name
       $r.type = $c.ControlType.ProgrammaticName -replace 'ControlType\\.', ''
       $r.focused = $c.HasKeyboardFocus
@@ -367,8 +380,9 @@ const supported = () => process.platform === 'win32' || process.platform === 'da
 async function ask(q, toOverlay = (r) => r) {
   if (!supported()) return { error: 'unsupported' };
   const res = process.platform === 'win32' ? await winAsk(q) : await macAsk(q);
-  if (res.items) res.items = res.items.map((it) => ({ ...it, ...toOverlay(it) }));
-  if (res.win?.rect) res.win.rect = toOverlay(res.win.rect);
+  // toOverlay возвращает null, если кнопка на другом мониторе: там кот показать не может
+  if (res.items) res.items = res.items.map((it) => { const o = toOverlay(it); return o && { ...it, ...o }; }).filter(Boolean);
+  if (res.win?.rect) res.win.rect = toOverlay(res.win.rect, true);
   if (res.win?.close) res.win.close = toOverlay(res.win.close);
   return res;
 }
