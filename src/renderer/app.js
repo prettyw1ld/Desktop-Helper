@@ -951,6 +951,11 @@ function placePanel(panel) {
 }
 
 function closePanels() {
+  // настройки закрыли без «Сохранить»: возвращаем, как было (размер кота и масштаб показываются сразу при выборе)
+  if (openPanel === 'settings') {
+    catEl.style.setProperty('--k', settings.size || 1);
+    applyWindowScale(settings.uiScale);
+  }
   document.querySelectorAll('.panel').forEach((p) => p.classList.add('hidden'));
   openPanel = null;
   if (recorder) recorder.stop();
@@ -1171,7 +1176,6 @@ async function fillSettings() {
 }
 form.size.addEventListener('input', () => { catEl.style.setProperty('--k', form.size.value); });
 form.uiScale.addEventListener('input', () => applyWindowScale(form.uiScale.value));
-form.catColor.addEventListener('change', () => sprite.setColor(form.catColor.value, SHEETS));
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
