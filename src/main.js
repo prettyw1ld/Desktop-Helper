@@ -328,10 +328,17 @@ ipcMain.on('app:quit', () => app.quit());
 ipcMain.on('app:hide', () => win?.hide());
 
 // ---------- Поиск кнопок без ИИ ----------
-function toOverlayRect(r) {
+// Экранные пиксели → координаты окна кота. Масштаб берём у того монитора, где кнопка.
+// Кнопку на другом мониторе (окно кота только на основном) не показываем: null.
+function toOverlayRect(r, keep = false) {
   const wa = screen.getPrimaryDisplay().workArea;
-  const d = process.platform === 'win32' ? screen.screenToDipRect(null, { x: r.x, y: r.y, width: r.w, height: r.h }) : { x: r.x, y: r.y, width: r.w, height: r.h };
-  return { x: Math.round(d.x - wa.x), y: Math.round(d.y - wa.y), w: Math.round(d.width), h: Math.round(d.height) };
+  const raw = { x: r.x, y: r.y, width: r.w, height: r.h };
+  const d = process.platform === 'win32' ? screen.screenToDipRect(null, raw) : raw;
+  const o = { x: Math.round(d.x - wa.x), y: Math.round(d.y - wa.y), w: Math.round(d.width), h: Math.round(d.height) };
+  const cx = o.x + o.w / 2;
+  const cy = o.y + o.h / 2;
+  if (!keep && (cx < 0 || cy < 0 || cx > wa.width || cy > wa.height)) return null;
+  return o;
 }
 ipcMain.handle('locate', (_e, q) => {
   // всплывающие панели Windows (громкость, «Пуск») тоже «поверх всех»: поднимаем кота выше них

@@ -445,9 +445,15 @@ const guide = { active: false, goal: '', history: [], last: null, busy: false, i
 
 function showRing(t) {
   if (!t) { hideRing(); return; }
-  const pad = 8;
+  const pad = 6;
+  // рамку держим в пределах экрана: у развёрнутых окон края уходят за экран
+  const x1 = Math.max(2, t.x - pad);
+  const y1 = Math.max(2, t.y - pad);
+  const x2 = Math.min(W() - 2, t.x + t.w + pad);
+  const y2 = Math.min(H() - 2, t.y + t.h + pad);
+  if (x2 - x1 < 8 || y2 - y1 < 8) { hideRing(); return; }
   Object.assign(ring.style, {
-    left: `${t.x - pad}px`, top: `${t.y - pad}px`, width: `${t.w + pad * 2}px`, height: `${t.h + pad * 2}px`,
+    left: `${x1}px`, top: `${y1}px`, width: `${x2 - x1}px`, height: `${y2 - y1}px`,
   });
   ring.classList.remove('hidden');
 }
