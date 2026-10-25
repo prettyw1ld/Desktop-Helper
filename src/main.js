@@ -45,10 +45,11 @@ const DEFAULTS = {
   calendarBefore: 10,      // за сколько минут предупреждать о встрече
   userName: '',
   size: 1,                 // размер кота
+  uiScale: 1,              // масштаб окон и подсказок, 0.7–1.4
   windows: true,           // гулять по краям окон
   sound: true,
   volume: 0.4,
-  breakEvery: 50,          // минут между напоминаниями о перерыве, 0 = выключено
+  breakEvery: 0,           // минут между напоминаниями о перерыве, 0 = выключено
   chatter: true,           // кот иногда сам что-то говорит
   speed: 1,                // множитель скорости ходьбы
   autostart: false,
@@ -283,8 +284,7 @@ function createTrayMenu() {
     { label: t('tray.trainer'), click: () => { win.show(); win.webContents.send('open', 'trainer'); } },
     { type: 'separator' },
     { label: t('tray.call'), click: () => { win.showInactive(); win.webContents.send('open', 'call'); } },
-    { label: t('tray.chat'), click: () => { win.show(); win.webContents.send('open', 'chat'); } },
-    { label: t('tray.reminders'), click: () => { win.show(); win.webContents.send('open', 'reminders'); } },
+    ...(publicSettings().aiReady ? [{ label: t('tray.chat'), click: () => { win.show(); win.webContents.send('open', 'chat'); } }] : []),
     { label: t('tray.settings'), click: () => { win.show(); win.webContents.send('open', 'settings'); } },
     { type: 'separator' },
     { label: t('tray.toggle'), click: toggleVisible },

@@ -19,7 +19,7 @@ const badge = $('#focus-badge');
 const ring = $('#ring');
 const sprite = new Cats.CatSprite($('#sprite'));
 
-let settings = { speed: 1, chatter: true, breakEvery: 50, size: 1, windows: true, sound: true, volume: 0.4, lang: 'ru', catColor: 'white', speak: true, skills: [] };
+let settings = { speed: 1, chatter: true, breakEvery: 0, size: 1, windows: true, sound: true, volume: 0.4, lang: 'ru', catColor: 'white', speak: true, skills: [] };
 let reminders = [];
 
 const W = () => window.innerWidth;
@@ -629,7 +629,10 @@ async function trainerDone() {
   say(`${T('tr.done')}\n${T('g.skillSaved')}`, 8000, { guide: true });
   speak(T('tr.done'));
   settings.skills = await api.addSkill(T('tr.skill'));
-  if (!settings.onboarded) settings = await api.saveSettings({ onboarded: true });
+  if (!settings.onboarded) {
+    settings = await api.saveSettings({ onboarded: true });
+    setTimeout(() => { if (!guide.active && !trainer.step) startTourOnce(); }, 6000);
+  }
 }
 function endTrainer(sayBye) {
   if (!trainer.step) return;
@@ -655,10 +658,11 @@ document.addEventListener('mousemove', (e) => {
     const dy = e.clientY - press.y;
     if (!press.moved && Math.hypot(dx, dy) > 5) {
       press.moved = true;
+      // кота взяли: окна и подсказки прячем, чтобы не мешали
+      if (!trainer.step) { closePanels(); if (!guide.active) hideBubble(); }
       cat.plat = null;
       cat.climb = null;
       setState('drag');
-      if (trainer.step !== 'drag') say(T('say.grab'), 1500);
       Sound.meow(1.3);
     }
     if (press.moved) {
@@ -733,34 +737,13 @@ function onCatClick() {
 }
 
 // ---------- Окно «Чем помочь?» ----------
-function taskList() {
-  const own = (settings.tasks || []).map((s) => String(s).trim()).filter(Boolean);
-  return own.length ? own : I18N.list('help.tasks');
-}
 // «📞 Позвонить по видео» → «Позвонить по видео»
 const goalOf = (label) => label.replace(/^[^\p{L}\p{N}]+/u, '').trim();
 
+// Главное окно: «Я запутался», голос и текст. Готовые задачи живут в «Уроках».
 function renderHelp() {
-  const box = $('#tasks');
-  box.innerHTML = '';
-  for (const label of taskList()) {
-    const b = document.createElement('button');
-    b.className = 'big';
-    b.textContent = label;
-    b.addEventListener('click', () => routeGoal(label));
-    box.appendChild(b);
-  }
-  const ul = $('#skills-list');
-  ul.innerHTML = '';
-  const skills = settings.skills || [];
-  if (!skills.length) emptyLi(ul, T('help.noSkills'));
-  for (const s of skills) {
-    const li = document.createElement('li');
-    li.textContent = s.name;
-    ul.appendChild(li);
-  }
-  $('#skills').open = skills.length > 0 && skills.length <= 4;
   $('#mic-state').classList.add('hidden');
+  document.querySelector('.extras [data-act="chat"]').classList.toggle('hidden', !settings.aiReady);
   initMic();
 }
 
@@ -777,12 +760,7 @@ document.querySelector('.extras').addEventListener('click', (e) => {
   const b = e.target.closest('button');
   if (!b) return;
   const act = b.dataset.act;
-  if (['chat', 'reminders', 'settings'].includes(act)) { showPanel(act); return; }
-  closePanels();
-  if (act === 'pet') pet();
-  else if (act === 'sleep') { goSleep(60_000); say(T('say.sleep'), 2000); }
-  else if (act === 'focus') startFocus(25);
-  else if (act === 'trainer') startTrainer();
+  if (['chat', 'settings', 'lessons'].includes(act)) showPanel(act);
 });
 
 // ---------- Голосовой ввод (Whisper). Без микрофона или ключа кнопка просто прячется ----------
@@ -796,6 +774,18 @@ async function initMic() {
     hasMic = !!devices?.some((d) => d.kind === 'audioinput');
   } catch { hasMic = false; }
   btn.classList.toggle('hidden', !(hasMic && (useWhisper() || settings.hasVosk)));
+  if (!vosk && !recorder) micButton(false);
+}
+
+// Большая кнопка «Сказать задачу» / «Остановить запись»
+function micButton(recording) {
+  const btn = $('#mic');
+  btn.innerHTML = PushikIcon(recording ? 'close' : 'mic');
+  const label = document.createElement('span');
+  label.textContent = T(recording ? 'help.micStop' : 'help.mic');
+  btn.append(label);
+  btn.setAttribute('aria-pressed', String(recording));
+  btn.classList.toggle('rec', recording);
 }
 navigator.mediaDevices?.addEventListener?.('devicechange', initMic);
 
@@ -823,11 +813,11 @@ async function listenOffline() {
     if (err && /NotFound|NotAllowed/.test(err.name)) btn.classList.add('hidden');
     return;
   }
-  btn.classList.add('rec');
+  micButton(true);
   micState(T('mic.rec'));
   const text = (await vosk.result).replace(/\[unk\]/g, '').replace(/\s+/g, ' ').trim();
   vosk = null;
-  btn.classList.remove('rec');
+  micButton(false);
   if (!text) { micState(T('mic.empty')); return; }
   micState('');
   $('#ask-input').value = text;
@@ -836,7 +826,7 @@ async function listenOffline() {
 
 $('#mic').addEventListener('click', async () => {
   if (!useWhisper()) { await api.askMic(); listenOffline(); return; }
-  if (recorder) { recorder.stop(); return; }
+  if (recorder) { if (recorder.state === 'recording') recorder.stop(); return; }
   await api.askMic();
   let stream;
   try {
@@ -854,7 +844,7 @@ $('#mic').addEventListener('click', async () => {
   recorder.onstop = async () => {
     clearTimeout(recTimer);
     stream.getTracks().forEach((tr) => tr.stop());
-    $('#mic').classList.remove('rec');
+    micButton(false);
     const type = recorder.mimeType || 'audio/webm';
     recorder = null;
     const blob = new Blob(chunks, { type });
@@ -868,7 +858,7 @@ $('#mic').addEventListener('click', async () => {
     routeGoal(res.text);
   };
   recorder.start();
-  $('#mic').classList.add('rec');
+  micButton(true);
   micState(T('mic.rec'));
   recTimer = setTimeout(() => recorder?.stop(), 15_000);
 });
@@ -883,6 +873,7 @@ function showPanel(name) {
   if (name === 'help') renderHelp();
   if (name === 'reminders') { renderReminders(); renderCalendar(); setTimeout(() => $('#rem-text').focus(), 50); }
   if (name === 'settings') fillSettings();
+  if (name === 'lessons') renderLessons();
   placePanel(panel);
   if (name === 'chat') setTimeout(() => $('#chat-input').focus(), 50);
 }
@@ -1091,6 +1082,8 @@ const form = $('#settings-form');
 function applySettings() {
   I18N.setLang(settings.lang);
   I18N.apply(document);
+  refreshPushikIcons();
+  applyWindowScale(settings.uiScale);
   catEl.style.setProperty('--k', size());
   sprite.setColor(settings.catColor, SHEETS);
   Sound.set(settings.sound, settings.volume);
@@ -1098,81 +1091,49 @@ function applySettings() {
   computePlatforms();
 }
 
-function showProviderGroup() {
-  const prov = form.provider.value;
-  form.querySelectorAll('.group').forEach((g) => g.classList.toggle('hidden', g.dataset.for !== prov));
-  if (prov === 'ollama') checkOllama();
+// Масштаб окон и подсказок 70–140%
+function applyWindowScale(value) {
+  const scale = Math.min(1.4, Math.max(0.7, Number(value) || 1));
+  document.documentElement.style.setProperty('--ui-scale', scale);
+  $('#ui-scale-value').textContent = `${Math.round(scale * 100)}%`;
+  requestAnimationFrame(() => {
+    if (openPanel) placePanel($(`#panel-${openPanel}`));
+    if (!bubble.classList.contains('hidden')) placeBubble();
+  });
 }
 
-async function checkOllama() {
-  const list = await api.ollamaModels(form.ollamaUrl.value.trim() || 'http://localhost:11434');
-  const dl = $('#ollama-models');
-  dl.innerHTML = '';
-  (list || []).forEach((m) => { const o = document.createElement('option'); o.value = m; dl.appendChild(o); });
-  $('#ollama-state').textContent = list == null ? `${T('set.ollamaNone')}. ${T('set.ollamaHint')}`
-    : list.length ? T('set.ollamaFound', { list: list.slice(0, 6).join(', ') }) : T('set.ollamaHint');
-}
-
-const TEXT_FIELDS = ['userName', 'lang', 'provider', 'model', 'ollamaUrl', 'ollamaModel', 'calendarBefore', 'size', 'speed',
-  'volume', 'breakEvery', 'catColor', 'sttUrl', 'sttModel', 'visionModel', 'contact', 'voice'];
-const CHECK_FIELDS = ['windows', 'sound', 'chatter', 'autostart', 'speak'];
+// В настройках только то, что понятно новичку. ИИ, ключи и голосовые сервисы задаёт команда в team.json.
+const TEXT_FIELDS = ['userName', 'contact', 'catColor', 'size', 'uiScale'];
+const CHECK_FIELDS = ['speak', 'sound', 'autostart'];
 
 async function fillSettings() {
   settings = await api.getSettings();
   for (const k of TEXT_FIELDS) form[k].value = settings[k] ?? '';
+  form.uiScale.value = settings.uiScale || 1;
   for (const k of CHECK_FIELDS) form[k].checked = !!settings[k];
-  form.tasks.value = (settings.tasks || []).join('\n');
-  form.apiKey.value = '';
-  form.calendarUrl.value = '';
-  form.sttKey.value = '';
-  $('#key-state').textContent = settings.hasApiKey ? T('set.keySaved') : T('set.keyHint');
-  $('#cal-state').textContent = settings.hasCalendar ? T('set.calSaved') : T('set.calHint');
-  $('#stt-state').textContent = settings.hasStt ? T('set.sttSaved') : T('set.sttHint');
-  showProviderGroup();
+  applyWindowScale(settings.uiScale);
 }
-form.provider.addEventListener('change', showProviderGroup);
-form.ollamaUrl.addEventListener('change', checkOllama);
 form.size.addEventListener('input', () => { catEl.style.setProperty('--k', form.size.value); });
+form.uiScale.addEventListener('input', () => applyWindowScale(form.uiScale.value));
 form.catColor.addEventListener('change', () => sprite.setColor(form.catColor.value, SHEETS));
-form.volume.addEventListener('change', () => { Sound.set(true, form.volume.value); Sound.meow(); Sound.set(settings.sound, settings.volume); });
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   const f = e.target;
-  const next = {
+  settings = await api.saveSettings({
     userName: f.userName.value.trim(),
-    lang: f.lang.value,
-    provider: f.provider.value,
-    model: f.model.value,
-    ollamaUrl: f.ollamaUrl.value.trim() || 'http://localhost:11434',
-    ollamaModel: f.ollamaModel.value.trim() || 'qwen3',
-    visionModel: f.visionModel.value.trim(),
-    calendarBefore: Math.max(1, Number(f.calendarBefore.value) || 10),
-    size: Number(f.size.value) || 1,
-    windows: f.windows.checked,
-    sound: f.sound.checked,
-    volume: Number(f.volume.value),
-    breakEvery: Math.max(0, Number(f.breakEvery.value) || 0),
-    speed: Number(f.speed.value) || 1,
-    chatter: f.chatter.checked,
-    autostart: f.autostart.checked,
-    catColor: f.catColor.value,
-    speak: f.speak.checked,
-    tasks: f.tasks.value.split('\n').map((s) => s.trim()).filter(Boolean),
-    sttUrl: f.sttUrl.value.trim() || 'https://api.groq.com/openai/v1',
-    sttModel: f.sttModel.value.trim() || 'whisper-large-v3',
     contact: f.contact.value.trim(),
-    voice: f.voice.value,
-  };
-  if (f.apiKey.value.trim()) next.apiKey = f.apiKey.value.trim();
-  if (f.calendarUrl.value.trim()) next.calendarUrl = f.calendarUrl.value.trim();
-  if (f.sttKey.value.trim()) next.sttKey = f.sttKey.value.trim();
-  settings = await api.saveSettings(next);
+    catColor: f.catColor.value,
+    size: Number(f.size.value) || 1,
+    uiScale: Math.min(1.4, Math.max(0.7, Number(f.uiScale.value) || 1)),
+    speak: f.speak.checked,
+    sound: f.sound.checked,
+    autostart: f.autostart.checked,
+  });
   applySettings();
   closePanels();
   happy();
   say(T('set.saved'), 2000);
-  resetBreakTimer();
 });
 $('#quit').addEventListener('click', () => api.quit());
 api.on('settings-changed', (s) => { settings = s; applySettings(); });
@@ -1282,7 +1243,7 @@ function mockApi() {
     catColor: new URLSearchParams(location.search).get('color') || 'ginger', speak: false, tasks: [], skills: [],
     onboarded: new URLSearchParams(location.search).has('onboarded'),
     sttUrl: 'https://api.groq.com/openai/v1', sttModel: 'whisper-large-v3', visionModel: '',
-    contact: new URLSearchParams(location.search).get('contact') ?? 'Маша', voice: 'offline', hasVosk: false, aiReady: new URLSearchParams(location.search).has('ai'), locator: true, platform: 'win32',
+    contact: new URLSearchParams(location.search).get('contact') ?? 'Маша', voice: 'offline', hasVosk: true, uiScale: Number(new URLSearchParams(location.search).get('scale')) || 1, aiReady: new URLSearchParams(location.search).has('ai'), locator: true, platform: 'win32',
   };
   const day = new Date();
   const at = (h, m, plus = 0) => new Date(day.getFullYear(), day.getMonth(), day.getDate() + plus, h, m).getTime();
