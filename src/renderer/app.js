@@ -470,7 +470,11 @@ function goPoint(t, then) {
   const facing = center < t.x + t.w / 2 ? 1 : -1;
   const feet = clamp(t.y + t.h / 2 + 45 * k, 115 * k, H());
   let y = feet - CAT_H;
-  const done = () => { cat.dir = facing; setState('perch'); if (then) then(); };
+  const done = () => {
+    // подсказку уже отменили, пока кот прыгал: не остаёмся висеть наверху
+    if (!guide.active) { startFall(); return; }
+    cat.dir = facing; setState('perch'); if (then) then();
+  };
   if (y > floorY() - 40) {
     // кнопка внизу экрана: просто идём по полу
     y = floorY();
@@ -734,7 +738,13 @@ function onCatClick() {
     Sound.hiss();
     return;
   }
-  if (guide.active) return;  // во время подсказки клик по коту ничего не ломает
+  // во время подсказки клик по коту ничего не ломает, но всегда даёт выход: повторить или закончить
+  if (guide.active) {
+    if (guide.busy) return;
+    const acts = guide.kind === 'ai' && guide.last ? stepActions() : [[T('g.stop'), () => endGuide(true), true]];
+    say(guide.last?.say || T('g.stopAsk'), Infinity, { actions: acts, guide: true });
+    return;
+  }
   if (cat.state === 'sleep') {
     setState('idle', 4000);
     say(T('say.notSleeping'), 2000);
