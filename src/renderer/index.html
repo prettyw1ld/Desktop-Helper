@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; img-src 'self' file: data:; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+        content="default-src 'self'; img-src 'self' file: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src blob:; connect-src 'self' pushik: data: blob:" />
   <title>Пушик</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -136,6 +136,13 @@
       <label><span data-i18n="set.tasks"></span>
         <textarea name="tasks" rows="4" data-i18n-ph="set.tasksPh"></textarea>
       </label>
+      <label><span data-i18n="set.contact"></span><input name="contact" data-i18n-ph="set.contactPh" /></label>
+      <label><span data-i18n="set.voice"></span>
+        <select name="voice">
+          <option value="offline" data-i18n="set.vOffline"></option>
+          <option value="whisper" data-i18n="set.vWhisper"></option>
+        </select>
+      </label>
       <label><span data-i18n="set.stt"></span>
         <input name="sttKey" type="password" placeholder="gsk_…" autocomplete="off" />
         <span class="sub" id="stt-state"></span>
@@ -164,6 +171,9 @@
   <script src="i18n.js"></script>
   <script src="sound.js"></script>
   <script src="cats.js"></script>
+  <script src="voice.js"></script>
+  <script src="scenarios.js"></script>
   <script src="app.js"></script>
+  <script src="coach.js"></script>
 </body>
 </html>

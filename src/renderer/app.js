@@ -343,6 +343,8 @@ let bubbleTimer = null;
 // say(text, ms, { actions: [[label, fn, primary?]], guide, danger, explain })
 function say(text, ms = 4000, opts = {}) {
   if (!text) return;
+  // пока кот ведёт по шагам, случайные фразы («Оп! Приземлился») не закрывают подсказку
+  if (guide.active && !opts.guide && ms <= 4500) return;
   bubbleText.textContent = text;
   if (opts.explain) {
     const p = document.createElement('div');
@@ -488,7 +490,7 @@ function startWatch() {
   // F12: человек долго ничего не делает, кот сам предлагает помощь
   guide.idleTimer = setTimeout(() => {
     if (!guide.active || guide.busy || !guide.last) return;
-    say(T('g.idle'), 3000);
+    say(T('g.idle'), 3000, { guide: true });
     speak(T('g.idle'));
     setTimeout(() => guide.active && !guide.busy && showStep(guide.last, true), 3000);
   }, 50_000);
@@ -570,6 +572,7 @@ function startGuide(goal) {
   closePanels();
   endTrainer();
   guide.active = true;
+  guide.kind = 'ai';
   guide.goal = goal;
   guide.history = [];
   guide.last = null;
@@ -579,7 +582,7 @@ function startGuide(goal) {
 function imLost() {
   closePanels();
   endTrainer();
-  if (!guide.active) { guide.goal = ''; guide.history = []; }
+  if (!guide.active) { guide.goal = ''; guide.history = []; guide.kind = 'ai'; }
   guide.active = true;
   guide.busy = false;
   look('confused');
@@ -601,7 +604,7 @@ function endGuide(sayBye) {
 
 // экран заметно поменялся после подсказки: сами проверяем, получилось ли
 api.on('screen-changed', () => {
-  if (!guide.active || guide.busy || guide.mode === 'confused') return;
+  if (!guide.active || guide.busy || guide.kind !== 'ai' || guide.mode === 'confused') return;
   setTimeout(() => { if (guide.active && !guide.busy) look('check'); }, 1200);
 });
 
@@ -734,7 +737,7 @@ function taskList() {
   const own = (settings.tasks || []).map((s) => String(s).trim()).filter(Boolean);
   return own.length ? own : I18N.list('help.tasks');
 }
-// «📞 Позвонить внуку» → «Позвонить внуку»
+// «📞 Позвонить по видео» → «Позвонить по видео»
 const goalOf = (label) => label.replace(/^[^\p{L}\p{N}]+/u, '').trim();
 
 function renderHelp() {
@@ -744,7 +747,7 @@ function renderHelp() {
     const b = document.createElement('button');
     b.className = 'big';
     b.textContent = label;
-    b.addEventListener('click', () => startGuide(goalOf(label)));
+    b.addEventListener('click', () => routeGoal(label));
     box.appendChild(b);
   }
   const ul = $('#skills-list');
@@ -766,9 +769,9 @@ $('#ask-form').addEventListener('submit', (e) => {
   const text = $('#ask-input').value.trim();
   if (!text) { $('#ask-input').focus(); return; }
   $('#ask-input').value = '';
-  startGuide(text);
+  routeGoal(text);
 });
-$('#lost').addEventListener('click', imLost);
+$('#lost').addEventListener('click', () => imLost());
 
 document.querySelector('.extras').addEventListener('click', (e) => {
   const b = e.target.closest('button');
@@ -792,7 +795,7 @@ async function initMic() {
     const devices = await navigator.mediaDevices?.enumerateDevices();
     hasMic = !!devices?.some((d) => d.kind === 'audioinput');
   } catch { hasMic = false; }
-  btn.classList.toggle('hidden', !(hasMic && settings.hasStt));
+  btn.classList.toggle('hidden', !(hasMic && (useWhisper() || settings.hasVosk)));
 }
 navigator.mediaDevices?.addEventListener?.('devicechange', initMic);
 
@@ -802,7 +805,37 @@ function micState(text) {
   el.classList.toggle('hidden', !text);
 }
 
+// голос: офлайн Vosk (по умолчанию) или Whisper по ключу, если его выбрали в настройках
+const useWhisper = () => settings.voice === 'whisper' && settings.hasStt;
+let vosk = null;
+async function listenOffline() {
+  if (vosk) { vosk.stop(); return; }
+  const btn = $('#mic');
+  try {
+    micState(T('mic.loading'));
+    vosk = await Voice.listen({
+      grammar: Scenarios.grammar(settings.contact || ''),
+      onPartial: (p) => { $('#ask-input').value = p.replace(/\[unk\]/g, '').trim(); },
+    });
+  } catch (err) {
+    vosk = null;
+    micState(T(err && err.name === 'NotFoundError' ? 'mic.none' : err && err.name === 'NotAllowedError' ? 'mic.denied' : 'mic.noModel'));
+    if (err && /NotFound|NotAllowed/.test(err.name)) btn.classList.add('hidden');
+    return;
+  }
+  btn.classList.add('rec');
+  micState(T('mic.rec'));
+  const text = (await vosk.result).replace(/\[unk\]/g, '').replace(/\s+/g, ' ').trim();
+  vosk = null;
+  btn.classList.remove('rec');
+  if (!text) { micState(T('mic.empty')); return; }
+  micState('');
+  $('#ask-input').value = text;
+  routeGoal(text);
+}
+
 $('#mic').addEventListener('click', async () => {
+  if (!useWhisper()) { await api.askMic(); listenOffline(); return; }
   if (recorder) { recorder.stop(); return; }
   await api.askMic();
   let stream;
@@ -832,7 +865,7 @@ $('#mic').addEventListener('click', async () => {
     if (!res.text) { micState(T('mic.empty')); return; }
     micState('');
     $('#ask-input').value = res.text;
-    startGuide(res.text);
+    routeGoal(res.text);
   };
   recorder.start();
   $('#mic').classList.add('rec');
@@ -1081,7 +1114,7 @@ async function checkOllama() {
 }
 
 const TEXT_FIELDS = ['userName', 'lang', 'provider', 'model', 'ollamaUrl', 'ollamaModel', 'calendarBefore', 'size', 'speed',
-  'volume', 'breakEvery', 'catColor', 'sttUrl', 'sttModel', 'visionModel'];
+  'volume', 'breakEvery', 'catColor', 'sttUrl', 'sttModel', 'visionModel', 'contact', 'voice'];
 const CHECK_FIELDS = ['windows', 'sound', 'chatter', 'autostart', 'speak'];
 
 async function fillSettings() {
@@ -1128,6 +1161,8 @@ form.addEventListener('submit', async (e) => {
     tasks: f.tasks.value.split('\n').map((s) => s.trim()).filter(Boolean),
     sttUrl: f.sttUrl.value.trim() || 'https://api.groq.com/openai/v1',
     sttModel: f.sttModel.value.trim() || 'whisper-large-v3',
+    contact: f.contact.value.trim(),
+    voice: f.voice.value,
   };
   if (f.apiKey.value.trim()) next.apiKey = f.apiKey.value.trim();
   if (f.calendarUrl.value.trim()) next.calendarUrl = f.calendarUrl.value.trim();
@@ -1247,6 +1282,7 @@ function mockApi() {
     catColor: new URLSearchParams(location.search).get('color') || 'ginger', speak: false, tasks: [], skills: [],
     onboarded: new URLSearchParams(location.search).has('onboarded'),
     sttUrl: 'https://api.groq.com/openai/v1', sttModel: 'whisper-large-v3', visionModel: '',
+    contact: new URLSearchParams(location.search).get('contact') ?? 'Маша', voice: 'offline', hasVosk: false, aiReady: new URLSearchParams(location.search).has('ai'), locator: true, platform: 'win32',
   };
   const day = new Date();
   const at = (h, m, plus = 0) => new Date(day.getFullYear(), day.getMonth(), day.getDate() + plus, h, m).getTime();
@@ -1254,7 +1290,7 @@ function mockApi() {
   let step = 0;
   const fake = [
     { status: 'step', say: 'Нажми на зелёную трубку внизу экрана', target: { x: 360, y: 300, w: 60, h: 60 } },
-    { status: 'step', say: 'Теперь нажми на имя внука в списке', target: { x: 900, y: 120, w: 220, h: 48 } },
+    { status: 'step', say: 'Теперь нажми на нужное имя в списке', target: { x: 900, y: 120, w: 220, h: 48 } },
     { status: 'done', say: 'Ура! Звонок пошёл!', skill: 'Позвонить по видео' },
   ];
   return {
@@ -1282,7 +1318,19 @@ function mockApi() {
     },
     guideWatch() {},
     guideUnwatch() {},
-    transcribe: async () => ({ text: 'Хочу позвонить внуку' }),
+    // тестовый «рабочий стол»: панель задач с WhatsApp, потом окно WhatsApp с именем контакта и камерой
+    locate: async (q) => {
+      const t = window.__desk || (window.__desk = { top: { title: 'Рабочий стол', proc: 'explorer', close: { x: 1180, y: 8, w: 40, h: 30 } }, items: {
+        taskbar: [{ name: 'WhatsApp', x: 600, y: 680, w: 40, h: 40 }],
+      } });
+      if (q.op === 'top') return { win: t.top };
+      if (q.op === 'drives') return { drives: [] };
+      const list = (t.items[q.scope] || []).filter((it) => !q.name || new RegExp(q.name, 'i').test(it.name));
+      return { items: list };
+    },
+    openUri: async () => true,
+    openDrive: async () => true,
+    transcribe: async () => ({ text: 'Хочу позвонить по видео' }),
     askMic: async () => true,
     addSkill: async (name) => { s.skills = [...s.skills.filter((x) => x.name !== name), { name, at: Date.now() }]; return s.skills; },
     hide() {},

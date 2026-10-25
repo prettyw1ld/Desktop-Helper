@@ -1,0 +1,330 @@
+// Находим кнопки на экране без ИИ и без интернета, через системную «доступность».
+// Windows: UI Automation (PowerShell держим запущенным, запросы идут строками JSON через stdin).
+// macOS: Accessibility через System Events (JXA). Нужна галочка «Универсальный доступ» для Пушика.
+// Все координаты на выходе в экранных точках (DIP), как у окна кота.
+
+const { spawn, execFile } = require('child_process');
+const fs = require('fs');
+
+// ---------- Windows ----------
+const WIN_SCRIPT = (skipPid) => `
+$ErrorActionPreference = 'SilentlyContinue'
+[Console]::InputEncoding = New-Object System.Text.UTF8Encoding $false
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
+Add-Type -TypeDefinition @"
+using System; using System.Collections.Generic; using System.Runtime.InteropServices;
+public static class PushTop {
+  [DllImport("user32.dll")] static extern IntPtr GetTopWindow(IntPtr h);
+  [DllImport("user32.dll")] static extern IntPtr GetWindow(IntPtr h, uint cmd);
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] static extern bool IsIconic(IntPtr h);
+  [DllImport("user32.dll")] static extern int GetWindowTextLength(IntPtr h);
+  [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr h, int i);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
+  [DllImport("user32.dll")] static extern IntPtr FindWindow(string cls, string title);
+  [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr h, int a, out int v, int s);
+  public static void Init() { SetProcessDPIAware(); }
+  public static long Tray() { return FindWindow("Shell_TrayWnd", null).ToInt64(); }
+  // Окна программ сверху вниз (без кота и без невидимых): "hwnd:pid"
+  public static string[] List(uint skipPid, int max) {
+    var res = new List<string>();
+    IntPtr h = GetTopWindow(IntPtr.Zero);
+    while (h != IntPtr.Zero && res.Count < max) {
+      if (IsWindowVisible(h) && !IsIconic(h) && GetWindowTextLength(h) > 0 && (GetWindowLong(h, -20) & 0x80) == 0) {
+        int cloaked;
+        if (!(DwmGetWindowAttribute(h, 14, out cloaked, 4) == 0 && cloaked != 0)) {
+          uint pid; GetWindowThreadProcessId(h, out pid);
+          if (pid != skipPid) res.Add(h.ToInt64() + ":" + pid);
+        }
+      }
+      h = GetWindow(h, 2);
+    }
+    return res.ToArray();
+  }
+}
+"@
+[PushTop]::Init()
+$AE = [System.Windows.Automation.AutomationElement]
+$TS = [System.Windows.Automation.TreeScope]
+
+function Wins($max) {
+  $out = @()
+  foreach ($s in [PushTop]::List(${skipPid}, $max)) {
+    $p = $s.Split(':')
+    $el = $AE::FromHandle([IntPtr][long]$p[0])
+    $proc = ''
+    try { $proc = [System.Diagnostics.Process]::GetProcessById([int]$p[1]).ProcessName } catch {}
+    if ($el) { $out += ,@($el, $proc) }
+  }
+  return ,$out
+}
+
+function Rect($el) {
+  $r = $el.Current.BoundingRectangle
+  if ($r.IsEmpty -or $r.Width -lt 2 -or $r.Height -lt 2) { return $null }
+  return @{ x = [int]$r.X; y = [int]$r.Y; w = [int]$r.Width; h = [int]$r.Height }
+}
+
+function Roots($scope) {
+  $roots = @()
+  if ($scope -eq 'taskbar') {
+    $h = [PushTop]::Tray()
+    if ($h -ne 0) { $roots += ,@($AE::FromHandle([IntPtr]$h), 'explorer') }
+  } elseif ($scope -eq 'start') {
+    # меню «Пуск» и поиск Windows 10/11
+    $cond = New-Object System.Windows.Automation.PropertyCondition($AE::ClassNameProperty, 'Windows.UI.Core.CoreWindow')
+    foreach ($el in $AE::RootElement.FindAll($TS::Children, $cond)) {
+      if (-not $el.Current.IsOffscreen) { $roots += ,@($el, 'start') }
+    }
+  } elseif ($scope -eq 'top') {
+    $w = Wins 1
+    if ($w.Count) { $roots += ,$w[0] }
+  } elseif ($scope -like 'proc:*') {
+    $rx = $scope.Substring(5)
+    foreach ($w in (Wins 15)) { if ($w[1] -match $rx) { $roots += ,$w } }
+  } else {
+    $roots = Wins 4
+  }
+  return ,$roots
+}
+
+function Find($q) {
+  $types = @($q.types | Where-Object { $_ })
+  $cond = [System.Windows.Automation.Condition]::TrueCondition
+  if ($types.Count -gt 0) {
+    $conds = @()
+    foreach ($t in $types) {
+      $f = [System.Windows.Automation.ControlType].GetField($t)
+      if ($f) { $conds += New-Object System.Windows.Automation.PropertyCondition($AE::ControlTypeProperty, $f.GetValue($null)) }
+    }
+    if ($conds.Count -eq 1) { $cond = $conds[0] }
+    elseif ($conds.Count -gt 1) { $cond = New-Object System.Windows.Automation.OrCondition($conds) }
+  }
+  $items = @()
+  $win = $null
+  foreach ($root in (Roots $q.scope)) {
+    $el0 = $root[0]
+    if (-not $win) { $win = @{ title = $el0.Current.Name; proc = $root[1] } }
+    $found = $el0.FindAll($TS::Descendants, $cond)
+    foreach ($el in $found) {
+      $c = $el.Current
+      if ($c.IsOffscreen) { continue }
+      if ($q.name -and -not ($c.Name -match $q.name -or $c.AutomationId -match $q.name)) { continue }
+      $r = Rect $el
+      if (-not $r) { continue }
+      $r.name = $c.Name
+      $r.type = $c.ControlType.ProgrammaticName -replace 'ControlType\\.', ''
+      $r.focused = $c.HasKeyboardFocus
+      $r.enabled = $c.IsEnabled
+      $r.proc = $root[1]
+      $items += $r
+      if ($items.Count -ge 6) { break }
+    }
+    if ($items.Count -ge 6) { break }
+  }
+  return @{ items = $items; win = $win }
+}
+
+function Top() {
+  $w = Wins 1
+  if (-not $w.Count) { return @{ win = $null } }
+  $el = $w[0][0]
+  $close = $null
+  $cond = New-Object System.Windows.Automation.PropertyCondition($AE::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
+  foreach ($b in $el.FindAll($TS::Descendants, $cond)) {
+    $c = $b.Current
+    if ($c.AutomationId -eq 'Close' -or $c.Name -match '^(Закрыть|Close)$') { $close = Rect $b; if ($close) { break } }
+  }
+  return @{ win = @{ title = $el.Current.Name; proc = $w[0][1]; rect = (Rect $el); close = $close } }
+}
+
+function Drives() {
+  $out = @()
+  foreach ($d in (Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=2')) {
+    $out += @{ letter = $d.DeviceID.TrimEnd(':'); label = [string]$d.VolumeName }
+  }
+  return @{ drives = $out }
+}
+
+while ($true) {
+  $line = [Console]::In.ReadLine()
+  if ($line -eq $null) { break }
+  $res = @{}
+  try {
+    $q = $line | ConvertFrom-Json
+    if ($q.op -eq 'find') { $res = Find $q }
+    elseif ($q.op -eq 'top') { $res = Top }
+    elseif ($q.op -eq 'drives') { $res = Drives }
+    $res.id = $q.id
+  } catch {
+    $res = @{ id = $q.id; error = [string]$_ }
+  }
+  [Console]::Out.WriteLine(($res | ConvertTo-Json -Compress -Depth 6))
+  [Console]::Out.Flush()
+}
+`;
+
+let ps = null;
+let seq = 0;
+const pending = new Map();
+
+// Кириллицу передаём экранированной: так кодировка консоли не важна.
+const asciiJson = (o) => JSON.stringify(o).replace(/[\u007f-￿]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
+
+function winServer() {
+  if (ps) return ps;
+  const encoded = Buffer.from(WIN_SCRIPT(process.pid), 'utf16le').toString('base64');
+  ps = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded],
+    { windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'] });
+  let buf = '';
+  ps.stdout.setEncoding('utf8');
+  ps.stdout.on('data', (chunk) => {
+    buf += chunk;
+    const lines = buf.split('\n');
+    buf = lines.pop();
+    for (const line of lines) {
+      try {
+        const res = JSON.parse(line.trim());
+        const p = pending.get(res.id);
+        if (p) { pending.delete(res.id); p(res); }
+      } catch { /* не JSON, пропускаем */ }
+    }
+  });
+  const dead = () => {
+    ps = null;
+    for (const p of pending.values()) p({ error: 'locator stopped' });
+    pending.clear();
+  };
+  ps.on('exit', dead);
+  ps.on('error', dead);
+  return ps;
+}
+
+function winAsk(q, timeout = 6000) {
+  return new Promise((resolve) => {
+    const id = ++seq;
+    const t = setTimeout(() => { pending.delete(id); resolve({ error: 'timeout' }); }, timeout);
+    pending.set(id, (res) => { clearTimeout(t); resolve(res); });
+    try { winServer().stdin.write(`${asciiJson({ ...q, id })}\n`); } catch { clearTimeout(t); pending.delete(id); resolve({ error: 'no powershell' }); }
+  });
+}
+
+// ---------- macOS ----------
+const ROLES = {
+  Button: ['AXButton', 'AXDockItem', 'AXMenuButton', 'AXPopUpButton'],
+  Edit: ['AXTextField', 'AXTextArea', 'AXComboBox', 'AXSearchField'],
+  ListItem: ['AXRow', 'AXCell', 'AXStaticText', 'AXImage'],
+  TreeItem: ['AXRow', 'AXCell', 'AXStaticText'],
+  DataItem: ['AXRow', 'AXCell'],
+  Text: ['AXStaticText'],
+  Slider: ['AXSlider'],
+};
+
+const MAC_SCRIPT = (q, skipPid) => `
+ObjC.import('CoreGraphics');
+const se = Application('System Events');
+const q = ${JSON.stringify(q)};
+function topPid() {
+  const list = ObjC.deepUnwrap(ObjC.castRefToObject($.CGWindowListCopyWindowInfo(17, 0))) || [];
+  for (const w of list) if (w.kCGWindowLayer === 0 && w.kCGWindowOwnerPID !== ${skipPid} && w.kCGWindowAlpha !== 0) return w.kCGWindowOwnerPID;
+  return 0;
+}
+function rectOf(e) { try { const p = e.position(); const s = e.size(); if (!p || !s || s[0] < 2 || s[1] < 2) return null; return { x: p[0], y: p[1], w: s[0], h: s[1] }; } catch (_) { return null; } }
+function label(e) { const out = []; for (const k of ['name', 'title', 'description', 'value']) { try { const v = e[k](); if (v && typeof v === 'string') out.push(v); } catch (_) {} } return out.join(' '); }
+function roots() {
+  if (q.scope === 'taskbar') return [[se.processes.byName('Dock').lists[0], 'Dock']];
+  const out = [];
+  if (q.scope && q.scope.startsWith('proc:')) {
+    const rx = new RegExp(q.scope.slice(5), 'i');
+    for (const p of se.processes.whose({ backgroundOnly: false })()) { try { if (rx.test(p.name())) for (const w of p.windows()) out.push([w, p.name()]); } catch (_) {} }
+    return out;
+  }
+  const pid = topPid();
+  if (!pid) return out;
+  const p = se.processes.whose({ unixId: pid })[0];
+  try { const w = p.windows[0]; w.name(); out.push([w, p.name()]); } catch (_) {}
+  return out;
+}
+function run() {
+  if (q.op === 'drives') {
+    const fm = $.NSFileManager.defaultManager;
+    const names = ObjC.deepUnwrap(fm.contentsOfDirectoryAtPathError('/Volumes', null)) || [];
+    const root = ObjC.unwrap($.NSString.stringWithString('/').stringByResolvingSymlinksInPath);
+    const drives = [];
+    for (const n of names) {
+      const path = ObjC.unwrap($.NSString.stringWithString('/Volumes/' + n).stringByResolvingSymlinksInPath);
+      if (path !== root && !/^(Macintosh HD|Recovery|Preboot|VM|Data)$/.test(n)) drives.push({ letter: n, label: n });
+    }
+    return { drives };
+  }
+  const rs = roots();
+  const win = rs[0] ? { title: (() => { try { return rs[0][0].name(); } catch (_) { return ''; } })(), proc: rs[0][1] } : null;
+  if (q.op === 'top') {
+    if (!rs[0]) return { win: null };
+    let close = null;
+    try { const b = rs[0][0].buttons.whose({ subrole: 'AXCloseButton' })[0]; close = rectOf(b); } catch (_) {}
+    return { win: Object.assign(win, { rect: rectOf(rs[0][0]), close }) };
+  }
+  const roles = q.roles || [];
+  const rx = q.name ? new RegExp(q.name, 'i') : null;
+  const items = [];
+  for (const [r, proc] of rs) {
+    let all = [];
+    try { all = q.scope === 'taskbar' ? r.uiElements() : r.entireContents(); } catch (_) {}
+    for (const e of all) {
+      if (items.length >= 6) break;
+      let role = '';
+      try { role = e.role(); } catch (_) { continue; }
+      if (roles.length && !roles.includes(role)) continue;
+      const name = label(e);
+      if (rx && !rx.test(name)) continue;
+      const rect = rectOf(e);
+      if (!rect) continue;
+      let focused = false;
+      try { focused = !!e.focused(); } catch (_) {}
+      items.push(Object.assign(rect, { name, type: role, focused, enabled: true, proc }));
+    }
+  }
+  return { items, win };
+}
+JSON.stringify(run());
+`;
+
+function macAsk(q, timeout = 8000) {
+  const roles = [...new Set((q.types || []).flatMap((t) => ROLES[t] || []))];
+  return new Promise((resolve) => {
+    execFile('/usr/bin/osascript', ['-l', 'JavaScript', '-e', MAC_SCRIPT({ ...q, roles }, process.pid)], { timeout }, (err, out, errOut) => {
+      if (err) {
+        const access = /not allowed|assistive|-1719|-25211/i.test(String(errOut || err.message));
+        resolve({ error: access ? 'access' : String(errOut || err.message).slice(0, 200) });
+        return;
+      }
+      try { resolve(JSON.parse(out)); } catch { resolve({ error: 'bad output' }); }
+    });
+  });
+}
+
+// ---------- Общее ----------
+const supported = () => process.platform === 'win32' || process.platform === 'darwin';
+
+/**
+ * ask(q, toOverlay) — q: { op: 'find'|'top'|'drives', scope, name (regex), types }.
+ * toOverlay(rect) переводит экранный прямоугольник в координаты окна кота.
+ */
+async function ask(q, toOverlay = (r) => r) {
+  if (!supported()) return { error: 'unsupported' };
+  const res = process.platform === 'win32' ? await winAsk(q) : await macAsk(q);
+  if (res.items) res.items = res.items.map((it) => ({ ...it, ...toOverlay(it) }));
+  if (res.win?.rect) res.win.rect = toOverlay(res.win.rect);
+  if (res.win?.close) res.win.close = toOverlay(res.win.close);
+  return res;
+}
+
+function stop() {
+  if (ps) { try { ps.kill(); } catch { /* уже нет */ } ps = null; }
+}
+
+module.exports = { ask, stop, supported, _WIN_SCRIPT: WIN_SCRIPT, _MAC_SCRIPT: MAC_SCRIPT, _exists: fs.existsSync };
