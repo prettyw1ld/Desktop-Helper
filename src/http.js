@@ -24,6 +24,8 @@ async function fetchAI(url, opts = {}) {
 
 // Бесплатный Groq ограничивает число слов в минуту (снимок экрана ~2700). На 429 ждём,
 // сколько просит сервис (до 25 с), и пробуем ещё раз, чтобы человек не видел ошибку.
+let onWait = () => {};
+const setOnWait = (fn) => { onWait = fn; };
 async function fetchAIRetry(url, opts = {}) {
   let res = await fetchAI(url, opts);
   for (let i = 0; i < 2 && res.status === 429; i++) {
@@ -33,10 +35,11 @@ async function fetchAIRetry(url, opts = {}) {
     }
     wait = Math.ceil(wait || 10);
     if (wait > 25) break;
+    onWait(wait);
     await new Promise((r) => setTimeout(r, wait * 1000 + 300));
     res = await fetchAI(url, opts);
   }
   return res;
 }
 
-module.exports = { fetchAI, fetchAIRetry, isNetErr };
+module.exports = { fetchAI, fetchAIRetry, isNetErr, setOnWait };

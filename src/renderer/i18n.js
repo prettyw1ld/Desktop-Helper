@@ -58,6 +58,7 @@
       'rem.default': 'Напоминание',
       'err.noKey': 'Мяу! ИИ пока не подключён, поэтому свободно болтать я не умею. Зато помогу по «Урокам» 🐾',
       'err.ask': 'Мяу, я задумался и не смог ответить. Спроси ещё раз, пожалуйста 🐾',
+      'ai.wait': 'Секундочку, я думаю… Ещё примерно {sec} с 🐾',
       'err.net': 'Мяу, не могу достучаться до интернета. Проверь, что он работает, и попробуй ещё раз',
       'err.ollama': 'Ollama не отвечает. Она запущена? Адрес: {url}',
       // помощник для новичка
@@ -216,6 +217,7 @@
       'rem.default': 'Reminder',
       'err.noKey': 'Meow! AI is not connected yet, so I cannot chat freely. But I can help with the Lessons 🐾',
       'err.ask': 'Meow, I got lost in thought and could not answer. Please ask again 🐾',
+      'ai.wait': 'One moment, I am thinking… about {sec} s more 🐾',
       'err.net': 'Meow, I cannot reach the internet. Check that it works and try again',
       'err.ollama': 'Ollama is not answering. Is it running? Address: {url}',
     },
