@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('pushik', {
   listCalendar: (days) => ipcRenderer.invoke('calendar:list', days),
   quit: () => ipcRenderer.send('app:quit'),
   hide: () => ipcRenderer.send('app:hide'),
+  simplifyExplanation: (text) => ipcRenderer.invoke('guide:simplify', text),
   guideLook: (req) => ipcRenderer.invoke('guide:look', req),
   guideWatch: (masks) => ipcRenderer.send('guide:watch', masks),
   guideUnwatch: () => ipcRenderer.send('guide:unwatch'),
