@@ -72,13 +72,23 @@ async function capture(overlay, width = SHOT_W) {
   const { width: dw, height: dh } = display.size;
   const w = Math.min(width, dw);
   const h = Math.round((dh * w) / dw);
-  const hide = overlay && !overlay.isDestroyed() && overlay.isVisible();
-  if (hide) { overlay.setOpacity(0); await new Promise((r) => setTimeout(r, 90)); }
+  // На время снимка исключаем окно кота из захвата экрана: человек кота видит, а ИИ нет.
+  // Раньше прятали прозрачностью, и на Windows прозрачное окно после этого уходило под браузер.
+  // Защиту сразу снимаем, чтобы кот был виден в записи экрана и при показе на защите.
+  const ok = overlay && !overlay.isDestroyed() && overlay.isVisible();
+  const fade = ok && process.platform === 'linux';
+  if (ok && !fade) { overlay.setContentProtection(true); await new Promise((r) => setTimeout(r, 60)); }
+  if (fade) { overlay.setOpacity(0); await new Promise((r) => setTimeout(r, 90)); }
   let sources;
   try {
     sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: w, height: h } });
   } finally {
-    if (hide) overlay.setOpacity(1);
+    if (fade) overlay.setOpacity(1);
+    if (ok && !overlay.isDestroyed()) {
+      if (!fade) overlay.setContentProtection(false);
+      overlay.setAlwaysOnTop(true, 'screen-saver');
+      overlay.moveTop();
+    }
   }
   const src = sources.find((s) => String(s.display_id) === String(display.id)) || sources[0];
   if (!src || src.thumbnail.isEmpty()) throw Object.assign(new Error('no screenshot'), { code: 'noShot' });
@@ -100,6 +110,10 @@ function toOverlay(box, shot) {
     h: Math.round(box.h * ky),
   };
   if (r.w < 4 || r.h < 4) return null;
+  // рамка за краем экрана: обрезаем, чтобы кот не прыгал за экран
+  const W = wa.width, H = wa.height;
+  r.x = Math.max(0, Math.min(r.x, W - 8)); r.y = Math.max(0, Math.min(r.y, H - 8));
+  r.w = Math.min(r.w, W - r.x); r.h = Math.min(r.h, H - r.y);
   return r;
 }
 
