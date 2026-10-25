@@ -5,7 +5,8 @@ const CLAUDE_URL = 'https://api.anthropic.com/v1/messages';
 
 // Готовые настройки для OpenAI-совместимых сервисов: команде достаточно вписать ключ в team.json.
 const OPENAI_PRESETS = {
-  groq: { url: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile', vision: 'meta-llama/llama-4-scout-17b-16e-instruct' },
+  // qwen3.8-27b понимает и текст, и картинки, и JSON (проверено на ключе команды 25.10.2026)
+  groq: { url: 'https://api.groq.com/openai/v1', model: 'qwen/qwen3.8-27b', vision: 'qwen/qwen3.8-27b' },
   openrouter: { url: 'https://openrouter.ai/api/v1', model: 'meta-llama/llama-3.3-70b-instruct:free', vision: 'qwen/qwen2.5-vl-72b-instruct:free' },
 };
 // provider: claude | ollama | openai | groq | openrouter → { kind, url, model, vision }
@@ -17,6 +18,34 @@ function resolve(s) {
   const claudeModel = /^claude-/.test(s.model || '');
   return { kind: 'openai', url, model: (!claudeModel && s.model) || pre.model || OPENAI_PRESETS.groq.model, vision: s.visionModel || pre.vision || OPENAI_PRESETS.groq.vision };
 }
+
+// Сервисы меняют список моделей. Если нужной нет, берём подходящую из того, что есть у ключа.
+const CHAT_PREFS = [/qwen3/, /gpt-oss-120b/, /gpt-oss/, /llama-3\.3-70b/, /llama/];
+const VISION_PREFS = [/qwen3/, /llama-4/, /vl|vision/i];
+const modelCache = new Map();
+async function listModels(url, apiKey) {
+  if (modelCache.has(url)) return modelCache.get(url);
+  try {
+    const res = await fetch(`${url}/models`, { headers: { authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(8000) });
+    const ids = res.ok ? ((await res.json()).data || []).map((m) => m.id).filter((id) => !/whisper|tts|orpheus|guard|embed/i.test(id)) : null;
+    if (ids) modelCache.set(url, ids);
+    return ids;
+  } catch {
+    return null;
+  }
+}
+async function pickModel({ url, apiKey, want, vision }) {
+  const ids = await listModels(url, apiKey);
+  if (!ids || !ids.length || ids.includes(want)) return want;
+  for (const re of vision ? VISION_PREFS : CHAT_PREFS) {
+    const hit = ids.find((id) => re.test(id));
+    if (hit) return hit;
+  }
+  return vision ? want : ids[0];
+}
+// gpt-oss сначала «думает», и на короткий лимит ответа не остаётся: просим думать поменьше
+const extraFor = (model) => (/gpt-oss/.test(model) ? { reasoning_effort: 'low' } : {});
+const cleanReply = (txt) => String(txt || '').replace(/<think>[\s\S]*?<\/think>/g, '').replace(/^[\s\S]*?<\/think>/, '').trim();
 
 const TOOLS = [
   {
@@ -129,16 +158,16 @@ async function askClaude({ apiKey, model, history, text, tools, system }) {
 
 // ---------- OpenAI-совместимые (Groq, OpenRouter, …) ----------
 async function askOpenAI({ apiKey, url, model, history, text, system }) {
+  const use = await pickModel({ url, apiKey, want: model });
   const res = await fetch(`${url}/chat/completions`, {
     method: 'POST',
     headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ model, max_tokens: 700, messages: [{ role: 'system', content: system }, ...history, { role: 'user', content: text }] }),
+    body: JSON.stringify({ model: use, max_tokens: 1500, ...extraFor(use), messages: [{ role: 'system', content: system }, ...history, { role: 'user', content: text }] }),
     signal: AbortSignal.timeout(45_000),
   });
   if (!res.ok) throw await readError(res);
   const data = await res.json();
-  const reply = String(data.choices?.[0]?.message?.content || '').replace(/<think>[\s\S]*?<\/think>/g, '').trim();
-  return { reply, actions: [] };
+  return { reply: cleanReply(data.choices?.[0]?.message?.content), actions: [] };
 }
 
 // ---------- Ollama ----------
@@ -212,4 +241,4 @@ async function ask(opts) {
   };
 }
 
-module.exports = { ask, ollamaModels, systemPrompt, resolve, OPENAI_PRESETS };
+module.exports = { ask, ollamaModels, systemPrompt, resolve, OPENAI_PRESETS, pickModel, extraFor, cleanReply };

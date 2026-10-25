@@ -72,15 +72,16 @@ const SECRETS = ['apiKey', 'calendarUrl', 'sttKey'];
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
 
 // Ключи команды: team.json рядом с приложением (кладётся при сборке) или в папке настроек.
-// Новичку ничего вводить не нужно. Свои значения из настроек важнее командных.
+// Новичку ничего вводить не нужно. Если в team.json есть ИИ, его настройки главнее сохранённых:
+// иначе старые настройки (например, provider: ollama из прошлых версий) перебивают ключ команды.
+const TEAM_AI = ['apiKey', 'provider', 'aiUrl', 'model', 'ollamaUrl', 'ollamaModel', 'visionModel', 'sttUrl', 'sttKey', 'sttModel', 'voice'];
 let team = {};
 function loadTeam() {
   const places = [path.join(__dirname, '..', 'team.json'), path.join(process.resourcesPath || '', 'team.json'), path.join(app.getPath('userData'), 'team.json')];
   for (const f of places) {
     try { team = { ...team, ...JSON.parse(fs.readFileSync(f, 'utf8')) }; } catch { /* файла нет */ }
   }
-  const allowed = ['apiKey', 'provider', 'aiUrl', 'model', 'ollamaUrl', 'ollamaModel', 'visionModel', 'sttUrl', 'sttKey', 'sttModel', 'voice'];
-  team = Object.fromEntries(Object.entries(team).filter(([k, v]) => allowed.includes(k) && typeof v === 'string' && v));
+  team = Object.fromEntries(Object.entries(team).filter(([k, v]) => TEAM_AI.includes(k) && typeof v === 'string' && v));
 }
 
 function loadSettings() {
@@ -96,6 +97,9 @@ function loadSettings() {
       delete s[`${k}Enc`];
     }
   } catch { /* первый запуск */ }
+  if (team.provider || team.apiKey) {
+    for (const k of TEAM_AI) s[k] = k in team ? team[k] : DEFAULTS[k];
+  }
   if (!s.lang) s.lang = app.getLocale().toLowerCase().startsWith('ru') ? 'ru' : 'en';
   return s;
 }
@@ -365,14 +369,13 @@ function screenAccess() {
   return systemPreferences.getMediaAccessStatus('screen');
 }
 ipcMain.handle('guide:look', async (_e, req) => {
-  const useOllama = settings.provider === 'ollama';
-  if (!useOllama && !settings.apiKey) return { error: t('err.noKey') };
+  if (settings.provider !== 'ollama' && !settings.apiKey) return { error: t('err.noKey') };
   if (screenAccess() === 'denied') return { error: t('err.screen') };
   try {
     return await guide.look({ ...req, settings, overlay: win });
   } catch (err) {
     if (err.code === 'noShot') return { error: t('err.screen') };
-    if (err.offline) return { error: t('err.ollama', { url: settings.ollamaUrl }) };
+    if (err.offline && settings.provider === 'ollama') return { error: t('err.ollama', { url: settings.ollamaUrl }) };
     return { error: t('err.look', { err: err.message }) };
   }
 });
@@ -407,8 +410,7 @@ ipcMain.handle('skills:add', (_e, name) => {
 let chatHistory = [];
 ipcMain.handle('chat:reset', () => { chatHistory = []; return true; });
 ipcMain.handle('chat:send', async (_e, text) => {
-  const useOllama = settings.provider === 'ollama';
-  if (!useOllama && !settings.apiKey) return { error: t('err.noKey') };
+  if (settings.provider !== 'ollama' && !settings.apiKey) return { error: t('err.noKey') };
   const locale = settings.lang === 'en' ? 'en-US' : 'ru-RU';
   try {
     const { reply, history, actions } = await ask({
@@ -446,7 +448,7 @@ ipcMain.handle('chat:send', async (_e, text) => {
     chatHistory = history.slice(-30);
     return { reply, actions };
   } catch (err) {
-    if (err.offline) return { error: t('err.ollama', { url: settings.ollamaUrl }) };
+    if (err.offline && settings.provider === 'ollama') return { error: t('err.ollama', { url: settings.ollamaUrl }) };
     const who = { ollama: 'Ollama', groq: 'Groq', openrouter: 'OpenRouter', openai: 'ИИ' }[settings.provider] || 'Claude';
     return { error: t('err.ask', { who, err: err.message }) };
   }

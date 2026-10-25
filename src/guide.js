@@ -4,7 +4,7 @@
 const { desktopCapturer, screen } = require('electron');
 
 const CLAUDE_URL = 'https://api.anthropic.com/v1/messages';
-const { resolve } = require('./llm');
+const { resolve, pickModel, extraFor, cleanReply } = require('./llm');
 const SHOT_W = 1280; // ширина снимка для модели (меньше = быстрее ответ)
 
 // Ответ модели всегда в одном формате, через принудительный вызов инструмента.
@@ -139,12 +139,14 @@ async function askClaude({ apiKey, model, system, text, jpeg }) {
 // OpenAI-совместимые сервисы с зрением (Groq llama-4-scout, OpenRouter qwen2.5-vl …): ответ строго JSON
 async function askOpenAI({ apiKey, url, vision, system, text, jpeg }) {
   const schema = JSON.stringify(STEP_SCHEMA);
+  const model = await pickModel({ url, apiKey, want: vision, vision: true });
   const res = await fetch(`${url}/chat/completions`, {
     method: 'POST',
     headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
     body: JSON.stringify({
-      model: vision,
-      max_tokens: 600,
+      model,
+      max_tokens: 1500,
+      ...extraFor(model),
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: `${system}\nAnswer ONLY with a JSON object matching this JSON schema: ${schema}` },
@@ -155,7 +157,7 @@ async function askOpenAI({ apiKey, url, vision, system, text, jpeg }) {
   });
   if (!res.ok) throw await readError(res);
   const data = await res.json();
-  const raw = String(data.choices?.[0]?.message?.content || '{}').replace(/<think>[\s\S]*?<\/think>/g, '');
+  const raw = cleanReply(data.choices?.[0]?.message?.content) || '{}';
   const json = raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1) || '{}';
   return JSON.parse(json);
 }
