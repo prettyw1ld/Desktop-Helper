@@ -411,7 +411,6 @@ function lessons() {
     { name: T('les.mouse'), icon: 'mouse', start: () => startTrainer() },
     ...Scenarios.list.map((sc) => ({ name: sc.skill[lang] || sc.skill.ru, icon: LESSON_ICONS[sc.id] || 'paw', start: () => (sc.fileLesson ? startFileLesson(sc.id) : runScenario(sc)) })),
     { name: T('files.chooseSkill'), icon: 'folder', start: () => chooseDocument() },
-    { name: T('les.lost'), icon: 'help', start: () => imLost() },
   ];
 }
 function renderLessons() {
