@@ -111,6 +111,25 @@ async function askClaude({ apiKey, model, history, text, tools, system }) {
   throw new Error('too many steps');
 }
 
+// ---------- Groq: text and existing local tools ----------
+async function askGroq(opts) {
+  const { completion } = require('./groq');
+  const messages=[{role:'system',content:opts.system},...opts.history,{role:'user',content:opts.text}];
+  const defs=TOOLS.filter(t=>typeof opts.tools?.[t.name]==='function').map(t=>({type:'function',function:{name:t.name,description:t.description,parameters:t.schema}}));
+  const actions=[];
+  for(let i=0;i<6;i++){
+    const msg=await completion(opts,messages,defs.length?{tools:defs}:{});
+    messages.push(msg);
+    if(!msg.tool_calls?.length)return {reply:String(msg.content||'').trim(),actions};
+    for(const call of msg.tool_calls){
+      let input={};try{input=JSON.parse(call.function.arguments||'{}');}catch{}
+      actions.push(call.function.name);
+      messages.push({role:'tool',tool_call_id:call.id,content:await runTool(opts.tools,call.function.name,input)});
+    }
+  }
+  throw new Error('Слишком много шагов ответа Groq.');
+}
+
 // ---------- Ollama ----------
 async function askOllama({ ollamaUrl, ollamaModel, history, text, tools, system }) {
   const base = ollamaUrl.replace(/\/+$/, '');
@@ -171,7 +190,7 @@ async function ollamaModels(url) {
  */
 async function ask(opts) {
   const system = systemPrompt(opts);
-  const fn = opts.provider === 'ollama' ? askOllama : askClaude;
+  const fn = opts.provider === 'groq' ? askGroq : opts.provider === 'ollama' ? askOllama : askClaude;
   const { reply, actions } = await fn({ ...opts, system });
   const text = reply || (opts.lang === 'en' ? 'Purr!' : 'Мур!');
   return {

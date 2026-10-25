@@ -3,6 +3,7 @@
   let ctx = null;
   let master = null;
   const state = { on: true, volume: 0.4 };
+  const lastPlayed = { meow: -Infinity, purr: -Infinity };
 
   function audio() {
     if (!ctx) {
@@ -25,6 +26,8 @@
 
   // «Мяу»: пила с плавающим тоном через два фильтра-форманты (м-и-а-у).
   function meow(pitch = 1) {
+    if (performance.now() - lastPlayed.meow < 650) return;
+    lastPlayed.meow = performance.now();
     const c = audio();
     const t = c.currentTime;
     const len = 0.5 + Math.random() * 0.2;
@@ -63,6 +66,8 @@
 
   // Мурчание: низкий шум, пульсирующий ~25 раз в секунду, вдох-выдох.
   function purr(sec = 2.2) {
+    if (performance.now() - lastPlayed.purr < 1200) return;
+    lastPlayed.purr = performance.now();
     const c = audio();
     const t = c.currentTime;
     const src = c.createBufferSource();
@@ -79,9 +84,9 @@
     lfo.connect(lfoGain).connect(pulse.gain);
     const env = c.createGain();
     env.gain.setValueAtTime(0.0001, t);
-    for (let k = 0; k < sec; k += 0.9) {
-      env.gain.linearRampToValueAtTime(1.6, t + k + 0.35);
-      env.gain.linearRampToValueAtTime(0.5, t + k + 0.85);
+    env.gain.linearRampToValueAtTime(1.9, t + 0.12);
+    for (let k = 0.35; k < sec - 0.15; k += 0.4) {
+      env.gain.linearRampToValueAtTime(Math.round(k / 0.4) % 2 ? 1.0 : 1.9, t + k);
     }
     env.gain.linearRampToValueAtTime(0.0001, t + sec);
     src.connect(lp).connect(pulse).connect(env).connect(master);
@@ -126,9 +131,36 @@
     }
   }
 
+  // Real field recordings by Kerzoven (CC0); see assets/audio/CREDITS.txt.
+  const recordings = new Map();
+  function recorded(name, seconds) {
+    if (!state.on || recordings.has(name)) return;
+    if (name === 'meow' && performance.now() - lastPlayed.meow < 1100) return;
+    if (name === 'meow') lastPlayed.meow = performance.now();
+    const clip = new Audio(new URL('../../assets/audio/' + (name === 'meow' ? 'meow-short.wav' : 'purr.wav'), document.baseURI).href);
+    clip.preload = 'auto';
+    const volume = Math.min(1, Math.max(0, state.volume)) * (name === 'meow' ? 0.65 : 0.8);
+    clip.volume = 0;
+    let timer = null, started = null;
+    const cleanup = () => { clearInterval(timer); clip.pause(); recordings.delete(name); };
+    recordings.set(name, { clip, cleanup });
+    clip.addEventListener('ended', cleanup, { once: true });
+    clip.addEventListener('error', cleanup, { once: true });
+    clip.play().then(() => {
+      if (!recordings.has(name)) return;
+      started = performance.now();
+      const duration = name === 'purr' ? Math.min(Math.max(Number(seconds) || 2.4, 1), 5.5) : (clip.duration || 2);
+      timer = setInterval(() => {
+        const elapsed = (performance.now() - started) / 1000;
+        const fade = Math.max(0, Math.min(1, elapsed / 0.12, (duration - elapsed) / 0.25));
+        clip.volume = volume * fade;
+        if (elapsed >= duration || !state.on) cleanup();
+      }, 30);
+    }).catch(cleanup);
+  }
   const play = (fn) => (...a) => { if (state.on) { try { fn(...a); } catch { /* без звука */ } } };
   window.Sound = {
-    set(on, volume) { state.on = !!on; if (volume != null) state.volume = Number(volume); },
-    meow: play(meow), purr: play(purr), hiss: play(hiss), bell: play(bell),
+    set(on, volume) { state.on = !!on; if (volume != null) state.volume = Math.min(1, Math.max(0, Number(volume) || 0)); if (!state.on) for (const item of [...recordings.values()]) item.cleanup(); },
+    meow: () => recorded('meow'), purr: (sec) => recorded('purr', sec), hiss: play(hiss), bell: play(bell),
   };
 })();
