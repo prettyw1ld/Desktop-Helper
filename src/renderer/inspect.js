@@ -3,7 +3,7 @@
   let picker=null, origin=null, rect=null, epoch=0, active=false;
   const button=document.querySelector('#inspect-element');
   function removePicker(){picker?.remove();picker=null;origin=null;setIgnore(true);}
-  function stop(){bubble.classList.remove('inspect-explanation');epoch++;active=false;removePicker();api.guideUnwatch();ring.classList.remove('inspect-highlight');hideRing();hideBubble();catEl.classList.remove('thinking');cat.onArrive=null;if(cat.jump)cat.jump.after=null;guide.active=false;if(cat.state==='perch')startFall();else if(cat.state==='busy')setState('idle',3000);speechSynthesis?.cancel?.();}
+  function stop(){cancelPointGaze();bubble.classList.remove('inspect-explanation');epoch++;active=false;removePicker();api.guideUnwatch();ring.classList.remove('inspect-highlight');hideRing();hideBubble();catEl.classList.remove('thinking');cat.onArrive=null;if(cat.jump)cat.jump.after=null;guide.active=false;if(cat.state==='perch')startFall();else if(cat.state==='busy')setState('idle',3000);speechSynthesis?.cancel?.();}
   function choose(){
     stop();rect=null;closePanels();endTrainer();endGuide(false);
     guide.active=true;guide.kind='inspect';setState('busy');active=true;
@@ -33,7 +33,7 @@
         const goal = result.practiceGoal;
         if (!goal) return;
         stop();closePanels();endTrainer();
-        guide.active=true;guide.kind='ai';guide.goal=goal;guide.history=[];guide.last=null;guide.busy=false;
+        guide.active=true;guide.kind='ai';guide.goal=goal;guide.history=[];guide.screenSummary='';guide.last=null;guide.busy=false;
         look('practice');
       };
       const render = (notice='') => {

@@ -296,6 +296,7 @@ function land() {
 function pickAnim(t) {
   const d = cat.dir;
   if (catEl.classList.contains('happy')) return 'hind';
+  if (cat.lookUntil && t < cat.lookUntil) return cat.lookPose;
   const talking = t < cat.meowUntil;
   switch (cat.state) {
     case 'walk': return dirAnim(cat.running ? 'run' : 'walk', d);
@@ -480,8 +481,22 @@ function showRing(t) {
 function hideRing() { ring.classList.add('hidden'); }
 
 // Кот подходит (подпрыгивает) к кнопке и встаёт сбоку, лапкой к ней.
+let pointGazeTimer=null;
+function cancelPointGaze(){clearTimeout(pointGazeTimer);cat.lookUntil=0;}
 function goPoint(t, then) {
   if (cat.state === 'drag') { if (then) then(); return; }
+  cancelPointGaze();
+  const dx=t.x+t.w/2-cx(),dy=t.y+t.h/2-(cat.y+CAT_H/2);
+  cat.dir=dx>=0?1:-1;
+  cat.lookPose=Math.abs(dx)<70?(dy<0?'standB':'standF'):(dx<0?'standL':'standR');
+  cat.lookUntil=now()+320;
+  setState('busy');
+  pointGazeTimer=setTimeout(()=>{
+    if(cat.state!=='busy'||!cat.lookUntil)return;
+    cat.lookUntil=0;moveToPoint(t,then);
+  },320);
+}
+function moveToPoint(t, then) {
   const k = size();
   const half = 52 * k;                       // половина видимой ширины кота
   const right = t.x + t.w / 2 > W() / 2;     // кнопка справа: кот встаёт слева от неё
@@ -523,11 +538,17 @@ function startWatch() {
 }
 
 function aiStepActions() {
-  return [
+  const actions = [
     [T('g.done'), () => look('check'), true],
     [T('g.again'), () => showStep(guide.last, true)],
     [T('g.stop'), () => endGuide(true)],
   ];
+  if(guide.last?.whatChanged) actions.splice(1,0,['Что сейчас произошло?',()=>showChange(guide.last.whatChanged,()=>showStep(guide.last,true))]);
+  return actions;
+}
+function showChange(text,back){
+  say(text,Infinity,{guide:true,actions:[['Повторить',()=>speak(text)],['Назад',back],['Завершить',()=>endGuide(false)]]});
+  speak(text);
 }
 
 function showStep(res, repeat = false) {
@@ -554,7 +575,7 @@ async function look(mode) {
   catEl.classList.add('thinking');
   if (cat.state !== 'perch' && !['fall', 'jump'].includes(cat.state)) setState('busy');
   say(T(mode === 'check' ? 'g.checking' : 'g.looking'), Infinity, { guide: true });
-  const res = await api.guideLook({ mode, goal: guide.goal, history: guide.history });
+  const res = await api.guideLook({ mode, goal: guide.goal, history: guide.history, previousSummary: guide.screenSummary || '' });
   catEl.classList.remove('thinking');
   guide.busy = false;
   if (!guide.active) return;
@@ -563,6 +584,7 @@ async function look(mode) {
     speak(res.error);
     return;
   }
+  if(res.screenSummary) guide.screenSummary=res.screenSummary;
   const s = res.status;
   if (s === 'step') {
     if (res.say) guide.history.push(res.say);
@@ -570,7 +592,9 @@ async function look(mode) {
   } else if (s === 'done') {
     hideRing();
     const skill = res.skill || guide.goal;
-    say(`${res.say || T('g.success')}\n${T('g.skillSaved')}`, 7000, { guide: true });
+    const completion = `${res.say || T('g.success')}\n${T('g.skillSaved')}`;
+    const doneActions = res.whatChanged ? [['Что сейчас произошло?',()=>showChange(res.whatChanged,()=>say(completion,Infinity,{guide:true,actions:[['Закрыть',()=>endGuide(false)]]}))],['Закрыть',()=>endGuide(false)]] : [];
+    say(completion, doneActions.length ? Infinity : 7000, { guide: true, actions:doneActions });
     speak(res.say || T('g.success'));
     celebrate();
     if (skill) settings.skills = await api.addSkill(skill);
@@ -601,6 +625,7 @@ function startGuide(goal) {
   guide.kind = 'ai';
   guide.goal = goal;
   guide.history = [];
+  guide.screenSummary = '';
   guide.last = null;
   look('start');
 }
@@ -615,6 +640,7 @@ function imLost() {
 }
 
 function endGuide(sayBye) {
+  cancelPointGaze();
   guide.active = false;
   guide.last = null;
   api.guideUnwatch();
@@ -692,6 +718,7 @@ document.addEventListener('mousemove', (e) => {
     const dy = e.clientY - press.y;
     if (!press.moved && Math.hypot(dx, dy) > 5) {
       press.moved = true;
+      cancelPointGaze();
       // кота взяли: окна и подсказки прячем, чтобы не мешали
       if (!trainer.step) { closePanels(); if (!guide.active) hideBubble(); }
       cat.plat = null;
@@ -731,7 +758,7 @@ document.addEventListener('mouseup', () => {
       cat.y = clamp(cat.y, 0, Math.max(0, floorY()));
       setState('perch');
       if (guide.kind === 'script') resumeCoachAfterDrag();
-      else if (guide.last?.say) say(guide.last.say, Infinity, { guide: true, actions: stepActions() });
+      else if (guide.last?.say) say(guide.last.say, Infinity, { guide: true, actions: aiStepActions() });
       placeBubble();
       return;
     }

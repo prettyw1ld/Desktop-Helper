@@ -167,6 +167,7 @@ test('dragging the cat preserves the lesson and restores its current instruction
   c.floorY = () => 660;
   c.placeBubble = () => {};
   c.onCatClick = () => {};
+  c.cancelPointGaze = () => {};
   const source = fs.readFileSync('src/renderer/app.js', 'utf8');
   vm.runInContext(source.slice(source.indexOf('let press = null;'), source.indexOf('let clicks = [];')), c);
   run("runScenario(Scenarios.list.find(s => s.id === 'files-learn'))");
