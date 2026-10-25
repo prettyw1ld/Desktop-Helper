@@ -2,6 +2,8 @@
 
 # Пушик
 
+<img src="docs/pushik.gif" alt="Пушик" width="128" />
+
 **Кот, который учит пользоваться компьютером прямо на твоём экране. Без инструкций.**
 
 ![platform](https://img.shields.io/badge/Windows%20%7C%20macOS-white?style=for-the-badge&logo=electron&logoColor=1b1d22&labelColor=ffd43b)
@@ -159,5 +161,7 @@ Electron 33, чистый JavaScript без фреймворков, PowerShell �
 - Георгий Масленников
 - Егор Мацегора
 - Грачев Александр
+
+Авторы на GitHub: [@prettyw1ld](https://github.com/prettyw1ld), [@Jikeman](https://github.com/Jikeman), [@Geonori](https://github.com/Geonori), [@7grach](https://github.com/7grach).
 
 Код распространяется по лицензии [MIT](LICENSE). Персонаж Пуш и его образ принадлежат билайну и под лицензию MIT не подпадают: это фанатский проект.
