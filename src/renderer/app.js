@@ -837,7 +837,6 @@ $('#ask-form').addEventListener('submit', (e) => {
   $('#ask-input').value = '';
   routeGoal(text);
 });
-$('#lost').addEventListener('click', () => imLost());
 
 document.querySelector('.extras').addEventListener('click', (e) => {
   const b = e.target.closest('button');
