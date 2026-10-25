@@ -280,6 +280,7 @@ function createWindow() {
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   win.setIgnoreMouseEvents(true, { forward: true });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  require('./http').setOnWait((sec) => { if (win && !win.isDestroyed()) win.webContents.send('ai-wait', sec); });
   // Напоминания грузим, когда окно готово, чтобы просроченные успели показаться котом.
   win.webContents.once('did-finish-load', () => {
     loadReminders();

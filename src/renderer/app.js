@@ -609,6 +609,9 @@ function endGuide(sayBye) {
 }
 
 // экран заметно поменялся после подсказки: сами проверяем, получилось ли
+// бесплатный ИИ попросил подождать: кот говорит, что думает, вместо тишины
+api.on('ai-wait', (sec) => say(T('ai.wait', { sec }), (sec + 1) * 1000, { guide: true }));
+
 api.on('screen-changed', () => {
   if (!guide.active || guide.busy || guide.kind !== 'ai' || guide.mode === 'confused') return;
   setTimeout(() => { if (guide.active && !guide.busy) look('check'); }, 1200);

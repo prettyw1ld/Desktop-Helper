@@ -25,7 +25,7 @@ contextBridge.exposeInMainWorld('pushik', {
   openDrive: (letter) => ipcRenderer.invoke('open:drive', letter),
   on: (channel, cb) => {
     const allowed = ['reminder', 'reminders-changed', 'open', 'settings-changed', 'toggle-visible',
-      'calendar-soon', 'calendar-changed', 'windows', 'screen-changed'];
+      'calendar-soon', 'calendar-changed', 'windows', 'screen-changed', 'ai-wait'];
     if (allowed.includes(channel)) ipcRenderer.on(channel, (_e, data) => cb(data));
   },
 });
