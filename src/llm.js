@@ -1,12 +1,14 @@
 // Чат Пуша: Claude (Messages API), любой сервис, совместимый с OpenAI (Groq, OpenRouter, LM Studio…),
 // или локальная Ollama. Claude и Ollama ещё умеют вызывать инструменты (напоминания).
 
+const { fetchAI } = require('./http');
 const CLAUDE_URL = 'https://api.anthropic.com/v1/messages';
 
 // Готовые настройки для OpenAI-совместимых сервисов: команде достаточно вписать ключ в team.json.
 const OPENAI_PRESETS = {
-  // qwen3.8-27b понимает и текст, и картинки, и JSON (проверено на ключе команды 25.10.2026)
-  groq: { url: 'https://api.groq.com/openai/v1', model: 'qwen/qwen3.8-27b', vision: 'qwen/qwen3.8-27b' },
+  // Проверено на ключе команды 25.10.2026: gpt-oss-120b лучше пишет по-русски, но не видит картинки;
+  // qwen3.8-27b понимает снимки экрана и JSON
+  groq: { url: 'https://api.groq.com/openai/v1', model: 'openai/gpt-oss-120b', vision: 'qwen/qwen3.8-27b' },
   openrouter: { url: 'https://openrouter.ai/api/v1', model: 'meta-llama/llama-3.3-70b-instruct:free', vision: 'qwen/qwen2.5-vl-72b-instruct:free' },
 };
 // provider: claude | ollama | openai | groq | openrouter → { kind, url, model, vision }
@@ -20,13 +22,13 @@ function resolve(s) {
 }
 
 // Сервисы меняют список моделей. Если нужной нет, берём подходящую из того, что есть у ключа.
-const CHAT_PREFS = [/qwen3/, /gpt-oss-120b/, /gpt-oss/, /llama-3\.3-70b/, /llama/];
+const CHAT_PREFS = [/gpt-oss-120b/, /qwen3/, /gpt-oss/, /llama-3\.3-70b/, /llama/];
 const VISION_PREFS = [/qwen3/, /llama-4/, /vl|vision/i];
 const modelCache = new Map();
 async function listModels(url, apiKey) {
   if (modelCache.has(url)) return modelCache.get(url);
   try {
-    const res = await fetch(`${url}/models`, { headers: { authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(8000) });
+    const res = await fetchAI(`${url}/models`, { headers: { authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(8000) });
     const ids = res.ok ? ((await res.json()).data || []).map((m) => m.id).filter((id) => !/whisper|tts|orpheus|guard|embed/i.test(id)) : null;
     if (ids) modelCache.set(url, ids);
     return ids;
@@ -133,7 +135,7 @@ async function askClaude({ apiKey, model, history, text, tools, system }) {
   const defs = TOOLS.map((t) => ({ name: t.name, description: t.description, input_schema: t.schema }));
 
   for (let step = 0; step < 6; step++) {
-    const res = await fetch(CLAUDE_URL, {
+    const res = await fetchAI(CLAUDE_URL, {
       method: 'POST',
       headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
       body: JSON.stringify({ model, max_tokens: 1024, system, tools: defs, messages }),
@@ -159,7 +161,7 @@ async function askClaude({ apiKey, model, history, text, tools, system }) {
 // ---------- OpenAI-совместимые (Groq, OpenRouter, …) ----------
 async function askOpenAI({ apiKey, url, model, history, text, system }) {
   const use = await pickModel({ url, apiKey, want: model });
-  const res = await fetch(`${url}/chat/completions`, {
+  const res = await fetchAI(`${url}/chat/completions`, {
     method: 'POST',
     headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
     body: JSON.stringify({ model: use, max_tokens: 1500, ...extraFor(use), messages: [{ role: 'system', content: system }, ...history, { role: 'user', content: text }] }),
@@ -180,7 +182,7 @@ async function askOllama({ ollamaUrl, ollamaModel, history, text, tools, system 
   for (let step = 0; step < 6; step++) {
     let res;
     try {
-      res = await fetch(`${base}/api/chat`, {
+      res = await fetchAI(`${base}/api/chat`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ model: ollamaModel, messages, tools: defs.length ? defs : undefined, stream: false }),
@@ -216,7 +218,7 @@ async function askOllama({ ollamaUrl, ollamaModel, history, text, tools, system 
 // Список скачанных моделей Ollama (для подсказки в настройках). null = не отвечает.
 async function ollamaModels(url) {
   try {
-    const res = await fetch(`${url.replace(/\/+$/, '')}/api/tags`, { signal: AbortSignal.timeout(2500) });
+    const res = await fetchAI(`${url.replace(/\/+$/, '')}/api/tags`, { signal: AbortSignal.timeout(2500) });
     if (!res.ok) return null;
     return ((await res.json()).models || []).map((m) => m.name);
   } catch {

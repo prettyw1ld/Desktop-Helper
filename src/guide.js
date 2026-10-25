@@ -5,6 +5,7 @@ const { desktopCapturer, screen } = require('electron');
 
 const CLAUDE_URL = 'https://api.anthropic.com/v1/messages';
 const { resolve, pickModel, extraFor, cleanReply } = require('./llm');
+const { fetchAI } = require('./http');
 const SHOT_W = 1280; // ширина снимка для модели (меньше = быстрее ответ)
 
 // Ответ модели всегда в одном формате, через принудительный вызов инструмента.
@@ -110,7 +111,7 @@ async function readError(res) {
 }
 
 async function askClaude({ apiKey, model, system, text, jpeg }) {
-  const res = await fetch(CLAUDE_URL, {
+  const res = await fetchAI(CLAUDE_URL, {
     method: 'POST',
     headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
     body: JSON.stringify({
@@ -140,14 +141,14 @@ async function askClaude({ apiKey, model, system, text, jpeg }) {
 async function askOpenAI({ apiKey, url, vision, system, text, jpeg }) {
   const schema = JSON.stringify(STEP_SCHEMA);
   const model = await pickModel({ url, apiKey, want: vision, vision: true });
-  const res = await fetch(`${url}/chat/completions`, {
+  const send = (strict) => fetchAI(`${url}/chat/completions`, {
     method: 'POST',
     headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
     body: JSON.stringify({
       model,
       max_tokens: 1500,
       ...extraFor(model),
-      response_format: { type: 'json_object' },
+      ...(strict ? { response_format: { type: 'json_object' } } : {}),
       messages: [
         { role: 'system', content: `${system}\nAnswer ONLY with a JSON object matching this JSON schema: ${schema}` },
         { role: 'user', content: [{ type: 'text', text }, { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${jpeg}` } }] },
@@ -155,6 +156,9 @@ async function askOpenAI({ apiKey, url, vision, system, text, jpeg }) {
     }),
     signal: AbortSignal.timeout(45_000),
   });
+  let res = await send(true);
+  // строгий JSON иногда не проходит проверку сервиса: тогда просим без него и вырезаем JSON сами
+  if (res.status === 400) res = await send(false);
   if (!res.ok) throw await readError(res);
   const data = await res.json();
   const raw = cleanReply(data.choices?.[0]?.message?.content) || '{}';
@@ -166,7 +170,7 @@ async function askOpenAI({ apiKey, url, vision, system, text, jpeg }) {
 async function askOllama({ ollamaUrl, visionModel, ollamaModel, system, text, jpeg }) {
   let res;
   try {
-    res = await fetch(`${ollamaUrl.replace(/\/+$/, '')}/api/chat`, {
+    res = await fetchAI(`${ollamaUrl.replace(/\/+$/, '')}/api/chat`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
