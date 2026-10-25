@@ -1,6 +1,5 @@
-Cat Purr & Meow by Kerzoven, CC0.
-https://opengameart.org/content/cat-purr-meow
-Sources: cat_softmew.wav, cat_purrsleepy_loop.wav.
-Edits: mono mix, DC removal, silence trimming, level normalization and short fades.
+Audio and illustrations
 
-Active meow.mp3: supplied by user as myaukane_koshki_-_myaukane_koshki.mp3; source and license not specified. Prior Kerzoven meow recording is no longer used.
+purr.wav: Cat Purr & Meow by Kerzoven, CC0. https://opengameart.org/content/cat-purr-meow . Based on cat_purrsleepy_loop.wav; converted to mono, level adjusted and given short fades.
+meow-short.wav: 0.6-second excerpt from an MP3 supplied by the user; original source and license were not provided. Keep this provenance note.
+cozy-items.png: AI-generated transparent illustration atlas created for this project. Used as a regular 3x3 CSS sprite sheet. Do not replace it with the old mouse image containing a checkerboard.

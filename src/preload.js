@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('pushik', {
   guideUnwatch: () => ipcRenderer.send('guide:unwatch'),
   transcribe: (audio, mime) => ipcRenderer.invoke('stt:transcribe', { audio, mime }),
   askMic: () => ipcRenderer.invoke('mic:ask'),
+  savePostcard: (data) => ipcRenderer.invoke('postcard:save', data),
   addSkill: (name) => ipcRenderer.invoke('skills:add', name),
   locate: (q) => ipcRenderer.invoke('locate', q),
   openUri: (uri) => ipcRenderer.invoke('open:uri', uri),
@@ -27,7 +28,7 @@ contextBridge.exposeInMainWorld('pushik', {
   openDrive: (letter) => ipcRenderer.invoke('open:drive', letter),
   on: (channel, cb) => {
     const allowed = ['reminder', 'reminders-changed', 'open', 'settings-changed', 'toggle-visible',
-      'calendar-soon', 'calendar-changed', 'windows', 'screen-changed', 'ai-wait'];
+      'calendar-soon', 'calendar-changed', 'windows', 'screen-changed', 'ai-wait', 'skill-earned'];
     if (allowed.includes(channel)) ipcRenderer.on(channel, (_e, data) => cb(data));
   },
 });

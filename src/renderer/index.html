@@ -8,6 +8,8 @@
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="inspect.css" />
   <link rel="stylesheet" href="light-blue.css" />
+  <link rel="stylesheet" href="playful.css" />
+  <link rel="stylesheet" href="home.css" />
 </head>
 <body>
   <div id="cat" class="cat hit">
@@ -30,7 +32,7 @@
     <button id="lost" class="big lost" data-i18n="help.lost"></button>
     <button type="button" id="mic" class="big mic hidden" data-i18n-title="help.mic"></button>
     <div id="mic-state" role="status" aria-live="polite" class="sub big-sub hidden"></div>
-    <form id="ask-form" class="ask">
+    <form id="ask-form" class="ask hidden" aria-hidden="true">
       <input id="ask-input" autocomplete="off" data-i18n-ph="help.ph" />
       <button type="submit" class="big go" data-i18n-title="help.go">➤</button>
     </form>
@@ -44,9 +46,14 @@
   <!-- Уроки: все обучалки, что пройдено и прогресс -->
   <section id="panel-lessons" class="panel help lessons hit hidden">
     <header><b data-i18n="les.title"></b><button class="icon" data-close data-i18n-title="close">✕</button></header>
+    <button id="open-skill-home" type="button" class="big">Домик освоенных навыков</button>
+    <button id="teach-cat" type="button" class="big">Кот учится у тебя</button>
     <div class="les-progress"><div id="les-bar" class="bar"></div></div>
     <div id="les-count" class="sub big-sub"></div>
-    <ul id="les-list" class="les-list"></ul>
+    <details id="lesson-dropdown" class="lesson-dropdown">
+      <summary>Список уроков</summary>
+      <ul id="les-list" class="les-list"></ul>
+    </details>
   </section>
 
   <!-- Чат -->
@@ -116,5 +123,7 @@
   <script src="app.js"></script>
   <script src="coach.js"></script>
   <script src="inspect.js"></script>
+  <script src="playful.js"></script>
+  <script src="home.js"></script>
 </body>
 </html>

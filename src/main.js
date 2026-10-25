@@ -1,6 +1,6 @@
 const {
   app, BrowserWindow, screen, ipcMain, Tray, Menu, Notification,
-  nativeImage, globalShortcut, safeStorage, session, systemPreferences, protocol, shell,
+  dialog, nativeImage, globalShortcut, safeStorage, session, systemPreferences, protocol, shell,
 } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -39,6 +39,7 @@ const DEFAULTS = {
   lang: '',                // '' = по языку системы
   provider: 'claude',      // claude | groq | openrouter | openai | ollama
   aiUrl: '',               // адрес OpenAI-совместимого сервиса (для provider: openai)
+  groqKey: '',             // старое имя ключа Groq из пакета команды; лучше apiKey
   apiKey: '',
   model: 'claude-sonnet-5-5',
   ollamaUrl: 'http://localhost:11434',
@@ -69,13 +70,13 @@ const DEFAULTS = {
   contact: '',             // кому чаще всего звонят: имя, как в WhatsApp (для сценария «Позвонить»)
   voice: 'offline',        // offline = Vosk в самом приложении, whisper = сервис по ключу
 };
-const SECRETS = ['apiKey', 'calendarUrl', 'sttKey'];
+const SECRETS = ['apiKey', 'calendarUrl', 'sttKey', 'groqKey'];
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
 
 // Ключи команды: team.json рядом с приложением (кладётся при сборке) или в папке настроек.
 // Новичку ничего вводить не нужно. Если в team.json есть ИИ, его настройки главнее сохранённых:
 // иначе старые настройки (например, provider: ollama из прошлых версий) перебивают ключ команды.
-const TEAM_AI = ['apiKey', 'provider', 'aiUrl', 'model', 'ollamaUrl', 'ollamaModel', 'visionModel', 'sttUrl', 'sttKey', 'sttModel', 'voice'];
+const TEAM_AI = ['apiKey', 'groqKey', 'provider', 'aiUrl', 'model', 'ollamaUrl', 'ollamaModel', 'visionModel', 'sttUrl', 'sttKey', 'sttModel', 'voice'];
 let team = {};
 function loadTeam() {
   const places = [path.join(__dirname, '..', 'team.json'), path.join(process.resourcesPath || '', 'team.json'), path.join(app.getPath('userData'), 'team.json')];
@@ -93,13 +94,16 @@ function loadSettings() {
     s = { ...s, ...raw };
     for (const k of SECRETS) {
       if (raw[`${k}Enc`] && safeStorage.isEncryptionAvailable()) {
-        s[k] = safeStorage.decryptString(Buffer.from(raw[`${k}Enc`], 'base64'));
+        try { s[k] = safeStorage.decryptString(Buffer.from(raw[`${k}Enc`], 'base64')); } catch { s[k] = ''; }
       }
       delete s[`${k}Enc`];
     }
   } catch { /* первый запуск */ }
   s.chatter = false; // в настройках этого пункта больше нет, старое «вкл» не тянем
   s.contact = ''; // поле «Кому звонишь» убрано: урок звонка общий, без имени
+  // ключ Groq мог прийти под старым именем groqKey: для приложения это обычный apiKey
+  if (team.groqKey && !team.apiKey) { team.apiKey = team.groqKey; team.provider = team.provider || 'groq'; }
+  if (s.groqKey && !s.apiKey && (s.provider === 'groq' || !team.apiKey)) { s.apiKey = s.groqKey; s.provider = 'groq'; }
   if (team.provider || team.apiKey) {
     for (const k of TEAM_AI) s[k] = k in team ? team[k] : DEFAULTS[k];
   }
@@ -142,7 +146,7 @@ function sttKeyFor(s) {
 }
 
 function publicSettings() {
-  const { apiKey, calendarUrl, sttKey, ...rest } = settings;
+  const { apiKey, calendarUrl, sttKey, groqKey, ...rest } = settings;
   return {
     ...rest, hasApiKey: !!apiKey, hasCalendar: !!calendarUrl, hasStt: !!sttKeyFor(settings) || !/groq\.com|openai\.com/.test(settings.sttUrl || ''),
     hasVosk: fs.existsSync(VOSK_MODEL),
@@ -432,12 +436,24 @@ ipcMain.handle('mic:ask', async () => {
   try { return await systemPreferences.askForMediaAccess('microphone'); } catch { return false; }
 });
 ipcMain.handle('skills:add', (_e, name) => {
-  const n = String(name || '').trim();
+  const n = String(name || '').trim().slice(0,300);
   if (!n) return settings.skills;
+  const isNew=!(settings.skills||[]).some(x=>x.name.toLowerCase()===n.toLowerCase());
   const skills = (settings.skills || []).filter((x) => x.name.toLowerCase() !== n.toLowerCase());
   skills.push({ name: n, at: Date.now() });
-  saveSettings({ skills });
+  const first=isNew&&!n.startsWith('Изучено:')&&!settings.firstSuccessCard;
+  const card=first?{name:n,at:Date.now()}:settings.firstSuccessCard;
+  saveSettings({ skills, ...(first?{firstSuccessCard:card}:{}) });
+  if(isNew)win?.webContents.send('skill-earned',{name:n,first,card:first?card:null});
   return skills;
+});
+ipcMain.handle('postcard:save',async(_e,data)=>{
+  if(typeof data!=='string'||data.length>8000000||!data.startsWith('data:image/png;base64,'))return {error:'Не удалось подготовить открытку.'};
+  const image=nativeImage.createFromDataURL(data);
+  if(image.isEmpty())return {error:'Открытка пуста.'};
+  const chosen=await dialog.showSaveDialog(win,{title:'Сохранить открытку Пушика',defaultPath:path.join(app.getPath('pictures'),'Первый успех с Пушиком.png'),filters:[{name:'PNG',extensions:['png']}]});
+  if(chosen.canceled||!chosen.filePath)return {canceled:true};
+  try{fs.writeFileSync(chosen.filePath,image.toPNG());return {saved:true};}catch{return {error:'Не удалось сохранить файл. Выбери другую папку.'};}
 });
 
 // История чата живёт только в памяти, пока запущено приложение.
