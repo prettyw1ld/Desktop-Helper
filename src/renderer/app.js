@@ -265,7 +265,7 @@ function tickFrame() {
   if (cat.plat && cat.state === 'walk' && !currentPlat()) startFall();
 
   if (t > cat.until) {
-    if (cat.state === 'sleep') { say(T('say.wake'), 2500); Sound.meow(1.1); showPose('yawn', 1400); } else decideNext();
+    if (cat.state === 'sleep') { say(T('say.wake'), 2500); void 0; showPose('yawn', 1400); } else decideNext();
   }
 
   render(t);
@@ -288,7 +288,7 @@ function land() {
   if (cat.afterLand) { const f = cat.afterLand; cat.afterLand = null; setState('idle', rand(1500, 3000)); f(); return; }
   if (trainer.step === 'landing') { trainerDone(); return; }
   setState('idle', rand(1500, 3000));
-  if (Math.random() < 0.5) { say(T('say.land'), 2200); if (Math.random() < 0.5) Sound.meow(1.15); }
+  if (Math.random() < 0.5) { say(T('say.land'), 2200); if (Math.random() < 0.5) void 0; }
 }
 
 // Какую анимацию показать сейчас. Возвращает имя анимации или конкретный кадр {row, col}.
@@ -418,7 +418,7 @@ function happy(ms = 1200) {
 function celebrate() {
   happy(1800);
   for (let i = 0; i < 8; i++) setTimeout(() => spawnFx('h', pick(['⭐', '🎉', '💛', '✨'])), i * 140);
-  Sound.meow(1.2);
+  void 0;
   setTimeout(() => Sound.purr(1.5), 500);
 }
 
@@ -508,7 +508,7 @@ function startWatch() {
   guide.autoChecked = false;
 }
 
-function stepActions() {
+function aiStepActions() {
   return [
     [T('g.done'), () => look('check'), true],
     [T('g.again'), () => showStep(guide.last, true)],
@@ -520,13 +520,13 @@ function showStep(res, repeat = false) {
   guide.last = res;
   showRing(res.target);
   const sayIt = () => {
-    say(res.say, Infinity, { actions: stepActions(), guide: true });
+    say(res.say, Infinity, { actions: aiStepActions(), guide: true });
     speak(res.say);
     startWatch();
   };
   if (res.target) goPoint(res.target, sayIt);
   else { setState('busy'); sayIt(); }
-  if (repeat) Sound.meow(1.1);
+  if (repeat) void 0;
 }
 
 async function look(mode) {
@@ -683,7 +683,7 @@ document.addEventListener('mousemove', (e) => {
       cat.plat = null;
       cat.climb = null;
       setState('drag');
-      Sound.meow(1.3);
+      void 0;
     }
     if (press.moved) {
       cat.x = press.catX + dx;
@@ -728,7 +728,7 @@ let clicks = [];
 function onCatClick() {
   if (trainer.step === 'click') {
     happy(800);
-    Sound.meow(1.2);
+    void 0;
     trainer.step = 'dbl';
     setTimeout(() => trainer.step === 'dbl' && trainerSay('tr.dbl'), 300);
     return;
@@ -748,7 +748,7 @@ function onCatClick() {
   // во время подсказки клик по коту ничего не ломает, но всегда даёт выход: повторить или закончить
   if (guide.active) {
     if (guide.busy) return;
-    const acts = guide.kind === 'ai' && guide.last ? stepActions() : [[T('g.stop'), () => endGuide(true), true]];
+    const acts = guide.kind === 'ai' && guide.last ? aiStepActions() : [[T('g.stop'), () => endGuide(true), true]];
     say(guide.last?.say || T('g.stopAsk'), Infinity, { actions: acts, guide: true });
     return;
   }
@@ -758,8 +758,9 @@ function onCatClick() {
   }
   if (cat.state === 'walk') { cat.climb = null; setState('idle', 6000); }
   hideBubble();
+  Sound.meow();
   if (openPanel === 'help') closePanels();
-  else showPanel('help');
+  else { showPanel('help'); }
 }
 
 // ---------- Окно «Чем помочь?» ----------
@@ -1096,7 +1097,7 @@ api.on('calendar-soon', (e) => {
   Sound.bell();
   if (busyWithPerson()) return;
   if (cat.state === 'sleep' || cat.state === 'drag') setState('idle', 8000);
-  setTimeout(() => Sound.meow(), 700);
+  setTimeout(() => void 0, 700);
   showPose('wave', 6000);
   say(e.text, 20_000);
   if (openPanel === 'reminders') renderCalendar();
@@ -1175,7 +1176,7 @@ api.on('open', (what) => {
     closePanels();
     const run = () => { walkTo(W() / 2, true); say(T('say.coming'), 2000); };
     if (cat.plat || cat.state === 'perch') { cat.afterLand = run; startFall(); } else run();
-    Sound.meow();
+    void 0;
   } else if (what === 'help') {
     if (cat.state === 'sleep') setState('idle', 4000);
     showPanel('help');
@@ -1206,7 +1207,7 @@ function resetBreakTimer() {
     if (reminders.some((r) => r.kind === 'focus') || busyWithPerson()) return;
     if (cat.state === 'sleep') setState('idle', 8000);
     showPose('coffee', 9000, T('say.break', { min: settings.breakEvery }));
-    Sound.meow();
+    void 0;
   }, settings.breakEvery * 60_000);
 }
 
@@ -1217,10 +1218,10 @@ function scheduleChatter() {
         cat.wantsAttention = true;
         setState('idle', 12_000);
         say(T('say.beg'), 4000);
-        Sound.meow(1.2);
+        void 0;
       } else {
         say(T('say.chatter'), 3500);
-        if (Math.random() < 0.3) Sound.meow();
+        if (Math.random() < 0.3) void 0;
       }
     }
     scheduleChatter();
@@ -1246,7 +1247,7 @@ window.addEventListener('resize', () => { cat.y = Math.min(cat.y, floorY()); com
   cat.y = floorY();
   setState('intro');
   cat.onDone = () => {
-    Sound.meow();
+    void 0;
     if (!settings.onboarded) startTrainer();
     else say(greeting(), 4500);
   };
