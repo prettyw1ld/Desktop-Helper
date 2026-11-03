@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 // Мост между окном кота и главным процессом.
 contextBridge.exposeInMainWorld('pushik', {
   setIgnoreMouse: (ignore) => ipcRenderer.send('ignore-mouse', ignore),
+  cursor: () => ipcRenderer.invoke('cursor:get'),
   getSettings: () => ipcRenderer.invoke('settings:get'),
   saveSettings: (s) => ipcRenderer.invoke('settings:save', s),
   ollamaModels: (url) => ipcRenderer.invoke('ollama:models', url),

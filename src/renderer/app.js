@@ -1,5 +1,7 @@
 /* Пушик: кот-помощник для тех, кто только знакомится с компьютером. Без сборщиков, чистый JS.
-   Кот живёт на рабочем столе, смотрит на экран по просьбе человека и показывает лапкой, куда нажать. */
+   Кот живёт на рабочем столе, смотрит на экран по просьбе человека и показывает лапкой, куда нажать.
+   Здесь: физика кота, облачко, подсказки, панели, мышь и настройки.
+   Чем кот занят сам по себе и какую анимацию показать, лежит в life.js. */
 
 const $ = (s) => document.querySelector(s);
 const api = window.pushik || mockApi();
@@ -78,11 +80,12 @@ const cat = {
 let openPanel = null;
 
 function setState(state, ms) {
+  cat.prev = cat.state;
   cat.state = state;
   cat.until = ms ? now() + ms : Infinity;
   cat.since = now();
   if (state !== 'walk') { cat.running = false; cat.onArrive = null; }
-  if (state === 'idle') cat.idlePose = pick(['wagSitF', 'wagSitF', 'wagStandF', 'sitTail', 'wagSitB', dirAnim('wagSit', cat.dir), dirAnim('sit', cat.dir)]);
+  if (state === 'idle') cat.idlePose = pickIdlePose();
   catEl.classList.toggle('dragging', state === 'drag');
 }
 
@@ -112,71 +115,9 @@ function jumpTo(centerX, y, plat = null, after = null) {
   setState('jump');
 }
 
-// Чем кот занимается сам, когда ему скучно. Все анимации из листа.
-const ACTS = [
-  { anim: () => 'lickSit', text: 'act.grooming' },
-  { anim: () => 'lickLie', text: 'act.grooming' },
-  { anim: () => dirAnim('scratch', cat.dir) },
-  { anim: () => 'yawn', text: 'act.yawn', ms: 1400 },
-  { anim: () => pick(['eatF', 'eatB', dirAnim('eat', cat.dir)]), text: 'act.eating' },
-  { anim: () => dirAnim('wagLie', cat.dir), text: 'act.rolling' },
-  { anim: () => pick(['swipeSitF', 'swipeSitF2', dirAnim('swipeSit', cat.dir), `${dirAnim('swipeSit', cat.dir)}2`]), text: 'act.playing' },
-  { anim: () => pick([dirAnim('swipeStand', cat.dir), `${dirAnim('swipeStand', cat.dir)}2`, 'swipeStandF', 'swipeStandF2']), text: 'act.tailChasing' },
-  { anim: () => pick(['swipeSitB', 'swipeStandB']), text: 'act.knocking' },
-  { anim: () => 'hind', text: 'act.birdWatching' },
-  { anim: () => 'wagSitB', text: 'act.back' },
-  { anim: () => pick(['wagStandB', 'standB']), text: 'act.back' },
-  { anim: () => 'meowLie' },
-  { anim: () => pick(['lieL', 'lieR', 'lieF_L', 'lieF_R']) },
-];
-
-function decideNext() {
-  if (guide.active || trainer.step) return setState(cat.state === 'perch' ? 'perch' : 'busy');
-  if (openPanel) return setState('busy');
-  const r = Math.random();
-  const p = currentPlat();
-  // залезть на окно
-  if (!p && settings.windows && platforms.length && r < 0.14) {
-    const target = pick(platforms);
-    const land = rand(target.x1 + 40, target.x2 - 40);
-    const side = cx() < land ? -1 : 1;
-    const from = clamp(land + side * rand(80, 160), CAT_W / 2, W() - CAT_W / 2);
-    cat.climb = { id: target.id, cx: land };
-    walkTo(from, Math.abs(from - cx()) > 450);
-    const s = T('say.climb');
-    if (s && Math.random() < 0.5) say(s, 2000);
-    return;
-  }
-  if (r < 0.5) {
-    if (p) {
-      const off = Math.random() < 0.2;
-      walkTo(off ? pick([p.x1 - 70, p.x2 + 70]) : rand(p.x1 + 25, p.x2 - 25));
-      return;
-    }
-    let goal = rand(20 + CAT_W / 2, W() - CAT_W / 2 - 20);
-    if (Math.abs(goal - cx()) < 60) goal = cx() > W() / 2 ? cx() - 200 : cx() + 200;
-    walkTo(goal, Math.abs(goal - cx()) > 450 && Math.random() < 0.4);
-  } else if (r < 0.68) {
-    setState('idle', rand(3000, 9000));
-  } else if (r < 0.76) {
-    goSleep(rand(30_000, 80_000));
-  } else {
-    const a = pick(ACTS);
-    showPose(a.anim(), a.ms || rand(3500, 7000), a.text && Math.random() < 0.6 ? T(a.text) : '');
-  }
-}
-
-function goSleep(ms) {
-  const kind = pick(['sleep1', 'sleep2', 'sleep3', 'sleep4', 'sleep5', 'sleepBack']);
-  cat.sleepKind = dirAnim(kind, cat.dir);
-  setState('sleep', ms);
-}
-
 // ---------- Главный цикл ----------
 let last = now();
 let nextZ = 0;
-let animName = '';
-let animStart = 0;
 
 function tickFrame() {
   const t = now();
@@ -200,7 +141,7 @@ function tickFrame() {
         cat.climb = null;
         const target = climb && platforms.find((p) => p.id === climb.id && climb.cx >= p.x1 && climb.cx <= p.x2);
         if (arrive) { cat.onArrive = null; arrive(); } else if (target) jumpTo(climb.cx, target.y - CAT_H, target.id);
-        else setState('idle', rand(2000, 6000));
+        else setState('idle', between(LIFE.afterWalk));
       }
       break;
     }
@@ -214,7 +155,7 @@ function tickFrame() {
         if (j.plat && !currentPlat()) { startFall(); break; }
         const after = j.after;
         j.after = null; // только один раз, даже если внутри что-то упадёт
-        setState('idle', rand(2000, 5000));
+        setState('idle', between(LIFE.afterLand));
         if (after) after();
       } else {
         cat.x = j.x0 + j.vx * e;
@@ -241,6 +182,9 @@ function tickFrame() {
       }
       break;
     }
+    case 'watch':
+      updateWatch(t);
+      break;
     case 'sleep':
       if (t - cat.since > 2500 && t > nextZ) { spawnFx('z', pick(['z', 'Z', 'z'])); nextZ = t + 1400; }
       break;
@@ -265,7 +209,7 @@ function tickFrame() {
   if (cat.plat && cat.state === 'walk' && !currentPlat()) startFall();
 
   if (t > cat.until) {
-    if (cat.state === 'sleep') { say(T('say.wake'), 2500); void 0; showPose('yawn', 1400); } else decideNext();
+    if (cat.state === 'sleep') { say(T('say.wake'), 2500); showPose('yawn', 1400); } else decideNext();
   }
 
   render(t);
@@ -288,63 +232,8 @@ function tick() {
 function land() {
   if (cat.afterLand) { const f = cat.afterLand; cat.afterLand = null; setState('idle', rand(1500, 3000)); f(); return; }
   if (trainer.step === 'landing') { trainerDone(); return; }
-  setState('idle', rand(1500, 3000));
-  if (Math.random() < 0.5) { say(T('say.land'), 2200); if (Math.random() < 0.5) void 0; }
-}
-
-// Какую анимацию показать сейчас. Возвращает имя анимации или конкретный кадр {row, col}.
-function pickAnim(t) {
-  const d = cat.dir;
-  if (catEl.classList.contains('happy')) return 'hind';
-  if (cat.lookUntil && t < cat.lookUntil) return cat.lookPose;
-  const talking = t < cat.meowUntil;
-  switch (cat.state) {
-    case 'walk': return dirAnim(cat.running ? 'run' : 'walk', d);
-    case 'intro': return cat.introRun ? 'runDown' : 'walkDown';
-    case 'outro': return 'walkUp';
-    case 'sleep': {
-      const e = t - cat.since;
-      if (e < 1200) return 'yawn';
-      if (e < 2400) return d < 0 ? 'lieF_L' : 'lieF_R';
-      return cat.sleepKind || 'sleep1L';
-    }
-    case 'drag': return 'meowStand';
-    case 'fall': return cat.vy < 0 ? { row: ANIM.jumpB.row, col: 1 } : { row: ANIM[dirAnim('jump', d)].row, col: 2 };
-    case 'jump': {
-      const j = cat.jump;
-      const p = (t - j.t0) / 1000 / j.dur;
-      if (j.vertical) return { row: ANIM.jumpB.row, col: p < 0.5 ? 1 : 2 };
-      return { row: ANIM[dirAnim('jump', d)].row, col: p < 0.12 ? 1 : p < 0.85 ? 2 : 3 };
-    }
-    case 'act': return cat.act;
-    case 'perch': {
-      if (catEl.classList.contains('thinking')) return 'wagStandB';
-      if (talking) return 'meowStand';
-      // показываем лапкой на кнопку, потом немного ждём, виляя хвостом
-      const e = (t - cat.since) % 3600;
-      return e < 1800 ? dirAnim('swipeStand', d) : dirAnim('wagStand', d);
-    }
-    default: {
-      if (catEl.classList.contains('thinking')) return 'wagSitB'; // повернулся к экрану и смотрит
-      if (talking) return 'meowSit';
-      if (cat.state === 'busy') return 'wagSitF';
-      if (t - cat.since > 2500 && cat.wantsAttention) return 'hind';
-      return t - cat.since > 2000 ? cat.idlePose : dirAnim('wagStand', d);
-    }
-  }
-}
-
-function render(t) {
-  const a = pickAnim(t);
-  if (typeof a === 'string') {
-    if (a !== animName) { animName = a; animStart = t; }
-    const ended = sprite.draw(a, t - animStart);
-    // одноразовая анимация (зевок) закончилась: садимся
-    if (ended && cat.state === 'act') { cat.act = 'sitF'; }
-  } else {
-    animName = '';
-    sprite.frame(a.row, a.col);
-  }
+  setState('idle', between(LIFE.afterLand));
+  if (Math.random() < 0.5) say(T('say.land'), 2200);
 }
 
 // ---------- Реплики, позы, эффекты ----------
@@ -432,7 +321,6 @@ function happy(ms = 1200) {
 function celebrate() {
   happy(1800);
   for (let i = 0; i < 8; i++) setTimeout(() => spawnFx('h', pick(['⭐', '🎉', '💛', '✨'])), i * 140);
-  void 0;
   setTimeout(() => Sound.purr(1.5), 500);
 }
 
@@ -481,20 +369,26 @@ function showRing(t) {
 function hideRing() { ring.classList.add('hidden'); }
 
 // Кот подходит (подпрыгивает) к кнопке и встаёт сбоку, лапкой к ней.
-let pointGazeTimer=null;
-function cancelPointGaze(){clearTimeout(pointGazeTimer);cat.lookUntil=0;}
+// Сначала кот на миг поворачивается к кнопке (смотрит на неё), потом идёт или прыгает.
+let pointGazeTimer = null;
+function cancelPointGaze() {
+  clearTimeout(pointGazeTimer);
+  cat.lookUntil = 0;
+}
 function goPoint(t, then) {
   if (cat.state === 'drag') { if (then) then(); return; }
   cancelPointGaze();
-  const dx=t.x+t.w/2-cx(),dy=t.y+t.h/2-(cat.y+CAT_H/2);
-  cat.dir=dx>=0?1:-1;
-  cat.lookPose=Math.abs(dx)<70?(dy<0?'standB':'standF'):(dx<0?'standL':'standR');
-  cat.lookUntil=now()+320;
+  const dx = t.x + t.w / 2 - cx();
+  const dy = t.y + t.h / 2 - (cat.y + CAT_H / 2);
+  cat.dir = dx >= 0 ? 1 : -1;
+  cat.lookPose = Math.abs(dx) < 70 ? (dy < 0 ? 'standB' : 'standF') : (dx < 0 ? 'standL' : 'standR');
+  cat.lookUntil = now() + 320;
   setState('busy');
-  pointGazeTimer=setTimeout(()=>{
-    if(cat.state!=='busy'||!cat.lookUntil)return;
-    cat.lookUntil=0;moveToPoint(t,then);
-  },320);
+  pointGazeTimer = setTimeout(() => {
+    if (cat.state !== 'busy' || !cat.lookUntil) return;
+    cat.lookUntil = 0;
+    moveToPoint(t, then);
+  }, 320);
 }
 function moveToPoint(t, then) {
   const k = size();
@@ -540,18 +434,21 @@ function startWatch() {
 function aiStepActions() {
   const actions = [
     [T('g.done'), () => look('check'), true],
-    [T('g.again'), () => showStep(guide.last, true)],
+    [T('g.again'), () => showStep(guide.last)],
     [T('g.stop'), () => endGuide(true)],
   ];
-  if(guide.last?.whatChanged) actions.splice(1,0,['Что сейчас произошло?',()=>showChange(guide.last.whatChanged,()=>showStep(guide.last,true))]);
+  if (guide.last?.whatChanged) {
+    actions.splice(1, 0, ['Что сейчас произошло?', () => showChange(guide.last.whatChanged, () => showStep(guide.last))]);
+  }
   return actions;
 }
-function showChange(text,back){
-  say(text,Infinity,{guide:true,actions:[['Повторить',()=>speak(text)],['Назад',back],['Завершить',()=>endGuide(false)]]});
+// «Что сейчас произошло?»: объяснение последнего шага с кнопкой «Назад» к самому шагу
+function showChange(text, back) {
+  say(text, Infinity, { guide: true, actions: [['Повторить', () => speak(text)], ['Назад', back], ['Завершить', () => endGuide(false)]] });
   speak(text);
 }
 
-function showStep(res, repeat = false) {
+function showStep(res) {
   guide.last = res;
   showRing(res.target);
   const sayIt = () => {
@@ -561,7 +458,6 @@ function showStep(res, repeat = false) {
   };
   if (res.target) goPoint(res.target, sayIt);
   else { setState('busy'); sayIt(); }
-  if (repeat) void 0;
 }
 
 async function look(mode) {
@@ -584,7 +480,7 @@ async function look(mode) {
     speak(res.error);
     return;
   }
-  if(res.screenSummary) guide.screenSummary=res.screenSummary;
+  if (res.screenSummary) guide.screenSummary = res.screenSummary;
   const s = res.status;
   if (s === 'step') {
     if (res.say) guide.history.push(res.say);
@@ -593,8 +489,11 @@ async function look(mode) {
     hideRing();
     const skill = res.skill || guide.goal;
     const completion = `${res.say || T('g.success')}\n${T('g.skillSaved')}`;
-    const doneActions = res.whatChanged ? [['Что сейчас произошло?',()=>showChange(res.whatChanged,()=>say(completion,Infinity,{guide:true,actions:[['Закрыть',()=>endGuide(false)]]}))],['Закрыть',()=>endGuide(false)]] : [];
-    say(completion, doneActions.length ? Infinity : 7000, { guide: true, actions:doneActions });
+    const close = ['Закрыть', () => endGuide(false)];
+    const doneActions = res.whatChanged
+      ? [['Что сейчас произошло?', () => showChange(res.whatChanged, () => say(completion, Infinity, { guide: true, actions: [close] }))], close]
+      : [];
+    say(completion, doneActions.length ? Infinity : 7000, { guide: true, actions: doneActions });
     speak(res.say || T('g.success'));
     celebrate();
     if (skill) settings.skills = await api.addSkill(skill);
@@ -725,7 +624,6 @@ document.addEventListener('mousemove', (e) => {
       cat.climb = null;
       cat.jump = null;
       setState('drag');
-      void 0;
     }
     if (press.moved) {
       cat.x = press.catX + dx;
@@ -733,6 +631,7 @@ document.addEventListener('mousemove', (e) => {
     }
     return;
   }
+  mouse.seen(e.clientX, e.clientY);
   const el = document.elementFromPoint(e.clientX, e.clientY);
   setIgnore(!(el && el.closest('.hit')));
 });
@@ -782,7 +681,6 @@ let clicks = [];
 function onCatClick() {
   if (trainer.step === 'click') {
     happy(800);
-    void 0;
     trainer.step = 'dbl';
     setTimeout(() => trainer.step === 'dbl' && trainerSay('tr.dbl'), 300);
     return;
@@ -1018,21 +916,21 @@ document.addEventListener('keydown', (e) => {
   else if (trainer.step) endTrainer(true);
 });
 
-// Keep expanding panels inside the work-area viewport, including details and chat replies.
-let panelLayoutFrame=0;
-function schedulePanelLayout(){
-  if(panelLayoutFrame)return;
-  panelLayoutFrame=requestAnimationFrame(()=>{
-    panelLayoutFrame=0;
-    if(!openPanel)return;
-    const panel=$('#panel-'+openPanel);
-    if(panel&&!panel.classList.contains('hidden'))placePanel(panel);
+// Панель выросла (раскрыли подробности, пришёл ответ в чате): держим её в пределах экрана.
+let panelLayoutFrame = 0;
+function schedulePanelLayout() {
+  if (panelLayoutFrame) return;
+  panelLayoutFrame = requestAnimationFrame(() => {
+    panelLayoutFrame = 0;
+    if (!openPanel) return;
+    const panel = $(`#panel-${openPanel}`);
+    if (panel && !panel.classList.contains('hidden')) placePanel(panel);
   });
 }
-const panelSizeObserver=new ResizeObserver(schedulePanelLayout);
-document.querySelectorAll('.panel').forEach(panel=>panelSizeObserver.observe(panel));
-document.addEventListener('toggle',e=>{if(e.target.closest?.('.panel'))schedulePanelLayout();},true);
-window.addEventListener('resize',schedulePanelLayout);
+const panelSizeObserver = new ResizeObserver(schedulePanelLayout);
+document.querySelectorAll('.panel').forEach((panel) => panelSizeObserver.observe(panel));
+document.addEventListener('toggle', (e) => { if (e.target.closest?.('.panel')) schedulePanelLayout(); }, true);
+window.addEventListener('resize', schedulePanelLayout);
 
 // ---------- Чат ----------
 const log = $('#chat-log');
@@ -1196,7 +1094,6 @@ api.on('calendar-soon', (e) => {
   Sound.bell();
   if (busyWithPerson()) return;
   if (cat.state === 'sleep' || cat.state === 'drag') setState('idle', 8000);
-  setTimeout(() => void 0, 700);
   showPose('wave', 6000);
   say(e.text, 20_000);
   if (openPanel === 'reminders') renderCalendar();
@@ -1273,7 +1170,6 @@ api.on('open', (what) => {
     closePanels();
     const run = () => { walkTo(W() / 2, true); say(T('say.coming'), 2000); };
     if (cat.plat || cat.state === 'perch') { cat.afterLand = run; startFall(); } else run();
-    void 0;
   } else if (what === 'help') {
     if (cat.state === 'sleep') setState('idle', 4000);
     showPanel('help');
@@ -1304,7 +1200,6 @@ function resetBreakTimer() {
     if (reminders.some((r) => r.kind === 'focus') || busyWithPerson()) return;
     if (cat.state === 'sleep') setState('idle', 8000);
     showPose('coffee', 9000, T('say.break', { min: settings.breakEvery }));
-    void 0;
   }, settings.breakEvery * 60_000);
 }
 
@@ -1315,10 +1210,8 @@ function scheduleChatter() {
         cat.wantsAttention = true;
         setState('idle', 12_000);
         say(T('say.beg'), 4000);
-        void 0;
       } else {
         say(T('say.chatter'), 3500);
-        if (Math.random() < 0.3) void 0;
       }
     }
     scheduleChatter();
@@ -1344,7 +1237,6 @@ window.addEventListener('resize', () => { cat.y = Math.min(cat.y, floorY()); com
   cat.y = floorY();
   setState('intro');
   cat.onDone = () => {
-    void 0;
     if (!settings.onboarded) startTrainer();
     else say(greeting(), 4500);
   };

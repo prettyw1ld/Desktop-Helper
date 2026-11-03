@@ -61,6 +61,31 @@
     hind: { row: 65, frames: [0, 1, 2, 3, 2, 1], fps: 6 },
   };
 
+  // «Следит за мышью»: кот сидит или стоит спиной к нам, а голова поворачивается за курсором.
+  // В листе нет кадров с повёрнутой головой, поэтому голову берём из чистой позы «сидит спиной»
+  // (строка 0, кадр 1, строки пикселей 0..30) и сдвигаем на пару пикселей.
+  // off: где эта голова стоит в нужной строке; cut: последняя строка головы в этой строке.
+  // tail: пиксели хвоста поверх головы (у стоящего кота хвост поднят вдоль спины),
+  // [y, x1, x2] для каждого кадра. Одинаковы у всех трёх окрасов.
+  const HEAD = { row: 0, col: 1, h: 31 };
+  const WATCH = {
+    0: { off: [0, 0], cut: 30 }, 20: { off: [1, 0], cut: 30 },
+    1: {
+      off: [0, -2], cut: 28,
+      tail: { 1: [[20, 31, 32], [21, 29, 33], [22, 28, 33], [23, 28, 32], [24, 27, 32], [25, 27, 31], [26, 26, 26], [26, 28, 28], [26, 30, 30], [27, 26, 26], [27, 30, 30], [28, 30, 30]] },
+    },
+    24: {
+      off: [0, -2], cut: 28,
+      tail: {
+        0: [[21, 29, 30], [22, 27, 31], [23, 26, 31], [24, 26, 30], [25, 26, 30], [26, 26, 30], [27, 26, 27], [27, 30, 30], [28, 30, 30]],
+        1: [[21, 28, 29], [22, 27, 30], [23, 27, 31], [24, 27, 31], [25, 27, 32], [26, 28, 30], [26, 32, 32], [27, 28, 29], [27, 32, 32], [28, 29, 30], [28, 33, 33]],
+        2: [[21, 32, 33], [22, 31, 34], [23, 30, 34], [24, 30, 34], [25, 30, 34], [26, 30, 32], [26, 35, 35], [27, 30, 31], [27, 35, 35], [28, 31, 32], [28, 35, 35]],
+        3: [[21, 28, 29], [22, 27, 30], [23, 27, 31], [24, 27, 31], [25, 27, 32], [26, 28, 29], [26, 32, 32], [27, 28, 29], [27, 32, 32], [28, 29, 30], [28, 33, 33]],
+        4: [[21, 29, 30], [22, 27, 31], [23, 26, 31], [24, 26, 30], [25, 26, 30], [26, 26, 28], [26, 30, 30], [27, 26, 27], [27, 30, 30], [28, 30, 30]],
+      },
+    },
+  };
+
   // dirAnim('walk', -1) → 'walkL'
   const dirAnim = (base, dir) => `${base}${dir < 0 ? 'L' : 'R'}`;
 
@@ -87,15 +112,50 @@
       this.shown = '';
     }
 
-    // t: время от начала анимации в мс. Возвращает true, если анимация once закончилась.
-    draw(name, t) {
+    // Какой кадр анимации показать через t мс от её начала. done: анимация once закончилась.
+    static at(name, t) {
       const a = A[name] || A.sitF;
       const fps = a.fps || 1;
       let i = Math.floor((t / 1000) * fps);
-      const done = a.once && i >= a.frames.length;
+      const done = !!a.once && i >= a.frames.length;
       i = a.once ? Math.min(i, a.frames.length - 1) : i % a.frames.length;
-      this.frame(a.row, a.frames[i]);
-      return done;
+      return { row: a.row, col: a.frames[i], done };
+    }
+
+    // t: время от начала анимации в мс. Возвращает true, если анимация once закончилась.
+    draw(name, t) {
+      const f = CatSprite.at(name, t);
+      this.frame(f.row, f.col);
+      return f.done;
+    }
+
+    // Поза спиной (sitB, standB, wagSitB, wagStandB) с головой, сдвинутой на (hx, hy) пикселей листа.
+    drawWatch(name, t, hx, hy) {
+      const f = CatSprite.at(name, t);
+      const w = WATCH[f.row];
+      const img = this.sheets[this.color];
+      if (!w || (!hx && !hy)) { this.frame(f.row, f.col); return; }
+      const key = `${this.color}:${f.row}:${f.col}:${hx}:${hy}`;
+      if (!img || !img.complete || !img.naturalWidth || key === this.shown) return;
+      this.shown = key;
+      const ctx = this.ctx;
+      const sx = f.col * SIZE;
+      const sy = f.row * SIZE;
+      const dy = SIZE - FEET[f.row] - 2;
+      const [ox, oy] = w.off;
+      const hx0 = HEAD.col * SIZE;
+      const hy0 = HEAD.row * SIZE;
+      ctx.clearRect(0, 0, SIZE, SIZE);
+      // туловище без головы
+      ctx.drawImage(img, sx, sy + w.cut + 1, SIZE, SIZE - w.cut - 1, 0, dy + w.cut + 1, SIZE, SIZE - w.cut - 1);
+      // шея на старом месте, чтобы между головой и туловищем не было щели
+      ctx.drawImage(img, hx0, hy0 + HEAD.h - 2, SIZE, 2, ox, dy + oy + HEAD.h - 2, SIZE, 2);
+      // голова, повёрнутая к мышке
+      ctx.drawImage(img, hx0, hy0, SIZE, HEAD.h, ox + hx, dy + oy + hy, SIZE, HEAD.h);
+      // поднятый хвост остаётся поверх головы
+      for (const [y, x1, x2] of w.tail?.[f.col] || []) {
+        ctx.drawImage(img, sx + x1, sy + y, x2 - x1 + 1, 1, x1, dy + y, x2 - x1 + 1, 1);
+      }
     }
 
     // Нарисовать конкретный кадр (для прыжка, где кадр зависит от фазы полёта).

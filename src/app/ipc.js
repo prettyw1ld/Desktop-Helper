@@ -1,5 +1,5 @@
 // Все запросы из окна кота (preload.js) к главному процессу.
-const { app, ipcMain, dialog, nativeImage, shell, systemPreferences } = require('electron');
+const { app, ipcMain, dialog, nativeImage, screen, shell, systemPreferences } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { ask, ollamaModels } = require('../llm');
@@ -29,6 +29,13 @@ function registerBasics() {
     if (!ui.alive()) return;
     if (ignore) win.setIgnoreMouseEvents(true, { forward: true });
     else win.setIgnoreMouseEvents(false);
+  });
+  // Где сейчас мышка, в координатах окна кота: кот иногда следит за ней головой.
+  // Сами события мыши до окна доходят не всегда (панель задач, окна «поверх всех»), поэтому спрашиваем систему.
+  ipcMain.handle('cursor:get', () => {
+    const p = screen.getCursorScreenPoint();
+    const wa = screen.getPrimaryDisplay().workArea;
+    return { x: p.x - wa.x, y: p.y - wa.y };
   });
   ipcMain.handle('settings:get', () => settings.publicView());
   ipcMain.handle('settings:save', (_e, s) => {
