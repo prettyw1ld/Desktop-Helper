@@ -1,5 +1,5 @@
-// Кот иногда следит за курсором. Если курсор над котом, он садится спиной к нам и поворачивает голову
-// туда, где мышка. Если курсор сбоку, поворачивается к нему. Курсор шевелится у самой морды: бьёт лапкой.
+// Кот иногда следит за курсором: сидит лицом к нам (или спиной, глядя в экран) и по пикселю
+// поворачивает голову туда, где мышка. Курсор шевелится у самой морды: бьёт по нему лапкой.
 import { api } from '../core/api';
 import { T } from '../core/i18n';
 import { now, pick } from '../core/util';
@@ -29,24 +29,24 @@ export function trackMouse(x: number, y: number): void {
 // Голова кота примерно на 120 px выше лап.
 const headY = (): number => cat.y + CAT_H - 120 * size();
 
-export type WatchMode = 'side' | 'back';
+export type WatchMode = 'front' | 'back';
 
-/** Начать следить за курсором. Без mode: спиной, если курсор над котом, иначе боком. */
+/** Начать следить за курсором. Без mode: лицом к нам, а если курсор высоко над котом, иногда спиной. */
 export function startCursorWatch(ms = between(LIFE.watch), mode?: WatchMode): void {
-  const over = mouse.x >= 0 && mouse.y - headY() < -150 && Math.abs(mouse.x - cx()) < 400;
+  const over = mouse.x >= 0 && mouse.y - headY() < -150;
   setState('idle', ms);
   cat.watchUntil = now() + ms;
-  cat.watchSide = 0;
   cat.swipeUntil = 0;
-  cat.watchBack = (mode ?? (over ? 'back' : 'side')) === 'back';
-  cat.head = { pose: pick<AnimName>(['wagSitB', 'wagSitB', 'wagStandB']), hx: 0, hy: 0, turnedAt: 0 };
+  cat.watchBack = (mode ?? (over && Math.random() < 0.4 ? 'back' : 'front')) === 'back';
+  const poses: AnimName[] = cat.watchBack ? ['wagSitB', 'wagSitB', 'wagStandB'] : ['wagBlinkSitF', 'blinkSitF'];
+  cat.head = { pose: pick(poses), hx: 0, hy: 0, turnedAt: 0 };
   const s = T('act.watch');
   if (s && Math.random() < 0.4) say(s, 2200);
 }
 
 export const watchingCursor = (t: number): boolean => !!cat.watchUntil && t < cat.watchUntil;
 
-// Куда повернуть голову в позе спиной: на сколько пикселей листа (±3 вбок, ±1 вверх/вниз).
+// Куда повернуть голову: на сколько пикселей листа (±3 вбок, ±1 вверх/вниз).
 function gazeTarget(): [number, number] {
   if (mouse.x < 0) return [0, 0];
   const dx = mouse.x - cx();
@@ -65,12 +65,7 @@ export function watchPose(t: number): AnimName | HeadTurn {
     cat.swipeCool = t + 2500;
     return cat.swipePose;
   }
-  if (cat.watchBack) return { watch: cat.head.pose, hx: cat.head.hx, hy: cat.head.hy };
-  // поворот с запасом, чтобы голова не дёргалась, когда курсор на границе
-  if (Math.abs(dx) > 90) cat.watchSide = dx < 0 ? -1 : 1;
-  else if (Math.abs(dx) < 45) cat.watchSide = 0;
-  if (cat.watchSide) cat.dir = cat.watchSide;
-  return cat.watchSide ? dirAnim('sit', cat.watchSide) : 'blinkSitF';
+  return { watch: cat.head.pose, hx: cat.head.hx, hy: cat.head.hy };
 }
 
 /** Каждый кадр: не пора ли заметить курсор, повернуть голову или перестать следить. */
@@ -85,7 +80,7 @@ export function updateCursorWatch(t: number): void {
   if (!cat.watchUntil) return;
   // голова поворачивается по пикселю за раз, а не прыгает
   const h = cat.head;
-  if (cat.watchBack && t - h.turnedAt > 80) {
+  if (t - h.turnedAt > 80) {
     const [tx, ty] = gazeTarget();
     if (tx !== h.hx || ty !== h.hy) {
       h.hx += Math.sign(tx - h.hx);

@@ -107,17 +107,27 @@ export const dirAnim = <B extends string>(base: B, dir: number): `${B}L` | `${B}
 /** Конкретный кадр: для прыжка, где кадр зависит от фазы полёта. */
 export interface Frame { row: number; col: number }
 
-/** Поза спиной (sitB, standB, wagSitB, wagStandB), голова сдвинута к курсору на (hx, hy) пикселей листа. */
+/** Поза, в которой голова сдвинута к курсору на (hx, hy) пикселей листа (позы из WATCH). */
 export interface HeadTurn { watch: AnimName; hx: number; hy: number }
 
-// «Следит за мышью спиной к нам»: в листе нет кадров с повёрнутой головой, поэтому голову берём
-// из чистой позы «сидит спиной» (строка 0, кадр 1, строки пикселей 0..30) и сдвигаем на пару пикселей.
-// off: где эта голова стоит в нужной строке; cut: последняя строка головы в этой строке.
-// tail: пиксели хвоста поверх головы (у стоящего кота хвост поднят вдоль спины),
-// [y, x1, x2] для каждого кадра. Одинаковы у всех трёх окрасов.
+// Кот следит за мышью, поворачивая голову: в листе нет кадров с повёрнутой головой,
+// поэтому голову сдвигаем на пару пикселей. Отрезки [y, x1, x2] одинаковы у всех трёх окрасов.
 type Span = [number, number, number];
+interface Watch {
+  cut: number;                     // последняя строка головы; две нижние (шея) остаются и на месте
+  head?: Span[];                   // лицом к нам: пиксели головы в самом кадре (с усами, без хвоста)
+  off?: [number, number];          // спиной: где чистая голова HEAD стоит в этой строке
+  tail?: Record<number, Span[]>;   // спиной: пиксели поднятого хвоста поверх головы, по кадрам
+}
+// Голова кота, сидящего лицом к нам (строки blinkSitF и wagBlinkSitF, во всех кадрах).
+const FRONT_HEAD: Span[] = [[16, 24, 24], [16, 38, 38], [17, 23, 25], [17, 31, 31], [17, 37, 39], [18, 23, 26], [18, 30, 32],
+  [18, 36, 39], [19, 23, 39], [20, 23, 39], [21, 23, 39], [22, 24, 38], [23, 23, 39], [24, 23, 39], [24, 42, 42], [25, 21, 41],
+  [26, 20, 20], [26, 23, 39], [27, 22, 41], [28, 21, 21], [28, 23, 39], [29, 24, 38], [30, 25, 37]];
+// Спиной к нам голову берём из чистой позы «сидит спиной» (строка 0, кадр 1, строки пикселей 0..30).
 const HEAD = { row: 0, col: 1, h: 31 };
-const WATCH: Record<number, { off: [number, number]; cut: number; tail?: Record<number, Span[]> }> = {
+const WATCH: Record<number, Watch> = {
+  [ANIM.blinkSitF.row]: { cut: 30, head: FRONT_HEAD },
+  [ANIM.wagBlinkSitF.row]: { cut: 30, head: FRONT_HEAD },
   0: { off: [0, 0], cut: 30 },
   20: { off: [1, 0], cut: 30 },
   1: {
@@ -176,7 +186,7 @@ export class CatSprite {
     return f.done;
   }
 
-  /** Поза спиной с головой, сдвинутой на (hx, hy) пикселей листа: кот смотрит туда, где курсор. */
+  /** Поза с головой, сдвинутой на (hx, hy) пикселей листа: кот смотрит туда, где курсор. */
   drawWatch(name: AnimName, t: number, hx: number, hy: number): void {
     const f = CatSprite.at(name, t);
     const w = WATCH[f.row];
@@ -189,11 +199,18 @@ export class CatSprite {
     const sx = f.col * SIZE;
     const sy = f.row * SIZE;
     const dy = SIZE - (FEET[f.row] ?? 48) - 2;
-    const [ox, oy] = w.off;
+    ctx.clearRect(0, 0, SIZE, SIZE);
+    if (w.head) {
+      // лицом к нам: голову из этого же кадра стираем (кроме шеи) и рисуем сдвинутой
+      ctx.drawImage(img, sx, sy, SIZE, SIZE, 0, dy, SIZE, SIZE);
+      for (const [y, x1, x2] of w.head) if (y < w.cut - 1) ctx.clearRect(x1, dy + y, x2 - x1 + 1, 1);
+      for (const [y, x1, x2] of w.head) ctx.drawImage(img, sx + x1, sy + y, x2 - x1 + 1, 1, x1 + hx, dy + y + hy, x2 - x1 + 1, 1);
+      return;
+    }
+    const [ox, oy] = w.off ?? [0, 0];
     const hx0 = HEAD.col * SIZE;
     const hy0 = HEAD.row * SIZE;
     const body = SIZE - w.cut - 1;
-    ctx.clearRect(0, 0, SIZE, SIZE);
     // туловище без головы
     ctx.drawImage(img, sx, sy + w.cut + 1, SIZE, body, 0, dy + w.cut + 1, SIZE, body);
     // шея на старом месте, чтобы между головой и туловищем не было щели

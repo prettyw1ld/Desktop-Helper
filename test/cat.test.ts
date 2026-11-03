@@ -71,17 +71,22 @@ test('instruction stays inside the viewport as the cat moves from top to bottom'
   }
 });
 
-test('the cat turns towards the cursor and swipes at it when it is close', () => {
+test('facing us, the cat turns its head pixel by pixel after the cursor and swipes at it when it is close', () => {
   cat.x = 500;
   cat.y = 600;
-  startCursorWatch(8000, 'side');
+  startCursorWatch(8000, 'front');
   assert.equal(cat.state, 'idle');
-  trackMouse(100, 300);                       // далеко слева
-  assert.equal(watchPose(now()), 'sitL');
-  trackMouse(1200, 300);                      // далеко справа
-  assert.equal(watchPose(now()), 'sitR');
-  trackMouse(575, 300);                       // прямо над котом
-  assert.equal(watchPose(now()), 'blinkSitF');
+  const head = () => { const p = watchPose(now()); assert.ok(typeof p !== 'string'); return p; };
+  assert.match(head().watch, /^(wagBlink|blink)SitF$/);
+  const t0 = now();
+  trackMouse(0, 663);                         // далеко слева, на уровне головы
+  updateCursorWatch(t0 + 100);
+  assert.equal(head().hx, -1);                // не прыжком, а по пикселю
+  for (let i = 2; i <= 5; i++) updateCursorWatch(t0 + i * 100);
+  assert.equal(head().hx, -3);
+  trackMouse(1200, 663);                      // ушёл вправо: голова идёт через середину
+  updateCursorWatch(t0 + 600);
+  assert.equal(head().hx, -2);
   trackMouse(575, 663);                       // шевелится у самой морды
   assert.match(String(watchPose(now())), /^swipeSit[LR]$/);
 });
@@ -90,7 +95,7 @@ test('with the cursor above, the cat sits with its back to us and turns its head
   cat.x = 500;
   cat.y = 600;
   trackMouse(575, 100);                       // курсор высоко над котом
-  startCursorWatch(8000);
+  startCursorWatch(8000, 'back');
   assert.equal(cat.watchBack, true);
   const head = () => { const p = watchPose(now()); assert.ok(typeof p !== 'string'); return p; };
   assert.deepEqual([head().hx, head().hy], [0, 0]);

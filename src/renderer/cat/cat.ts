@@ -54,8 +54,7 @@ export const cat = {
   wantsAttention: false,
   // слежка за курсором
   watchUntil: 0,
-  watchSide: 0 as -1 | 0 | 1,
-  watchBack: false,                                  // следит спиной к нам, поворачивая голову
+  watchBack: false,                                  // следит спиной к нам (иначе лицом)
   head: { pose: 'wagSitB' as AnimName, hx: 0, hy: 0, turnedAt: 0 },
   swipeUntil: 0,
   swipeCool: 0,
