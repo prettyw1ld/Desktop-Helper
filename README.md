@@ -160,12 +160,9 @@ npm test            # тесты (test/)
 ## Стек
 Electron 33, TypeScript без фреймворков (сборка esbuild), PowerShell и UI Automation (Windows), Swift и Accessibility API (macOS), Vosk (WebAssembly), Groq API, Web Audio.
 
-## Команда
-- Дамир Ходжиев
-- Георгий Масленников
-- Егор Мацегора
-- Грачев Александр
+## Автор
+Дамир Ходжиев ([@prettyw1ld](https://github.com/prettyw1ld)). Проект развиваю и поддерживаю один.
 
-Авторы на GitHub: [@prettyw1ld](https://github.com/prettyw1ld), [@Jikeman](https://github.com/Jikeman), [@Geonori](https://github.com/Geonori), [@7grach](https://github.com/7grach).
+<sub>Первая версия сделана на хакатоне «Вайбкодинг ФКН» командой: Дамир Ходжиев, Георгий Масленников, Егор Мацегора, Александр Грачев.</sub>
 
 Код распространяется по лицензии [MIT](LICENSE). Персонаж Пуш и его образ принадлежат билайну и под лицензию MIT не подпадают: это фанатский проект.
