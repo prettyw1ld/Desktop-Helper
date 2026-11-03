@@ -31,6 +31,7 @@ export const cat = {
   vy: 0,
   dir: -1 as Dir,
   state: 'idle' as CatState,
+  prev: 'idle' as CatState,  // прошлое состояние: после ходьбы и прыжка кот сначала стоит
   until: now() + 1500,        // когда закончится текущее состояние
   since: now(),               // когда оно началось
   targetX: 0,
@@ -54,6 +55,8 @@ export const cat = {
   // слежка за курсором
   watchUntil: 0,
   watchSide: 0 as -1 | 0 | 1,
+  watchBack: false,                                  // следит спиной к нам, поворачивая голову
+  head: { pose: 'wagSitB' as AnimName, hx: 0, hy: 0, turnedAt: 0 },
   swipeUntil: 0,
   swipeCool: 0,
   swipePose: 'swipeSitL' as AnimName,
@@ -76,12 +79,13 @@ export const visTop = (): number => cat.y + CAT_H * (1 - size());  // верх �
 
 // ---------- Состояния ----------
 const IDLE_POSES = (): AnimName[] => [
-  'wagBlinkSitF', 'wagBlinkSitF', 'blinkSitF', 'earTwitchF', 'blinkStandF', 'wagStandF', 'sitTail', 'wagSitB',
+  'wagBlinkSitF', 'wagBlinkSitF', 'blinkSitF', 'earTwitchF', 'blinkStandF', 'wagStandF', 'sitTail',
   dirAnim('wagSit', cat.dir), dirAnim('sit', cat.dir),
 ];
 
 /** Новое состояние на ms миллисекунд (без ms — пока его не сменят). */
 export function setState(state: CatState, ms?: number): void {
+  cat.prev = cat.state;
   cat.state = state;
   cat.until = ms ? now() + ms : Infinity;
   cat.since = now();

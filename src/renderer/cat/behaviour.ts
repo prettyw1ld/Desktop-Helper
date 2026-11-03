@@ -8,6 +8,7 @@ import { bubbleShown, placeBubble, say } from '../ui/bubble';
 import { openPanel } from '../ui/panels';
 import { cat, CAT_H, CAT_W, cx, floorY, G, inAir, jumpTo, setState, size, startFall, W, walkTo } from './cat';
 import { mouseMoving, startCursorWatch, updateCursorWatch } from './cursor-watch';
+import { between, LIFE } from './pacing';
 import { allPlatforms, currentPlat, groundY } from './platforms';
 import { showPose } from './poses';
 import { renderCat } from './render';
@@ -26,8 +27,6 @@ const ACTS: Act[] = [
   { anim: () => pick<AnimName>([dirAnim('swipeStand', cat.dir), `${dirAnim('swipeStand', cat.dir)}2`, 'swipeStandF', 'swipeStandF2']), text: 'act.tailChasing' },
   { anim: () => pick<AnimName>(['swipeSitB', 'swipeStandB']), text: 'act.knocking' },
   { anim: () => 'hind', text: 'act.birdWatching' },
-  { anim: () => 'wagSitB', text: 'act.back' },
-  { anim: () => pick<AnimName>(['wagStandB', 'standB']), text: 'act.back' },
   { anim: () => 'meowLie' },
   { anim: () => pick<AnimName>(['lieL', 'lieR', 'blinkLieL', 'blinkLieR']) },
   { anim: () => 'hopF', ms: 1800 },
@@ -66,18 +65,38 @@ function wander(): void {
   walkTo(goal, Math.abs(goal - cx()) > 450 && Math.random() < 0.4);
 }
 
+// Чем заняться дальше: вероятности, в сумме 1. Мышка недавно двигалась: кот охотнее за ней следит.
+type Choice = 'climb' | 'walk' | 'idle' | 'watch' | 'sleep' | 'act';
+const CHOICES: Record<Choice, number> = { climb: 0.08, walk: 0.26, idle: 0.36, watch: 0.06, sleep: 0.08, act: 0.16 };
+const CHOICES_MOUSE: Record<Choice, number> = { climb: 0.07, walk: 0.22, idle: 0.25, watch: 0.28, sleep: 0.04, act: 0.14 };
+let lastChoice: Choice | null = null;
+
+function roll(weights: Record<Choice, number>): Choice {
+  let r = Math.random();
+  for (const [k, w] of Object.entries(weights) as [Choice, number][]) { r -= w; if (r < 0) return k; }
+  return 'idle';
+}
+
 export function decideNext(): void {
   if (busyWithPerson()) { setState(cat.state === 'perch' ? 'perch' : 'busy'); return; }
   if (openPanel()) { setState('busy'); return; }
-  if (mouseMoving(1500) && Math.random() < 0.5) { startCursorWatch(); return; }
-  const r = Math.random();
-  if (!currentPlat() && settings.windows && r < 0.14 && climbSomewhere()) return;
-  if (r < 0.5) wander();
-  else if (r < 0.68) setState('idle', rand(3000, 9000));
-  else if (r < 0.76) goSleep(rand(30_000, 80_000));
-  else {
-    const a = pick(ACTS);
-    showPose(a.anim(), a.ms || rand(3500, 7000), a.text && Math.random() < 0.6 ? T(a.text) : '');
+  const weights = mouseMoving(4000) ? CHOICES_MOUSE : CHOICES;
+  let choice = roll(weights);
+  // одно и то же занятие два раза подряд выглядит суетливо: перебрасываем один раз
+  if (choice === lastChoice && choice !== 'idle') choice = roll(weights);
+  lastChoice = choice;
+  switch (choice) {
+    case 'climb':
+      if (!currentPlat() && settings.windows && climbSomewhere()) return;
+      return wander();
+    case 'walk': return wander();
+    case 'watch': return startCursorWatch();
+    case 'sleep': return goSleep(between(LIFE.sleep));
+    case 'act': {
+      const a = pick(ACTS);
+      return showPose(a.anim(), a.ms || between(LIFE.act), a.text && Math.random() < 0.5 ? T(a.text) : '');
+    }
+    default: return setState('idle', between(LIFE.idle));
   }
 }
 
@@ -95,7 +114,7 @@ function land(): void {
     return;
   }
   if (trainer.step === 'landing') { onTrainerLanding(); return; }
-  setState('idle', rand(1500, 3000));
+  setState('idle', between(LIFE.afterLand));
   if (Math.random() < 0.5) say(T('say.land'), 2200);
 }
 
@@ -117,7 +136,7 @@ function step(t: number, dt: number): void {
         cat.climb = null;
         const target = climb && allPlatforms().find((p) => p.id === climb.id && climb.cx >= p.x1 && climb.cx <= p.x2);
         if (onArrive) { cat.onArrive = null; onArrive(); } else if (target && climb) jumpTo(climb.cx, target.y - CAT_H, target.id);
-        else setState('idle', rand(2000, 6000));
+        else setState('idle', between(LIFE.afterWalk));
       }
       break;
     }
@@ -136,7 +155,7 @@ function step(t: number, dt: number): void {
       if (j.plat && !currentPlat()) { startFall(); break; }
       const after = j.after;
       j.after = null; // только один раз, даже если внутри что-то упадёт
-      setState('idle', rand(2000, 5000));
+      setState('idle', between(LIFE.afterLand));
       after?.();
       break;
     }

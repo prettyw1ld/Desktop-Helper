@@ -3,7 +3,7 @@ import './setup';
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, mock, test } from 'node:test';
 import { cat, CAT_H, SCRUFF_Y, floorY } from '../src/renderer/cat/cat';
-import { startCursorWatch, trackMouse, watchPose } from '../src/renderer/cat/cursor-watch';
+import { startCursorWatch, trackMouse, updateCursorWatch, watchPose } from '../src/renderer/cat/cursor-watch';
 import { dom } from '../src/renderer/core/dom';
 import { now } from '../src/renderer/core/util';
 import { coach, runScenario } from '../src/renderer/guide/coach';
@@ -71,10 +71,10 @@ test('instruction stays inside the viewport as the cat moves from top to bottom'
   }
 });
 
-test('the cat turns its head after the cursor and swipes at it when it is close', () => {
+test('the cat turns towards the cursor and swipes at it when it is close', () => {
   cat.x = 500;
   cat.y = 600;
-  startCursorWatch(8000);
+  startCursorWatch(8000, 'side');
   assert.equal(cat.state, 'idle');
   trackMouse(100, 300);                       // далеко слева
   assert.equal(watchPose(now()), 'sitL');
@@ -83,5 +83,20 @@ test('the cat turns its head after the cursor and swipes at it when it is close'
   trackMouse(575, 300);                       // прямо над котом
   assert.equal(watchPose(now()), 'blinkSitF');
   trackMouse(575, 663);                       // шевелится у самой морды
-  assert.match(watchPose(now()), /^swipeSit[LR]$/);
+  assert.match(String(watchPose(now())), /^swipeSit[LR]$/);
+});
+
+test('with the cursor above, the cat sits with its back to us and turns its head pixel by pixel', () => {
+  cat.x = 500;
+  cat.y = 600;
+  trackMouse(575, 100);                       // курсор высоко над котом
+  startCursorWatch(8000);
+  assert.equal(cat.watchBack, true);
+  const head = () => { const p = watchPose(now()); assert.ok(typeof p !== 'string'); return p; };
+  assert.deepEqual([head().hx, head().hy], [0, 0]);
+  trackMouse(1200, 100);                      // ушёл вправо вверх
+  const t0 = now();                           // голова сдвигается не чаще раза в 80 мс
+  for (let i = 1; i <= 5; i++) updateCursorWatch(t0 + i * 100);
+  assert.deepEqual([head().hx, head().hy], [3, -1]);
+  assert.match(head().watch, /^wag(Sit|Stand)B$/);
 });

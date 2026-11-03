@@ -1,8 +1,9 @@
 // Какую анимацию показывать в каждый момент, и сама отрисовка спрайта.
 import { dom } from '../core/dom';
 import { cat } from './cat';
+import { LIFE } from './pacing';
 import { watchingCursor, watchPose } from './cursor-watch';
-import { ANIM, CatSprite, dirAnim, type AnimName, type Frame } from './sprites';
+import { ANIM, CatSprite, dirAnim, type AnimName, type Frame, type HeadTurn } from './sprites';
 
 const SHEETS = '../../assets/cats/';
 const sprite = new CatSprite(dom.sprite);
@@ -14,8 +15,8 @@ export function setCatColor(color: string): void { sprite.setColor(color, SHEETS
 
 const thinking = () => dom.cat.classList.contains('thinking');
 
-/** Имя анимации или конкретный кадр. */
-export function pickAnim(t: number): AnimName | Frame {
+/** Имя анимации, конкретный кадр или поза спиной с повёрнутой головой. */
+export function pickAnim(t: number): AnimName | Frame | HeadTurn {
   const d = cat.dir;
   if (dom.cat.classList.contains('happy')) return cat.happyAnim;
   if (cat.lookUntil && t < cat.lookUntil) return cat.lookPose;
@@ -53,13 +54,20 @@ export function pickAnim(t: number): AnimName | Frame {
       if (cat.state === 'busy') return 'wagBlinkSitF';
       if (watchingCursor(t)) return watchPose(t);
       if (t - cat.since > 2500 && cat.wantsAttention) return 'hind';
-      return t - cat.since > 2000 ? cat.idlePose : dirAnim('wagStand', d);
+      // только что шёл или прыгал: секунду стоит, потом садится в свою позу
+      if (['walk', 'jump', 'fall'].includes(cat.prev) && t - cat.since < LIFE.settle) return dirAnim('stand', d);
+      return cat.idlePose;
     }
   }
 }
 
 export function renderCat(t: number): void {
   const a = pickAnim(t);
+  if (typeof a !== 'string' && 'watch' in a) {
+    if (a.watch !== animName) { animName = a.watch; animStart = t; }
+    sprite.drawWatch(a.watch, t - animStart, a.hx, a.hy);
+    return;
+  }
   if (typeof a !== 'string') {
     animName = '';
     sprite.frame(a.row, a.col);
