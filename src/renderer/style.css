@@ -198,6 +198,7 @@ label.check input { width: auto; accent-color: var(--ink); }
 textarea { font: inherit; padding: 8px 10px; border: 2px solid var(--ink); border-radius: 10px; resize: vertical; width: 100%; }
 details.more summary { cursor: pointer; font-weight: 600; font-size: 13px; }
 details.more label { margin-top: 8px; }
+.ai-hint { display: block; margin-top: 6px; font-size: 13px; line-height: 1.35; opacity: 0.8; }
 
 /* File help keeps the same large controls as the main menu. */
 #panel-files { max-height: calc(100vh - 16px); overflow-y: auto; }

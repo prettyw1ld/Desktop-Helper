@@ -7,6 +7,8 @@ import { test } from 'node:test';
 import vm from 'node:vm';
 import { createFileActions } from '../src/main/system/files';
 import { MAC_ROLES, MAC_SCRIPT } from '../src/main/system/locate';
+import { extraFor, fallbackModel, resolve } from '../src/main/ai/providers';
+import { aiKey } from '../src/shared/types';
 
 test('practice files survive repeated setup; folder actions reject arbitrary paths; picker cancel does not open', async () => {
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'pushik-files-test-'));
@@ -48,4 +50,27 @@ test('macOS fallback returns JSON from its run handler and skips the sharing con
   assert.equal(result.win.title, 'Пушик — учимся работать с файлами');
   assert.equal(result.items[0].name.trim(), 'Мои открытки');
   assert.equal(result.items[0].type, 'AXTextField');
+});
+
+test('each AI model goes to its own service with its own key; thinking is switched off where it slows answers', () => {
+  const base = { aiUrl: '', model: 'claude-sonnet-5-5', visionModel: '' };
+  assert.deepEqual(resolve({ ...base, provider: 'deepseek' }),
+    { kind: 'openai', url: 'https://api.deepseek.com', model: 'deepseek-flash', vision: 'deepseek-flash' });
+  assert.deepEqual(resolve({ ...base, provider: 'qwen' }),
+    { kind: 'openai', url: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1', model: 'qwen3.8-flash', vision: 'qwen3.8-flash' });
+  const groq = resolve({ ...base, provider: 'groq' });
+  assert.ok(groq.kind === 'openai' && groq.vision === 'qwen/qwen3.8-27b');
+
+  assert.deepEqual(extraFor('deepseek-flash', 'https://api.deepseek.com'), { thinking: { type: 'disabled' } });
+  assert.deepEqual(extraFor('qwen3.8-flash', 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1'), { enable_thinking: false });
+  assert.deepEqual(extraFor('openai/gpt-oss-120b', 'https://api.groq.com/openai/v1'), { reasoning_effort: 'low' });
+
+  // нужной модели у ключа нет: берём самую новую flash, а не первую попавшуюся
+  assert.equal(fallbackModel(['qwen-max', 'qwen3.7-flash', 'qwen-flash', 'qwen3.8-flash-0901'], 'qwen3.8-flash', true), 'qwen3.7-flash');
+  assert.equal(fallbackModel(['deepseek-flash', 'deepseek-v4-pro'], 'deepseek-flash', true), 'deepseek-flash');
+
+  const keys = { apiKey: 'claude-key', groqKey: 'gsk', deepseekKey: 'sk-ds', qwenKey: '' };
+  assert.equal(aiKey({ ...keys, provider: 'deepseek' }), 'sk-ds');
+  assert.equal(aiKey({ ...keys, provider: 'qwen' }), '');          // без своего ключа Qwen не берёт чужой
+  assert.equal(aiKey({ ...keys, provider: 'claude' }), 'claude-key');
 });

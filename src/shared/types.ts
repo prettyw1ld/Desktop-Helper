@@ -1,7 +1,7 @@
 // Данные, которые ходят между главным процессом и окном кота.
 
 export type CatColor = 'white' | 'ginger' | 'black';
-export type Provider = 'claude' | 'groq' | 'openrouter' | 'openai' | 'ollama';
+export type Provider = 'claude' | 'groq' | 'deepseek' | 'qwen' | 'openrouter' | 'openai' | 'ollama';
 export type VoiceMode = 'offline' | 'whisper';
 
 export interface Skill { name: string; at: number }
@@ -9,9 +9,12 @@ export interface Skill { name: string; at: number }
 export interface Settings {
   lang: string;              // '' = по языку системы
   provider: Provider;
+  aiChosen: boolean;         // человек сам выбрал модель в настройках (тогда team.json её не перебивает)
   aiUrl: string;             // адрес OpenAI-совместимого сервиса (для provider: openai)
-  groqKey: string;           // старое имя ключа Groq из пакета команды; лучше apiKey
-  apiKey: string;
+  groqKey: string;           // ключи сервисов с готовыми настройками: у каждого свой,
+  deepseekKey: string;       // чтобы переключаться между ними без ввода заново
+  qwenKey: string;
+  apiKey: string;            // ключ остальных: Claude, OpenRouter, свой адрес
   model: string;
   ollamaUrl: string;
   ollamaModel: string;
@@ -43,7 +46,17 @@ export interface Settings {
   firstSuccessCard?: Skill;  // открытка за первый успех
 }
 
-export type SecretKey = 'apiKey' | 'calendarUrl' | 'sttKey' | 'groqKey';
+export type SecretKey = 'apiKey' | 'calendarUrl' | 'sttKey' | 'groqKey' | 'deepseekKey' | 'qwenKey';
+
+/** Модели, которые можно выбрать в настройках, и где лежит ключ каждой. */
+export const PROVIDER_KEY = { groq: 'groqKey', deepseek: 'deepseekKey', qwen: 'qwenKey' } as const;
+export type KeyedProvider = keyof typeof PROVIDER_KEY;
+export const isKeyed = (p: string): p is KeyedProvider => p in PROVIDER_KEY;
+
+/** Ключ, с которым идти к выбранному (или указанному) сервису. */
+export function aiKey(s: Pick<Settings, 'provider' | 'apiKey' | 'groqKey' | 'deepseekKey' | 'qwenKey'>, provider: string = s.provider): string {
+  return isKeyed(provider) ? s[PROVIDER_KEY[provider]] : s.apiKey;
+}
 
 /** Настройки, которые видит окно: без секретов, только признаки, что они заданы. */
 export interface PublicSettings extends Omit<Settings, SecretKey> {
@@ -53,6 +66,7 @@ export interface PublicSettings extends Omit<Settings, SecretKey> {
   hasVosk: boolean;
   aiReady: boolean;
   teamKey: boolean;
+  keys: Record<KeyedProvider, boolean>;  // у каких моделей из настроек есть ключ
   locator: boolean;
   platform: string;
 }

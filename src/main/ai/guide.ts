@@ -193,7 +193,7 @@ async function askClaude({ apiKey, model, system, text, jpeg }: ModelInput): Pro
   return use.input;
 }
 
-// OpenAI-совместимые сервисы с зрением (Groq, OpenRouter …): ответ строго JSON
+// OpenAI-совместимые сервисы с зрением (Groq, DeepSeek, Qwen, OpenRouter …): ответ строго JSON
 async function askOpenAI({ apiKey, url, vision, system, text, jpeg }: ModelInput): Promise<StepAnswer> {
   const schema = JSON.stringify(STEP_SCHEMA);
   const model = await pickModel({ url, apiKey, want: vision, vision: true });
@@ -203,7 +203,7 @@ async function askOpenAI({ apiKey, url, vision, system, text, jpeg }: ModelInput
     body: JSON.stringify({
       model,
       max_tokens: 1500,
-      ...extraFor(model),
+      ...extraFor(model, url),
       ...(strict ? { response_format: { type: 'json_object' } } : {}),
       messages: [
         { role: 'system', content: `${system}\nAnswer ONLY with a JSON object matching this JSON schema: ${schema}` },

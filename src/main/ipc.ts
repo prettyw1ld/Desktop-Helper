@@ -93,7 +93,7 @@ function registerGuide(): void {
     if (noAi()) return { error: T('err.noKey') };
     if (screenAccess() === 'denied') return { error: T('err.screen') };
     try {
-      return await guide.look({ ...req, settings: settings.get(), overlay: ui.win() });
+      return await guide.look({ ...req, settings: settings.forAi(), overlay: ui.win() });
     } catch (err) {
       if ((err as AiError).code === 'noShot') return { error: T('err.screen') };
       return aiFailure(err, 'guide:look', 'err.look');
@@ -105,7 +105,7 @@ function registerGuide(): void {
     if (noAi()) return { error: T('err.noKey') };
     try {
       const out = await ask({
-        ...settings.get(),
+        ...settings.forAi(),
         history: [],
         tools: {},
         text: 'Перепиши следующее объяснение интерфейса для полного новичка. Максимум два коротких предложения, простые слова. '
@@ -225,7 +225,7 @@ function registerChat(): void {
     if (noAi()) return { error: T('err.noKey') };
     const locale = s.lang === 'en' ? 'en-US' : 'ru-RU';
     try {
-      const { reply, history, actions } = await ask({ ...s, history: chatHistory, text, tools: chatTools(locale) });
+      const { reply, history, actions } = await ask({ ...settings.forAi(s), history: chatHistory, text, tools: chatTools(locale) });
       chatHistory = history.slice(-30);
       return { reply, actions };
     } catch (err) {

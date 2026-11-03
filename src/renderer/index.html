@@ -105,6 +105,18 @@
       <label class="check"><input name="speak" type="checkbox" /> <span data-i18n="set.speak"></span></label>
       <label class="check"><input name="sound" type="checkbox" /> <span data-i18n="set.sound"></span></label>
       <label class="check"><input name="autostart" type="checkbox" /> <span data-i18n="set.autostart"></span></label>
+      <details class="more" id="ai-settings">
+        <summary data-i18n="set.ai"></summary>
+        <label><span data-i18n="set.aiModel"></span>
+          <select name="provider">
+            <option value="groq" data-i18n="set.pGroq"></option>
+            <option value="deepseek" data-i18n="set.pDeepseek"></option>
+            <option value="qwen" data-i18n="set.pQwen"></option>
+          </select>
+        </label>
+        <label><span data-i18n="set.aiKey"></span><input name="aiKey" type="password" autocomplete="off" spellcheck="false" /></label>
+        <small id="ai-key-hint" class="ai-hint"></small>
+      </details>
       <div class="row">
         <button type="submit" class="primary" data-i18n="set.save"></button>
         <button type="button" id="quit" class="ghost" data-i18n="set.quit"></button>

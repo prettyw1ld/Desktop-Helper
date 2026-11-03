@@ -1,40 +1,12 @@
-// Чат Пуша: Claude (Messages API), любой сервис, совместимый с OpenAI (Groq, OpenRouter, LM Studio…),
-// или локальная Ollama. Claude и Ollama ещё умеют вызывать инструменты (напоминания).
+// Чат Пуша: Claude (Messages API), любой сервис, совместимый с OpenAI (Groq, DeepSeek, Qwen, OpenRouter,
+// LM Studio…), или локальная Ollama. Claude и Ollama ещё умеют вызывать инструменты (напоминания).
 import type { Settings } from '../../shared/types';
 import { aiError, fetchAI, fetchAIRetry, readError } from './http';
+import { extraFor, fallbackModel, resolve } from './providers';
 
 export const CLAUDE_URL = 'https://api.anthropic.com/v1/messages';
+export { extraFor, OPENAI_PRESETS, resolve, type Resolved } from './providers';
 
-interface Preset { url: string; model: string; vision: string }
-
-// Готовые настройки для OpenAI-совместимых сервисов: команде достаточно вписать ключ в team.json.
-export const OPENAI_PRESETS: Record<'groq' | 'openrouter', Preset> = {
-  // Проверено на ключе команды 25.10.2026: gpt-oss-120b лучше пишет по-русски, но не видит картинки;
-  // qwen3.8-27b понимает снимки экрана и JSON
-  groq: { url: 'https://api.groq.com/openai/v1', model: 'openai/gpt-oss-120b', vision: 'qwen/qwen3.8-27b' },
-  openrouter: { url: 'https://openrouter.ai/api/v1', model: 'meta-llama/llama-3.3-70b-instruct:free', vision: 'qwen/qwen2.5-vl-72b-instruct:free' },
-};
-
-export type Resolved = { kind: 'claude' | 'ollama' } | { kind: 'openai'; url: string; model: string; vision: string };
-
-// provider: claude | ollama | openai | groq | openrouter → куда и с какой моделью идти
-export function resolve(s: Pick<Settings, 'provider' | 'aiUrl' | 'model' | 'visionModel'>): Resolved {
-  const p = s.provider || 'claude';
-  if (p === 'claude' || p === 'ollama') return { kind: p };
-  const pre: Partial<Preset> = p === 'groq' || p === 'openrouter' ? OPENAI_PRESETS[p] : {};
-  const url = (s.aiUrl || pre.url || OPENAI_PRESETS.groq.url).replace(/\/+$/, '');
-  const claudeModel = /^claude-/.test(s.model || '');
-  return {
-    kind: 'openai',
-    url,
-    model: (!claudeModel && s.model) || pre.model || OPENAI_PRESETS.groq.model,
-    vision: s.visionModel || pre.vision || OPENAI_PRESETS.groq.vision,
-  };
-}
-
-// Сервисы меняют список моделей. Если нужной нет, берём подходящую из того, что есть у ключа.
-const CHAT_PREFS = [/gpt-oss-120b/, /qwen3/, /gpt-oss/, /llama-3\.3-70b/, /llama/];
-const VISION_PREFS = [/qwen3/, /llama-4/, /vl|vision/i];
 const modelCache = new Map<string, string[]>();
 
 async function listModels(url: string, apiKey: string): Promise<string[] | null> {
@@ -54,16 +26,8 @@ async function listModels(url: string, apiKey: string): Promise<string[] | null>
 
 export async function pickModel({ url, apiKey, want, vision = false }: { url: string; apiKey: string; want: string; vision?: boolean }): Promise<string> {
   const ids = await listModels(url, apiKey);
-  if (!ids || !ids.length || ids.includes(want)) return want;
-  for (const re of vision ? VISION_PREFS : CHAT_PREFS) {
-    const hit = ids.find((id) => re.test(id));
-    if (hit) return hit;
-  }
-  return vision ? want : ids[0] ?? want;
+  return ids ? fallbackModel(ids, want, vision) : want;
 }
-
-// gpt-oss сначала «думает», и на короткий лимит ответа не остаётся: просим думать поменьше
-export const extraFor = (model: string): Record<string, string> => (/gpt-oss/.test(model) ? { reasoning_effort: 'low' } : {});
 
 // окошко не показывает разметку: убираем «размышления» и звёздочки
 export const cleanReply = (txt: unknown): string => String(txt || '')
@@ -203,7 +167,7 @@ async function askOpenAI({ apiKey, url, model, history, text, system }: AskInput
     method: 'POST',
     headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
     body: JSON.stringify({
-      model: use, max_tokens: 1500, ...extraFor(use),
+      model: use, max_tokens: 1500, ...extraFor(use, url),
       messages: [{ role: 'system', content: system }, ...history, { role: 'user', content: text }],
     }),
     signal: AbortSignal.timeout(45_000),
