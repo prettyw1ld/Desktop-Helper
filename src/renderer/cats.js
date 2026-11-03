@@ -61,6 +61,37 @@
     hind: { row: 65, frames: [0, 1, 2, 3, 2, 1], fps: 6 },
   };
 
+  // Строки 66+ собраны из нарисованных кадров скриптом tools/make_extra_sprites.py
+  // (слой «Generated» в design/cats/*.aseprite): моргание, Zzz, сердечки и т.п.
+  // XBASE: для каждой такой строки нарисованная строка, чьи лапы (FEET) она повторяет,
+  // или { feet } — нижний край кадра, если поза своя (кот за шкирку нарисован в PixelLab).
+  const XROW = 66;
+  const XBASE = [0, 19, 6, 6, 1, 0, 0, 0, 1, 20, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, { feet: 59 }];
+  XBASE.forEach((r, i) => { FEET[XROW + i] = typeof r === 'number' ? FEET[r] : r.feet; });
+  const x = (row, frames, fps, extra = {}) => ({ row: XROW + row, frames, fps, ...extra });
+  const blinkSeq = (open, closed, n = 18) => [...Array(n).fill(open), closed, open, open, closed];
+  Object.assign(A, {
+    // моргание: сидит, сидит виляя хвостом, лежит, стоит
+    blinkSitF: x(0, blinkSeq(0, 1), 8),
+    wagBlinkSitF: x(1, [0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4], 6),
+    blinkLieL: x(2, blinkSeq(0, 1, 14), 6), blinkLieR: x(3, blinkSeq(0, 1, 14), 6),
+    blinkStandF: x(4, blinkSeq(0, 1, 14), 7),
+    earTwitchF: x(5, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0], 8),
+    hopF: x(6, [0, 1, 2, 3, 4, 5, 0, 0, 0], 14),
+    heartsSitF: x(7, [0, 1, 2, 3], 4),
+    surpriseF: x(8, [0, 1, 2, 3], 10, { once: true }),
+    thinkB: x(9, [0, 1, 2, 3, 4, 5, 6, 7], 3),
+    // сон с Zzz (на каждую позу сна и сторону): сначала пусто, потом z, zz, zzz
+    sleep1ZL: x(10, seq(8), 1.3), sleep1ZR: x(11, seq(8), 1.3),
+    sleepBackZL: x(12, seq(8), 1.3), sleepBackZR: x(13, seq(8), 1.3),
+    sleep2ZL: x(14, seq(8), 1.3), sleep2ZR: x(15, seq(8), 1.3),
+    sleep3ZL: x(16, seq(8), 1.3), sleep3ZR: x(17, seq(8), 1.3),
+    sleep4ZL: x(18, seq(8), 1.3), sleep4ZR: x(19, seq(8), 1.3),
+    sleep5ZL: x(20, seq(8), 1.3), sleep5ZR: x(21, seq(8), 1.3),
+    // кота держат за шкирку (пока перетаскивают); качается он через CSS
+    scruffF: x(22, [0]),
+  });
+
   // dirAnim('walk', -1) → 'walkL'
   const dirAnim = (base, dir) => `${base}${dir < 0 ? 'L' : 'R'}`;
 

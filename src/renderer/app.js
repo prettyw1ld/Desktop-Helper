@@ -9,6 +9,9 @@ const { A: ANIM, dirAnim } = Cats;
 const SHEETS = '../../assets/cats/';
 const CAT_W = 150;
 const CAT_H = 140;
+// Где загривок у кота за шкирку (кадр scruffF), в px от верха блока кота при размере 1:
+// холст 192px стоит низом на низ блока (140px), загривок на 14-м пикселе кадра 64×64 (×3).
+const SCRUFF_Y = CAT_H - 192 + 14 * 3;
 const G = 2200;            // гравитация, px/с²
 const catEl = $('#cat');
 const bubble = $('#bubble');
@@ -82,7 +85,8 @@ function setState(state, ms) {
   cat.until = ms ? now() + ms : Infinity;
   cat.since = now();
   if (state !== 'walk') { cat.running = false; cat.onArrive = null; }
-  if (state === 'idle') cat.idlePose = pick(['wagSitF', 'wagSitF', 'wagStandF', 'sitTail', 'wagSitB', dirAnim('wagSit', cat.dir), dirAnim('sit', cat.dir)]);
+  cat.watchUntil = 0;
+  if (state === 'idle') cat.idlePose = pick(['wagBlinkSitF', 'wagBlinkSitF', 'blinkSitF', 'earTwitchF', 'blinkStandF', 'wagStandF', 'sitTail', 'wagSitB', dirAnim('wagSit', cat.dir), dirAnim('sit', cat.dir)]);
   catEl.classList.toggle('dragging', state === 'drag');
 }
 
@@ -127,12 +131,14 @@ const ACTS = [
   { anim: () => 'wagSitB', text: 'act.back' },
   { anim: () => pick(['wagStandB', 'standB']), text: 'act.back' },
   { anim: () => 'meowLie' },
-  { anim: () => pick(['lieL', 'lieR', 'lieF_L', 'lieF_R']) },
+  { anim: () => pick(['lieL', 'lieR', 'blinkLieL', 'blinkLieR']) },
+  { anim: () => 'hopF', ms: 1800 },
 ];
 
 function decideNext() {
   if (guide.active || trainer.step) return setState(cat.state === 'perch' ? 'perch' : 'busy');
   if (openPanel) return setState('busy');
+  if (mouseMoving(1500) && Math.random() < 0.5) return startWatch(rand(6000, 12_000));
   const r = Math.random();
   const p = currentPlat();
   // залезть на окно
@@ -166,15 +172,61 @@ function decideNext() {
   }
 }
 
+// ---------- Кот следит за курсором ----------
+// Окно пропускает клики насквозь, но движения мыши всё равно приходят (forward: true).
+const mouse = { x: -1, y: -1, t: 0, dist: 0 }; // dist: сколько курсор прошёл за последнюю секунду
+let nextWatchCheck = 0;
+const mouseMoving = (ms = 1200) => now() - mouse.t < ms;
+
+function trackMouse(e) {
+  const t = now();
+  const moved = mouse.x < 0 ? 0 : Math.hypot(e.clientX - mouse.x, e.clientY - mouse.y);
+  if (mouse.x >= 0 && moved < 1) return; // курсор стоит на месте
+  mouse.dist = (t - mouse.t < 1000 ? mouse.dist : 0) + moved;
+  mouse.x = e.clientX;
+  mouse.y = e.clientY;
+  mouse.t = t;
+}
+// Опрашиваем курсор 10 раз в секунду: так кот видит мышь и над другими окнами.
+setInterval(async () => {
+  const p = await api.getCursor?.();
+  if (p) trackMouse({ clientX: p.x, clientY: p.y });
+}, 100);
+
+function startWatch(ms) {
+  setState('idle', ms);
+  cat.watchUntil = now() + ms;
+  cat.watchSide = 0;
+  const s = T('act.watch');
+  if (s && Math.random() < 0.4) say(s, 2200);
+}
+
+// Поза, пока кот смотрит на курсор: поворачивает голову, а если курсор шевелится рядом, бьёт лапкой.
+function watchPose(t) {
+  const dx = mouse.x - cx();
+  const dy = mouse.y - (cat.y + CAT_H * 0.45);
+  if (t < (cat.swipeUntil || 0)) return cat.swipePose;
+  if (Math.hypot(dx, dy) < 90 && mouseMoving(300) && t > (cat.swipeCool || 0)) {
+    cat.swipePose = dirAnim('swipeSit', dx < 0 ? -1 : 1);
+    cat.swipeUntil = t + 900;
+    cat.swipeCool = t + 2500;
+    return cat.swipePose;
+  }
+  // поворот с запасом, чтобы голова не дёргалась, когда курсор на границе
+  if (Math.abs(dx) > 90) cat.watchSide = Math.sign(dx);
+  else if (Math.abs(dx) < 45) cat.watchSide = 0;
+  if (cat.watchSide) cat.dir = cat.watchSide;
+  return cat.watchSide ? dirAnim('sit', cat.watchSide) : 'blinkSitF';
+}
+
 function goSleep(ms) {
   const kind = pick(['sleep1', 'sleep2', 'sleep3', 'sleep4', 'sleep5', 'sleepBack']);
-  cat.sleepKind = dirAnim(kind, cat.dir);
+  cat.sleepKind = dirAnim(`${kind}Z`, cat.dir); // со Zzz из допалиста
   setState('sleep', ms);
 }
 
 // ---------- Главный цикл ----------
 let last = now();
-let nextZ = 0;
 let animName = '';
 let animStart = 0;
 
@@ -242,7 +294,6 @@ function tickFrame() {
       break;
     }
     case 'sleep':
-      if (t - cat.since > 2500 && t > nextZ) { spawnFx('z', pick(['z', 'Z', 'z'])); nextZ = t + 1400; }
       break;
     case 'intro':
     case 'outro': {
@@ -263,6 +314,17 @@ function tickFrame() {
   }
 
   if (cat.plat && cat.state === 'walk' && !currentPlat()) startFall();
+
+  // заметить курсор: когда сидит без дела, занят собой или гуляет, а мышь шевелится рядом
+  const calm = cat.state === 'idle' || cat.state === 'act'
+    || (cat.state === 'walk' && !cat.running && !cat.onArrive && !cat.climb && Math.abs(mouse.x - cx()) < 300);
+  if (calm && !cat.watchUntil && t > nextWatchCheck) {
+    nextWatchCheck = t + 1000;
+    if (mouse.dist > 150 && mouseMoving(400) && !guide.active && !trainer.step && !openPanel && Math.random() < 0.3) {
+      startWatch(rand(6000, 12_000));
+    }
+  }
+  if (cat.watchUntil && !mouseMoving(4000)) cat.watchUntil = 0;
 
   if (t > cat.until) {
     if (cat.state === 'sleep') { say(T('say.wake'), 2500); void 0; showPose('yawn', 1400); } else decideNext();
@@ -295,7 +357,7 @@ function land() {
 // Какую анимацию показать сейчас. Возвращает имя анимации или конкретный кадр {row, col}.
 function pickAnim(t) {
   const d = cat.dir;
-  if (catEl.classList.contains('happy')) return 'hind';
+  if (catEl.classList.contains('happy')) return cat.happyAnim || 'hind';
   if (cat.lookUntil && t < cat.lookUntil) return cat.lookPose;
   const talking = t < cat.meowUntil;
   switch (cat.state) {
@@ -306,9 +368,9 @@ function pickAnim(t) {
       const e = t - cat.since;
       if (e < 1200) return 'yawn';
       if (e < 2400) return d < 0 ? 'lieF_L' : 'lieF_R';
-      return cat.sleepKind || 'sleep1L';
+      return cat.sleepKind || 'sleep1ZL';
     }
-    case 'drag': return 'meowStand';
+    case 'drag': return 'scruffF';
     case 'fall': return cat.vy < 0 ? { row: ANIM.jumpB.row, col: 1 } : { row: ANIM[dirAnim('jump', d)].row, col: 2 };
     case 'jump': {
       const j = cat.jump;
@@ -325,9 +387,10 @@ function pickAnim(t) {
       return e < 1800 ? dirAnim('swipeStand', d) : dirAnim('wagStand', d);
     }
     default: {
-      if (catEl.classList.contains('thinking')) return 'wagSitB'; // повернулся к экрану и смотрит
+      if (catEl.classList.contains('thinking')) return 'thinkB'; // повернулся к экрану и думает «…»
       if (talking) return 'meowSit';
-      if (cat.state === 'busy') return 'wagSitF';
+      if (cat.state === 'busy') return 'wagBlinkSitF';
+      if (cat.watchUntil && t < cat.watchUntil) return watchPose(t);
       if (t - cat.since > 2500 && cat.wantsAttention) return 'hind';
       return t - cat.since > 2000 ? cat.idlePose : dirAnim('wagStand', d);
     }
@@ -337,7 +400,7 @@ function pickAnim(t) {
 function render(t) {
   const a = pickAnim(t);
   if (typeof a === 'string') {
-    if (a !== animName) { animName = a; animStart = t; }
+    if (a !== animName) { animName = a; animStart = t; catEl.classList.toggle('sprite-dots', a === 'thinkB'); }
     const ended = sprite.draw(a, t - animStart);
     // одноразовая анимация (зевок) закончилась: садимся
     if (ended && cat.state === 'act') { cat.act = 'sitF'; }
@@ -424,7 +487,15 @@ function spawnFx(kind, ch) {
   setTimeout(() => s.remove(), 1700);
 }
 
+// Кот вздрагивает с «!», потом then() (если за это время его ничем не заняли).
+function surprised(then) {
+  showPose('surpriseF', 900);
+  const since = cat.since;
+  setTimeout(() => { if (cat.state === 'act' && cat.since === since) then(); }, 900);
+}
+
 function happy(ms = 1200) {
+  cat.happyAnim = pick(['hind', 'hopF']);
   catEl.classList.add('happy');
   setTimeout(() => catEl.classList.remove('happy'), ms);
 }
@@ -437,7 +508,7 @@ function celebrate() {
 }
 
 function pet() {
-  showPose(pick(['hind', 'meowSit', 'lickSit']), 2500);
+  showPose(pick(['heartsSitF', 'heartsSitF', 'hind', 'meowSit']), 2500);
   cat.wantsAttention = false;
   for (let i = 0; i < 5; i++) setTimeout(() => spawnFx('h', pick(['💛', '🤍', '💛'])), i * 150);
   say(T('say.pet'), 2500);
@@ -713,12 +784,17 @@ function setIgnore(v) {
 
 let press = null;
 document.addEventListener('mousemove', (e) => {
+  trackMouse(e);
   if (press) {
     const dx = e.clientX - press.x;
     const dy = e.clientY - press.y;
     if (!press.moved && Math.hypot(dx, dy) > 5) {
       press.moved = true;
       cancelPointGaze();
+      // берём за шкирку: кот повисает так, чтобы курсор был у него на загривке
+      const k = size();
+      press.catX = press.x - CAT_W / 2;
+      press.catY = press.y - (CAT_H - (CAT_H - SCRUFF_Y) * k);
       // кота взяли: окна и подсказки прячем, чтобы не мешали
       if (!trainer.step) { closePanels(); if (!guide.active) hideBubble(); }
       cat.plat = null;
@@ -1152,7 +1228,7 @@ api.on('reminder', (r) => {
   happy(1000);
   Sound.bell();
   if (r.kind === 'focus') showPose('coffee', 8000, `${r.text} ☕`);
-  else { showPose('wave', 6000); say(`⏰ ${r.text}`, 15_000); }
+  else { surprised(() => showPose('wave', 5000)); say(`⏰ ${r.text}`, 15_000); }
 });
 api.on('reminders-changed', (list) => {
   reminders = list;
@@ -1196,8 +1272,7 @@ api.on('calendar-soon', (e) => {
   Sound.bell();
   if (busyWithPerson()) return;
   if (cat.state === 'sleep' || cat.state === 'drag') setState('idle', 8000);
-  setTimeout(() => void 0, 700);
-  showPose('wave', 6000);
+  surprised(() => showPose('wave', 5000));
   say(e.text, 20_000);
   if (openPanel === 'reminders') renderCalendar();
 });

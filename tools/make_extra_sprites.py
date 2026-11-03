@@ -1,0 +1,390 @@
+"""Builds extra cat animations from frames that already exist in the sprite sheets.
+
+    python tools/make_extra_sprites.py
+
+Reads the hand-drawn rows 0..65 from design/cats/<color>.aseprite (layer "Layer 1"),
+builds new rows from them and writes them back as rows 66+ on a layer named "Generated".
+Then exports assets/cats/<color>.png and design/cats/<color>_labeled.png, the same as
+exporting from Aseprite. Safe to run again: the "Generated" layer is replaced each time.
+
+Most new frames are made by copying, shifting and patching existing frames, plus a few
+tiny effects (Zzz, hearts, "!", "…"). The "held by the scruff" pose was drawn with PixelLab
+from the ginger sitting frame and is kept in design/cats/pixellab/scruff_ginger.png;
+the white and black versions are recoloured from it here.
+Row order must match XBASE and the extra animations in src/renderer/cats.js.
+"""
+import struct
+import zlib
+from pathlib import Path
+from PIL import Image, ImageDraw, ImageFont
+
+ROOT = Path(__file__).resolve().parent.parent
+SIZE = 64
+COLS = 14
+XROW = 66  # first generated row; rows above are hand-drawn
+GEN_LAYER = 'Generated'
+
+OUTLINE = (18, 14, 20, 255)
+LIGHT = (211, 223, 225, 255)
+ZINK = (52, 60, 104, 255)  # Zzz lines: dark slate, readable on light desktops
+PINK = (202, 113, 159, 255)
+
+# Small glyphs for effects. '#' is filled, the outline is added around it automatically.
+GLYPHS = {
+    'z1': ['####', '..#.', '.#..', '####'],
+    'z2': ['#####', '...#.', '..#..', '.#...', '#####'],
+    'z3': ['######', '....#.', '...#..', '..#...', '.#....', '######'],
+    'heart1': ['#.#', '###', '.#.'],
+    'heart2': ['##.##', '#####', '.###.', '..#..'],
+    'bang': ['##', '##', '##', '..', '##'],
+    'dot': ['##', '##'],
+}
+
+
+def frame(sheet, row, col):
+    return sheet.crop((col * SIZE, row * SIZE, col * SIZE + SIZE, row * SIZE + SIZE))
+
+
+def shifted(img, dx=0, dy=0):
+    out = Image.new('RGBA', (SIZE, SIZE))
+    out.alpha_composite(img, (max(dx, 0), max(dy, 0)), (max(-dx, 0), max(-dy, 0)))
+    return out
+
+
+def patch_diff(base, src, ref, dx=0, dy=0):
+    """Apply the pixels where `src` differs from `ref` onto `base`, shifted by dx, dy,
+    only where `base` matches `ref` (so a closed-eye patch lands on the same face)."""
+    out = base.copy()
+    b, s, r, o = base.load(), src.load(), ref.load(), out.load()
+    for y in range(SIZE):
+        for x in range(SIZE):
+            if s[x, y] == r[x, y]:
+                continue
+            tx, ty = x + dx, y + dy
+            if 0 <= tx < SIZE and 0 <= ty < SIZE and b[tx, ty] == r[x, y]:
+                o[tx, ty] = s[x, y]
+    return out
+
+
+def glyph(img, name, x, y, fill, thin=False, edge=OUTLINE):
+    """Draw a glyph with its top-left at x, y and a 1px `edge` outline.
+    thin: no outline, only a 1px `edge` shadow down-right, so thin lines stay readable."""
+    rows = GLYPHS[name]
+    cells = {(x + i, y + j) for j, line in enumerate(rows) for i, ch in enumerate(line) if ch == '#'}
+    px = img.load()
+    around = [(1, 1)] if thin else [(ox, oy) for ox in (-1, 0, 1) for oy in (-1, 0, 1)]
+    for cx, cy in cells:
+        for ox, oy in around:
+            p = (cx + ox, cy + oy)
+            if p not in cells and 0 <= p[0] < SIZE and 0 <= p[1] < SIZE:
+                px[p] = edge
+    for p in cells:
+        if 0 <= p[0] < SIZE and 0 <= p[1] < SIZE:
+            px[p] = fill
+    return img
+
+
+def color_map(src, dst):
+    """Which colour of `dst` sits where `src` has each colour (same hand-drawn rows, other cat)."""
+    counts = {}
+    for a, b in zip(src.getdata(), dst.getdata()):
+        if a[3] and b[3]:
+            counts.setdefault(a, {}).setdefault(b, 0)
+            counts[a][b] += 1
+    return {a: max(c, key=c.get) for a, c in counts.items()}
+
+
+def to_palette(img, palette):
+    """Snap every opaque pixel to the nearest colour of `palette`."""
+    out = img.copy()
+    px = out.load()
+    for y in range(out.height):
+        for x in range(out.width):
+            p = px[x, y]
+            if p[3]:
+                px[x, y] = min(palette, key=lambda q: sum((p[i] - q[i]) ** 2 for i in range(3)))
+            else:
+                px[x, y] = (0, 0, 0, 0)
+    return out
+
+
+def outline_only_outside(img, shade, face_h=15):
+    """Black lines stay only on the silhouette edge; inner ones below the face become dark fur,
+    like the hand-drawn frames (the PixelLab frame had doubled outlines and dark lines on the body)."""
+    out = img.copy()
+    px, q = img.load(), out.load()
+    top = img.getbbox()[1]
+    clear = lambda x, y: not (0 <= x < SIZE and 0 <= y < SIZE) or px[x, y][3] == 0
+    for y in range(top + face_h, SIZE):
+        for x in range(SIZE):
+            if px[x, y] == OUTLINE and not any(clear(x + dx, y + dy) for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                q[x, y] = shade
+    return out
+
+
+def scruff_frames(ginger, sheet):
+    """Held by the scruff: the PixelLab frame in this cat's colours. The swing comes from CSS."""
+    src = Image.open(ROOT / 'design' / 'cats' / 'pixellab' / 'scruff_ginger.png').convert('RGBA')
+    src = to_palette(src, sorted({p for p in ginger.getdata() if p[3]}))
+    src = outline_only_outside(src, (130, 73, 30, 255))  # darkest ginger fur
+    cmap = color_map(ginger, sheet)
+    hang = src.copy()
+    hang.putdata([cmap.get(p, p) if p[3] else p for p in src.getdata()])
+    return [hang]
+
+
+def zzz_chain(img, side):
+    """Where z, zz, zzz go: from the head diagonally up over the cat's back, each letter
+    a little above the cat under it and inside the frame. side: where the head is (L/R)."""
+    x0, y0, x1, _ = img.getbbox()
+    alpha = img.getchannel('A').load()
+    col_top = lambda xa, xb: min([y for x in range(max(xa, 0), min(xb, SIZE)) for y in range(SIZE) if alpha[x, y]] or [SIZE])
+    out = 1 if side == 'L' else -1  # drift away from the head, over the body
+    ax = x0 + 18 if side == 'L' else x1 - 18
+    chain, bottom = [], None
+    for name_z, step in (('z1', 0), ('z2', 6), ('z3', 13)):
+        w = len(GLYPHS[name_z][0])
+        h = len(GLYPHS[name_z])
+        x = ax + out * step - (w if out < 0 else 0)
+        x = min(max(x, 1), SIZE - w - 2)
+        top = col_top(x - 1, x + w + 2) - 3 - h  # clear of the cat under it
+        if bottom is not None:
+            top = min(top, bottom - h - 2)        # and above the previous letter
+        top = max(top, 1)
+        chain.append((name_z, x, top))
+        bottom = top
+    return chain
+
+
+def build(sheet, ginger):
+    f = lambda r, c: frame(sheet, r, c)
+    sitF, standF, wagB = f(0, 0), f(1, 0), [f(20, c) for c in range(5)]
+    closedSit = f(43, 6)  # last yawn frame: sitF with eyes closed
+    blink = lambda img, dx=0, dy=0: patch_diff(img, closedSit, sitF, dx, dy)
+    top = sitF.getbbox()[1]
+
+    rows = []  # (name, label for *_labeled.png, base row for feet, frames)
+
+    # Blinking. The sitting tail-wag frames share the sitF face.
+    rows.append(('blinkSitF', 'Blink (sit, front)', 0, [sitF, blink(sitF)]))
+    wag = [f(19, c) for c in range(5)]
+    rows.append(('wagBlinkSitF', 'Tail wag + blink (sit, front)', 19, wag + [blink(w) for w in wag]))
+    # sleep frame 0 is the same pose with eyes closed
+    rows.append(('blinkLieL', 'Blink (lie, front, left)', 6, [f(6, 0), f(44, 0)]))
+    rows.append(('blinkLieR', 'Blink (lie, front, right)', 6, [f(6, 1), f(45, 0)]))
+    # standing face sits 10px lower
+    rows.append(('blinkStandF', 'Blink (stand, front)', 1, [standF, blink(standF, 0, 10)]))
+
+    # Ear twitch: the tip of the left ear folds down for a moment.
+    ear = sitF.copy()
+    px = ear.load()
+    for x in range(20, 28):
+        for y in (top, top + 1):
+            px[x, y] = (0, 0, 0, 0)
+        if px[x, top + 2][3]:
+            px[x, top + 2] = OUTLINE
+    rows.append(('earTwitchF', 'Ear twitch (sit, front)', 0, [sitF, ear]))
+
+    # Happy hop: the sitting cat bounces up and lands.
+    rows.append(('hopF', 'Happy hop (front)', 0, [shifted(sitF, 0, -d) for d in (0, 3, 6, 8, 6, 3)]))
+
+    # Purring with hearts: eyes closed, hearts rise above the head.
+    content = blink(sitF)
+    hearts = []
+    for i in range(4):
+        img = content.copy()
+        glyph(img, 'heart2', 40, top - 4 - i * 3, PINK)
+        if i >= 1:
+            glyph(img, 'heart1', 24, top - 2 - (i - 1) * 3, PINK)
+        hearts.append(img)
+    rows.append(('heartsSitF', 'Purr with hearts (front)', 0, hearts))
+
+    # Surprise: a quick hop with "!" above.
+    sTop = standF.getbbox()[1]
+    surprise = []
+    for d in (0, 4, 2, 0):
+        img = shifted(standF, 0, -d)
+        glyph(img, 'bang', 44, max(1, sTop + 4 - d), LIGHT)
+        surprise.append(img)
+    rows.append(('surpriseF', 'Surprise ! (front)', 1, surprise))
+
+    # Thinking: the cat faces the screen and "…" appears dot by dot.
+    think = []
+    for i in range(8):
+        img = wagB[i % 5].copy()
+        for k in range(min(i % 4, 3)):
+            glyph(img, 'dot', 26 + k * 5, 8, LIGHT)
+        think.append(img)
+    rows.append(('thinkB', 'Thinking ... (back)', 20, think))
+
+    # Sleeping with Zzz drifting up from the head. Same breathing as the original rows.
+    sleeps = [('sleep1', 44, 'Sleep 1'), ('sleepBack', 46, 'Sleep on back'), ('sleep2', 48, 'Sleep 2'),
+              ('sleep3', 50, 'Sleep 3'), ('sleep4', 52, 'Sleep 4'), ('sleep5', 54, 'Sleep 5')]
+    for name, r, label in sleeps:
+        for side, rr in (('L', r), ('R', r + 1)):
+            a, b = f(rr, 0), f(rr, 1)
+            chain = zzz_chain(a, side)
+            frames = []
+            for i in range(8):
+                img = (a if i % 2 == 0 else b).copy()
+                stage = i % 4  # 0: no z yet, then z, zz, zzz
+                for name_z, zx, zy in chain[:stage]:
+                    glyph(img, name_z, zx, zy, ZINK, thin=True, edge=LIGHT)
+                frames.append(img)
+            side_label = 'left' if side == 'L' else 'right'
+            rows.append((f'{name}Z{side}', f'{label} + Zzz ({side_label})', rr, frames))
+
+    # Held by the scruff while being dragged (base None: feet come from the frame itself).
+    rows.append(('scruffF', 'Held by the scruff (front)', None, scruff_frames(ginger, sheet)))
+    return rows
+
+
+# ---------- .aseprite read/write: one frame, RGBA, compressed cels (Aseprite ase-file-specs.md) ----------
+
+def read_ase(path):
+    d = path.read_bytes()
+    w, h = struct.unpack_from('<HH', d, 8)
+    nchunks = struct.unpack_from('<I', d, 128 + 12)[0] or struct.unpack_from('<H', d, 128 + 6)[0]
+    chunks, p = [], 128 + 16
+    for _ in range(nchunks):
+        size, ctype = struct.unpack_from('<IH', d, p)
+        chunks.append([ctype, d[p + 6:p + size]])
+        p += size
+    return {'head': bytearray(d[:128]), 'frame': bytearray(d[128:144]), 'w': w, 'h': h, 'chunks': chunks}
+
+
+def write_ase(path, ase):
+    body = b''.join(struct.pack('<IH', len(c) + 6, t) + c for t, c in ase['chunks'])
+    frame, head = ase['frame'], ase['head']
+    struct.pack_into('<I', frame, 0, 16 + len(body))
+    struct.pack_into('<H', frame, 6, min(len(ase['chunks']), 0xFFFF))
+    struct.pack_into('<I', frame, 12, len(ase['chunks']))
+    struct.pack_into('<I', head, 0, 128 + 16 + len(body))
+    struct.pack_into('<H', head, 10, ase['h'])
+    path.write_bytes(bytes(head) + bytes(frame) + body)
+
+
+def layer_names(ase):
+    out = []
+    for t, c in ase['chunks']:
+        if t == 0x2004:
+            n = struct.unpack_from('<H', c, 16)[0]
+            out.append(c[18:18 + n].decode('utf8'))
+    return out
+
+
+def cel_chunk(layer, x, y, img):
+    w, h = img.size
+    head = struct.pack('<HhhBHh5xHH', layer, x, y, 255, 2, 0, w, h)
+    return [0x2005, head + zlib.compress(img.tobytes(), 9)]
+
+
+def cel_image(chunk):
+    x, y = struct.unpack_from('<hh', chunk, 2)
+    w, h = struct.unpack_from('<HH', chunk, 16)
+    return x, y, Image.frombytes('RGBA', (w, h), zlib.decompress(chunk[20:]))
+
+
+def find_cel(ase, layer):
+    for i, (t, c) in enumerate(ase['chunks']):
+        if t == 0x2005 and struct.unpack_from('<H', c, 0)[0] == layer:
+            return i
+    return None
+
+
+def grid(w, h, color):
+    """The 64px guide grid on the bottom layer, same pattern as the original."""
+    img = Image.new('RGBA', (w, h))
+    d = ImageDraw.Draw(img)
+    for k in range(SIZE, max(w, h) + 1, SIZE):
+        for v in (k - 1, k):
+            d.line([(v, 0), (v, h - 1)], fill=color)
+            d.line([(0, v), (w - 1, v)], fill=color)
+    return img
+
+
+def hand_drawn(ase):
+    """Rows 0..XROW-1 from the art layer, as a sheet image."""
+    art = layer_names(ase).index('Layer 1')
+    x, y, img = cel_image(ase['chunks'][find_cel(ase, art)][1])
+    sheet = Image.new('RGBA', (COLS * SIZE, XROW * SIZE))
+    sheet.alpha_composite(img, (x, y))
+    return sheet
+
+
+def rows_image(rows):
+    img = Image.new('RGBA', (COLS * SIZE, len(rows) * SIZE))
+    for i, (_, _, _, frames) in enumerate(rows):
+        assert len(frames) <= COLS
+        for c, f in enumerate(frames):
+            img.alpha_composite(f, (c * SIZE, i * SIZE))
+    return img
+
+
+def update_ase(path, ase, gen):
+    names = layer_names(ase)
+    new_h = XROW * SIZE + gen.height
+
+    # bottom guide-grid layer: grow it so it covers the new rows
+    gi = find_cel(ase, 0)
+    gx, gy, gimg = cel_image(ase['chunks'][gi][1])
+    color = next(c for _, c in gimg.getcolors(16) if c[3])
+    ase['chunks'][gi] = cel_chunk(0, gx, gy, grid(gimg.width, max(gimg.height, new_h + 392), color))
+
+    # "Generated" layer on top, holding rows XROW+
+    if GEN_LAYER in names:
+        li = names.index(GEN_LAYER)
+    else:
+        li = len(names)
+        tmpl = next(c for t, c in ase['chunks'] if t == 0x2004)
+        name = GEN_LAYER.encode('utf8')
+        last = max(i for i, (t, _) in enumerate(ase['chunks']) if t == 0x2004)
+        ase['chunks'].insert(last + 1, [0x2004, tmpl[:16] + struct.pack('<H', len(name)) + name])
+    cel = cel_chunk(li, 0, XROW * SIZE, gen)
+    old = find_cel(ase, li)
+    if old is None:
+        ase['chunks'].append(cel)
+    else:
+        ase['chunks'][old] = cel
+    ase['h'] = new_h
+    write_ase(path, ase)
+
+
+def export_labeled(path, gen, rows):
+    """design/cats/<color>_labeled.png: white row labels on the left, then the sheet."""
+    old = Image.open(path).convert('RGBA')
+    pad = old.width - COLS * SIZE
+    out = Image.new('RGBA', (old.width, XROW * SIZE + gen.height))
+    out.alpha_composite(old.crop((0, 0, old.width, XROW * SIZE)), (0, 0))
+    out.alpha_composite(gen, (pad, XROW * SIZE))
+    try:
+        font = ImageFont.truetype('segoeui.ttf', 16)
+    except OSError:
+        font = ImageFont.load_default()
+    d = ImageDraw.Draw(out)
+    for i, (_, label, _, _) in enumerate(rows):
+        d.text((80, (XROW + i) * SIZE + SIZE // 2), label, fill=(255, 255, 255, 255), font=font, anchor='lm')
+    out.save(path, optimize=True)
+
+
+def main():
+    ginger = hand_drawn(read_ase(ROOT / 'design' / 'cats' / 'ginger.aseprite'))
+    for color in ('ginger', 'white', 'black'):
+        ase_path = ROOT / 'design' / 'cats' / f'{color}.aseprite'
+        ase = read_ase(ase_path)
+        sheet = hand_drawn(ase)
+        rows = build(sheet, ginger)
+        gen = rows_image(rows)
+        update_ase(ase_path, ase, gen)
+        png = Image.new('RGBA', (COLS * SIZE, XROW * SIZE + gen.height))
+        png.alpha_composite(sheet, (0, 0))
+        png.alpha_composite(gen, (0, XROW * SIZE))
+        png.save(ROOT / 'assets' / 'cats' / f'{color}.png', optimize=True)
+        export_labeled(ROOT / 'design' / 'cats' / f'{color}_labeled.png', gen, rows)
+    for i, (name, _, base, frames) in enumerate(rows):
+        feet = frames[0].getbbox()[3]
+        print(f'row {XROW + i:2d} {name:14s} base={base} feet={feet} frames={len(frames)}')
+
+
+if __name__ == '__main__':
+    main()
