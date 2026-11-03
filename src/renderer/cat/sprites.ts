@@ -3,6 +3,7 @@
    Важно: в подписях «Walk right/left» перепутаны местами, здесь всё названо по тому,
    куда кот смотрит на экране (L = влево, R = вправо). */
 import type { CatColor } from '../../shared/types';
+import { FRONT_HEAD, TURNED_HEAD } from './head-spans';
 
 const SIZE = 64;
 export const COLORS: CatColor[] = ['ginger', 'white', 'black'];
@@ -69,7 +70,7 @@ const BASE = {
 // XBASE: для каждой такой строки нарисованная строка, чьи лапы (FEET) она повторяет,
 // или { feet } — нижний край кадра, если поза своя (кот за шкирку нарисован в PixelLab).
 const XROW = 66;
-const XBASE: (number | { feet: number })[] = [0, 19, 6, 6, 1, 0, 0, 0, 1, 20, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, { feet: 59 }];
+const XBASE: (number | { feet: number })[] = [0, 19, 6, 6, 1, 0, 0, 0, 1, 20, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, { feet: 59 }, 0, 0];
 XBASE.forEach((r, i) => { FEET[XROW + i] = typeof r === 'number' ? FEET[r] ?? 48 : r.feet; });
 const x = (row: number, frames: number[], fps?: number, extra: Partial<Anim> = {}): Anim => ({ row: XROW + row, frames, fps, ...extra });
 const blinkSeq = (open: number, closed: number, n = 18): number[] => [...Array(n).fill(open), closed, open, open, closed];
@@ -93,6 +94,9 @@ const EXTRA = {
   sleep5ZL: x(20, seq(8), 1.3), sleep5ZR: x(21, seq(8), 1.3),
   // кота держат за шкирку (пока перетаскивают); качается он через CSS
   scruffF: x(22, [0]),
+  // поворот головы за курсором: кадры 0..6 — голова от «влево» до «вправо», 7..13 — то же с закрытыми глазами;
+  // рисуются не как анимация, а по одному кадру через CatSprite.drawLook
+  lookSitF: x(23, seq(14)), lookUpSitF: x(24, seq(14)),
 } satisfies Record<string, Anim>;
 
 export const ANIM = { ...BASE, ...EXTRA };
@@ -107,44 +111,9 @@ export const dirAnim = <B extends string>(base: B, dir: number): `${B}L` | `${B}
 /** Конкретный кадр: для прыжка, где кадр зависит от фазы полёта. */
 export interface Frame { row: number; col: number }
 
-/** Поза, в которой голова сдвинута к курсору на (hx, hy) пикселей листа (позы из WATCH). */
-export interface HeadTurn { watch: AnimName; hx: number; hy: number }
-
-// Кот следит за мышью, поворачивая голову: в листе нет кадров с повёрнутой головой,
-// поэтому голову сдвигаем на пару пикселей. Отрезки [y, x1, x2] одинаковы у всех трёх окрасов.
-type Span = [number, number, number];
-interface Watch {
-  cut: number;                     // последняя строка головы; две нижние (шея) остаются и на месте
-  head?: Span[];                   // лицом к нам: пиксели головы в самом кадре (с усами, без хвоста)
-  off?: [number, number];          // спиной: где чистая голова HEAD стоит в этой строке
-  tail?: Record<number, Span[]>;   // спиной: пиксели поднятого хвоста поверх головы, по кадрам
-}
-// Голова кота, сидящего лицом к нам (строки blinkSitF и wagBlinkSitF, во всех кадрах).
-const FRONT_HEAD: Span[] = [[16, 24, 24], [16, 38, 38], [17, 23, 25], [17, 31, 31], [17, 37, 39], [18, 23, 26], [18, 30, 32],
-  [18, 36, 39], [19, 23, 39], [20, 23, 39], [21, 23, 39], [22, 24, 38], [23, 23, 39], [24, 23, 39], [24, 42, 42], [25, 21, 41],
-  [26, 20, 20], [26, 23, 39], [27, 22, 41], [28, 21, 21], [28, 23, 39], [29, 24, 38], [30, 25, 37]];
-// Спиной к нам голову берём из чистой позы «сидит спиной» (строка 0, кадр 1, строки пикселей 0..30).
-const HEAD = { row: 0, col: 1, h: 31 };
-const WATCH: Record<number, Watch> = {
-  [ANIM.blinkSitF.row]: { cut: 30, head: FRONT_HEAD },
-  [ANIM.wagBlinkSitF.row]: { cut: 30, head: FRONT_HEAD },
-  0: { off: [0, 0], cut: 30 },
-  20: { off: [1, 0], cut: 30 },
-  1: {
-    off: [0, -2], cut: 28,
-    tail: { 1: [[20, 31, 32], [21, 29, 33], [22, 28, 33], [23, 28, 32], [24, 27, 32], [25, 27, 31], [26, 26, 26], [26, 28, 28], [26, 30, 30], [27, 26, 26], [27, 30, 30], [28, 30, 30]] },
-  },
-  24: {
-    off: [0, -2], cut: 28,
-    tail: {
-      0: [[21, 29, 30], [22, 27, 31], [23, 26, 31], [24, 26, 30], [25, 26, 30], [26, 26, 30], [27, 26, 27], [27, 30, 30], [28, 30, 30]],
-      1: [[21, 28, 29], [22, 27, 30], [23, 27, 31], [24, 27, 31], [25, 27, 32], [26, 28, 30], [26, 32, 32], [27, 28, 29], [27, 32, 32], [28, 29, 30], [28, 33, 33]],
-      2: [[21, 32, 33], [22, 31, 34], [23, 30, 34], [24, 30, 34], [25, 30, 34], [26, 30, 32], [26, 35, 35], [27, 30, 31], [27, 35, 35], [28, 31, 32], [28, 35, 35]],
-      3: [[21, 28, 29], [22, 27, 30], [23, 27, 31], [24, 27, 31], [25, 27, 32], [26, 28, 29], [26, 32, 32], [27, 28, 29], [27, 32, 32], [28, 29, 30], [28, 33, 33]],
-      4: [[21, 29, 30], [22, 27, 31], [23, 26, 31], [24, 26, 30], [25, 26, 30], [26, 26, 28], [26, 30, 30], [27, 26, 27], [27, 30, 30], [28, 30, 30]],
-    },
-  },
-};
+/** Сидит лицом к нам и смотрит на курсор: gaze от -GAZE_MAX (влево) до GAZE_MAX (вправо). */
+export interface HeadTurn { gaze: number; up: boolean; blink: boolean }
+export const GAZE_MAX = 3;
 
 export class CatSprite {
   private readonly ctx: CanvasRenderingContext2D | null; // null там, где холста нет (тесты)
@@ -186,40 +155,26 @@ export class CatSprite {
     return f.done;
   }
 
-  /** Поза с головой, сдвинутой на (hx, hy) пикселей листа: кот смотрит туда, где курсор. */
-  drawWatch(name: AnimName, t: number, hx: number, hy: number): void {
-    const f = CatSprite.at(name, t);
-    const w = WATCH[f.row];
-    if (!w || (!hx && !hy)) { this.frame(f.row, f.col); return; }
+  /**
+   * Кот смотрит на курсор: туловище с виляющим хвостом из wagSitF, а голова из нарисованных
+   * кадров поворота (lookSitF, lookUpSitF). Голова и шея нарисованы одним куском, поэтому
+   * голова не отрывается от тела.
+   */
+  drawLook(t: number, h: HeadTurn): void {
+    const body = CatSprite.at('wagSitF', t);
+    const look = (h.up ? ANIM.lookUpSitF : ANIM.lookSitF).row;
+    const col = Math.max(-GAZE_MAX, Math.min(GAZE_MAX, h.gaze)) + GAZE_MAX + (h.blink ? 2 * GAZE_MAX + 1 : 0);
     const img = this.sheets.get(this.color);
-    const key = `${this.color}:${f.row}:${f.col}:${hx}:${hy}`;
+    const key = `${this.color}:look:${body.col}:${look}:${col}`;
     const ctx = this.ctx;
     if (!ctx || !img || !img.complete || !img.naturalWidth || key === this.shown) return;
     this.shown = key;
-    const sx = f.col * SIZE;
-    const sy = f.row * SIZE;
-    const dy = SIZE - (FEET[f.row] ?? 48) - 2;
+    const dy = SIZE - (FEET[body.row] ?? 48) - 2;
     ctx.clearRect(0, 0, SIZE, SIZE);
-    if (w.head) {
-      // лицом к нам: голову из этого же кадра стираем (кроме шеи) и рисуем сдвинутой
-      ctx.drawImage(img, sx, sy, SIZE, SIZE, 0, dy, SIZE, SIZE);
-      for (const [y, x1, x2] of w.head) if (y < w.cut - 1) ctx.clearRect(x1, dy + y, x2 - x1 + 1, 1);
-      for (const [y, x1, x2] of w.head) ctx.drawImage(img, sx + x1, sy + y, x2 - x1 + 1, 1, x1 + hx, dy + y + hy, x2 - x1 + 1, 1);
-      return;
-    }
-    const [ox, oy] = w.off ?? [0, 0];
-    const hx0 = HEAD.col * SIZE;
-    const hy0 = HEAD.row * SIZE;
-    const body = SIZE - w.cut - 1;
-    // туловище без головы
-    ctx.drawImage(img, sx, sy + w.cut + 1, SIZE, body, 0, dy + w.cut + 1, SIZE, body);
-    // шея на старом месте, чтобы между головой и туловищем не было щели
-    ctx.drawImage(img, hx0, hy0 + HEAD.h - 2, SIZE, 2, ox, dy + oy + HEAD.h - 2, SIZE, 2);
-    // голова, повёрнутая к мышке
-    ctx.drawImage(img, hx0, hy0, SIZE, HEAD.h, ox + hx, dy + oy + hy, SIZE, HEAD.h);
-    // поднятый хвост остаётся поверх головы
-    for (const [y, x1, x2] of w.tail?.[f.col] ?? []) {
-      ctx.drawImage(img, sx + x1, sy + y, x2 - x1 + 1, 1, x1, dy + y, x2 - x1 + 1, 1);
+    ctx.drawImage(img, body.col * SIZE, body.row * SIZE, SIZE, SIZE, 0, dy, SIZE, SIZE);
+    for (const [y, x1, x2] of FRONT_HEAD) ctx.clearRect(x1, dy + y, x2 - x1 + 1, 1);
+    for (const [y, x1, x2] of TURNED_HEAD) {
+      ctx.drawImage(img, col * SIZE + x1, look * SIZE + y, x2 - x1 + 1, 1, x1, dy + y, x2 - x1 + 1, 1);
     }
   }
 

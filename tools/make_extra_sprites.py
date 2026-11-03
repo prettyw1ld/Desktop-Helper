@@ -11,10 +11,14 @@ Most new frames are made by copying, shifting and patching existing frames, plus
 tiny effects (Zzz, hearts, "!", "…"). The "held by the scruff" pose was drawn with PixelLab
 from the ginger sitting frame and is kept in design/cats/pixellab/scruff_ginger.png;
 the white and black versions are recoloured from it here.
+The head turn (the cat follows the mouse cursor) is drawn by hand below as letter grids;
+it also writes src/renderer/cat/head-spans.ts, where the head is, so the app can turn the head
+while the tail keeps wagging.
 Row order must match XBASE and the extra animations in src/renderer/cat/sprites.ts.
 """
 import struct
 import zlib
+from collections import deque
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
@@ -133,6 +137,191 @@ def scruff_frames(ginger, sheet):
     return [hang]
 
 
+# ---------- Head turn: the sitting cat follows the cursor with its head ----------
+# Letter grids in the colours of the hand-drawn cat: A outline, B fur, C shade, D light patch,
+# E inner ear, F eye highlight. Rows 16..29, columns 20..42 of the sitF frame; '.' is empty.
+# L3: head in three-quarter view looking left (far ear edge-on, near ear shows its inside,
+# muzzle near the left edge, far eye narrower). L2: half-way. L1 is the front face with eyes,
+# nose and mouth moved 1px. Looking right is the mirror image. Outline and neck stay joined.
+LOOK_X, LOOK_Y = 20, 16
+LOOK_L3 = [
+    '......A.........A......',
+    '.....ACA.A.....ABA.....',
+    '....ACCAADA...ABCA.....',
+    '....ACCADDDAAABCECA....',
+    '.....ACDDDDDBBCEECA....',
+    '.....ABBDBDBBBEEECA....',
+    '.....ACBBBBBBBBEECA....',
+    '....ACBBBBBBBBBBBCA....',
+    '...ACBBBBBBBBBBBBCA....',
+    '.AAABAFBBBBAFBBBBBAAA..',
+    'A..ABAAABBAAAABBBBA....',
+    '..AABAACBBCAABBBBBAAA..',
+    '.A.ACBBBABBBBBBBBCA....',
+    '....ACBABABBBBBBBCA....',
+]
+LOOK_L2 = [
+    '.....A...........A.....',
+    '....ACA...A.....ABA....',
+    '...ACCA..ADA...ABCA....',
+    '...ACCAAADDDAAABCEEA...',
+    '...ACCBBDDDDDBBCEEEA...',
+    '...ACBBBBDBDBBBCEEEA...',
+    '....ACBBBBBBBBBBCEA....',
+    '...ACBBBBBBBBBBBBBCA...',
+    '...ACBBBBBBBBBBBBBCA...',
+    '.AAABBAFBBBBAFBBBBBAAA.',
+    'A..ABBAAABBAAAABBBBA...',
+    '..AABBAACBBCAABBBBBAAA.',
+    '.A.ACBBBBABBBBBBBBCA...',
+    '....ACBBABABBBBBBCA....',
+]
+# Where each letter's colour is in sitF (white and black cats have no light patch: D = B there).
+LOOK_KEYS = {'A': (23, 19), 'B': (31, 24), 'C': (24, 23), 'D': (31, 20), 'E': (24, 19), 'F': (28, 25)}
+LOOK_CUT = 29  # last head row; the neck below is the same in every frame
+
+
+def flood(px, seed, ok):
+    seen, q = set(), deque([seed])
+    while q:
+        x, y = q.popleft()
+        if (x, y) in seen or not (0 <= x < SIZE and 0 <= y < SIZE) or px[x, y][3] == 0 or not ok(x, y):
+            continue
+        seen.add((x, y))
+        q.extend([(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)])
+    return seen
+
+
+def head_mask(img):
+    """Head pixels with ears and whiskers above the neck: whatever is not joined to the body or tail."""
+    px = img.load()
+    head = flood(px, (31, 22), lambda x, y: y <= LOOK_CUT)
+    body = flood(px, (31, 44), lambda x, y: (x, y) not in head)
+    return {(x, y) for y in range(LOOK_CUT + 1) for x in range(42)
+            if px[x, y][3] and (x, y) not in body}
+
+
+def grid_cells(g):
+    return {(LOOK_X + i, LOOK_Y + j): ch for j, row in enumerate(g) for i, ch in enumerate(row) if ch != '.'}
+
+
+def cells_grid(c):
+    rows = [['.'] * 23 for _ in range(14)]
+    for (x, y), ch in c.items():
+        rows[y - LOOK_Y][x - LOOK_X] = ch
+    return [''.join(r) for r in rows]
+
+
+def face_grid(sitF):
+    """The front head of the ginger sitF frame as letters."""
+    px = sitF.load()
+    names = {px[p]: k for k, p in LOOK_KEYS.items()}
+    return cells_grid({p: names[px[p]] for p in head_mask(sitF)})
+
+
+def eye_cells(g):
+    """Eyes: A, F (and the C inner corner) in rows 25..27 between the cheeks."""
+    c, out = grid_cells(g), {}
+    for y in range(25, 28):
+        fur = sorted(x for (x, yy) in c if yy == y and c[(x, y)] in 'BC')
+        for x in range(fur[0], fur[-1]):
+            ch = c.get((x, y))
+            if ch in ('A', 'F') or (ch == 'C' and y == 27):
+                out[(x, y)] = ch
+    return out
+
+
+def mouth_cells(g):
+    c, out = grid_cells(g), {}
+    for y in (28, 29):
+        fur = sorted(x for (x, yy) in c if yy == y and c[(x, y)] in 'BC')
+        out.update({(x, y): 'A' for x in range(fur[0], fur[-1]) if c.get((x, y)) == 'A'})
+    return out
+
+
+def move_cells(g, feats, dx, dy):
+    c = grid_cells(g)
+    c.update({p: 'B' for p in feats})
+    c.update({(x + dx, y + dy): ch for (x, y), ch in feats.items()})
+    return cells_grid(c)
+
+
+def eyes_closed(g):
+    c, eyes = grid_cells(g), eye_cells(g)
+    ys = sorted({y for _, y in eyes})
+    for (x, y), ch in eyes.items():
+        if y == ys[0] or (y == ys[-1] and ch != 'C'):
+            c[(x, y)] = 'B'
+    return cells_grid(c)
+
+
+def mirrored(g):
+    """Mirror around x = 31; eye highlights stay right of the pupil, as in every hand-drawn frame."""
+    return [row[::-1].replace('FA', 'AF') for row in g]
+
+
+def look_grids(ginger_sitF, up=False):
+    front = face_grid(ginger_sitF)
+    l1 = move_cells(front, {**eye_cells(front), **mouth_cells(front)}, -1, 0)
+    left = [LOOK_L3, LOOK_L2, l1]
+    grids = left + [front] + [mirrored(g) for g in reversed(left)]  # L3 L2 L1 F R1 R2 R3
+    return [move_cells(g, eye_cells(g), 0, -1) for g in grids] if up else grids
+
+
+def look_frames(sitF, ginger_sitF, up):
+    """7 head positions with open eyes, then the same 7 blinking."""
+    px = sitF.load()
+    colours = {k: px[p] for k, p in LOOK_KEYS.items()}
+    old = head_mask(sitF)
+    body = {(x, y) for y in range(SIZE) for x in range(SIZE) if px[x, y][3]} - old
+    grids = look_grids(ginger_sitF, up)
+    frames = []
+    for g in grids + [eyes_closed(g) for g in grids]:
+        cells = grid_cells(g)
+        assert not cells.keys() & body, 'head turn overlaps the body or tail'
+        img = sitF.copy()
+        o = img.load()
+        for p in old:
+            o[p] = (0, 0, 0, 0)
+        for p, ch in cells.items():
+            o[p] = colours[ch]
+        frames.append(img)
+    return frames
+
+
+def spans(points):
+    """[y, x1, x2] runs, row by row."""
+    out = []
+    for y in sorted({y for _, y in points}):
+        xs = sorted(x for x, yy in points if yy == y)
+        start = prev = xs[0]
+        for x in xs[1:]:
+            if x != prev + 1:
+                out.append([y, start, prev])
+                start = x
+            prev = x
+        out.append([y, start, prev])
+    return out
+
+
+def write_head_spans(ginger_sitF):
+    front = head_mask(ginger_sitF)
+    turned = set()
+    for up in (False, True):
+        for g in look_grids(ginger_sitF, up):
+            turned |= grid_cells(g).keys()
+    fmt = lambda runs: ', '.join(f'[{y}, {a}, {b}]' for y, a, b in runs)
+    ts = ROOT / 'src' / 'renderer' / 'cat' / 'head-spans.ts'
+    ts.write_text(
+        '// Generated by tools/make_extra_sprites.py: do not edit by hand.\n'
+        '// Where the head of the sitting cat is, as [y, x1, x2] runs inside a 64x64 frame.\n'
+        '// FRONT_HEAD: the head in sitF and wagSitF. TURNED_HEAD: every pixel a head-turn frame can use.\n'
+        'export type Span = [number, number, number];\n'
+        f'export const FRONT_HEAD: Span[] = [{fmt(spans(front))}];\n'
+        f'export const TURNED_HEAD: Span[] = [{fmt(spans(turned))}];\n',
+        encoding='utf-8', newline='\n')
+
+
 def zzz_chain(img, side):
     """Where z, zz, zzz go: from the head diagonally up over the cat's back, each letter
     a little above the cat under it and inside the frame. side: where the head is (L/R)."""
@@ -236,6 +425,11 @@ def build(sheet, ginger):
 
     # Held by the scruff while being dragged (base None: feet come from the frame itself).
     rows.append(('scruffF', 'Held by the scruff (front)', None, scruff_frames(ginger, sheet)))
+
+    # Following the cursor: head turned L3..R3, then the same blinking (lookUpSitF: eyes raised).
+    gsit = frame(ginger, 0, 0)
+    rows.append(('lookSitF', 'Head turn, looking around (sit, front)', 0, look_frames(sitF, gsit, up=False)))
+    rows.append(('lookUpSitF', 'Head turn, looking up (sit, front)', 0, look_frames(sitF, gsit, up=True)))
     return rows
 
 
@@ -381,6 +575,7 @@ def main():
         png.alpha_composite(gen, (0, XROW * SIZE))
         png.save(ROOT / 'assets' / 'cats' / f'{color}.png', optimize=True)
         export_labeled(ROOT / 'design' / 'cats' / f'{color}_labeled.png', gen, rows)
+    write_head_spans(frame(ginger, 0, 0))
     for i, (name, _, base, frames) in enumerate(rows):
         feet = frames[0].getbbox()[3]
         print(f'row {XROW + i:2d} {name:14s} base={base} feet={feet} frames={len(frames)}')

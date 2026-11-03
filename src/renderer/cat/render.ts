@@ -63,9 +63,14 @@ export function pickAnim(t: number): AnimName | Frame | HeadTurn {
 
 export function renderCat(t: number): void {
   const a = pickAnim(t);
-  if (typeof a !== 'string' && 'watch' in a) {
-    if (a.watch !== animName) { animName = a.watch; animStart = t; }
-    sprite.drawWatch(a.watch, t - animStart, a.hx, a.hy);
+  if (typeof a !== 'string' && 'gaze' in a) {
+    // смотрит на курсор: хвост виляет как в wagSitF, голова повёрнута к мышке
+    if (animName !== 'wagSitF') {
+      animName = 'wagSitF';
+      animStart = t;
+      dom.cat.classList.remove('sprite-dots');
+    }
+    sprite.drawLook(t - animStart, a);
     return;
   }
   if (typeof a !== 'string') {

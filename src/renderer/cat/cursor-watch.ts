@@ -1,25 +1,33 @@
-// Кот иногда следит за курсором: сидит лицом к нам (или спиной, глядя в экран) и по пикселю
-// поворачивает голову туда, где мышка. Курсор шевелится у самой морды: бьёт по нему лапкой.
+// Кот иногда следит за курсором: сидит лицом к нам и плавно поворачивает голову туда, где мышка,
+// по одному нарисованному положению за раз. Курсор шевелится у самой морды: бьёт по нему лапкой.
 import { api } from '../core/api';
 import { T } from '../core/i18n';
-import { now, pick } from '../core/util';
+import { now, rand } from '../core/util';
 import { busyWithPerson } from '../guide/state';
 import { say } from '../ui/bubble';
 import { openPanel } from '../ui/panels';
 import { cat, CAT_H, cx, setState, size } from './cat';
 import { between, LIFE } from './pacing';
-import { dirAnim, type AnimName, type HeadTurn } from './sprites';
+import { dirAnim, GAZE_MAX, type AnimName, type HeadTurn } from './sprites';
 
+// Голова поворачивается на одно положение за TURN_STEP мс: от середины до края за ~0,2 с.
+const TURN_STEP = 70;
+// Курсор должен уйти дальше этой доли положения, чтобы голова повернулась: без дёрганья на границе.
+const TURN_SLACK = 0.7;
+const BLINK_MS = 150;
+
+// seen: курсор уже видели (координаты бывают и отрицательными: монитор слева от основного);
 // dist: сколько курсор прошёл за последнюю секунду
-const mouse = { x: -1, y: -1, t: -Infinity, dist: 0 };
+const mouse = { x: 0, y: 0, seen: false, t: -Infinity, dist: 0 };
 let nextCheck = 0;
 
 export const mouseMoving = (ms = 1200): boolean => now() - mouse.t < ms;
 
 export function trackMouse(x: number, y: number): void {
   const t = now();
-  const moved = mouse.x < 0 ? 0 : Math.hypot(x - mouse.x, y - mouse.y);
-  if (mouse.x >= 0 && moved < 1) return; // курсор стоит на месте
+  const moved = mouse.seen ? Math.hypot(x - mouse.x, y - mouse.y) : 0;
+  if (mouse.seen && moved < 1) return; // курсор стоит на месте
+  mouse.seen = true;
   mouse.dist = (t - mouse.t < 1000 ? mouse.dist : 0) + moved;
   mouse.x = x;
   mouse.y = y;
@@ -29,30 +37,16 @@ export function trackMouse(x: number, y: number): void {
 // Голова кота примерно на 120 px выше лап.
 const headY = (): number => cat.y + CAT_H - 120 * size();
 
-export type WatchMode = 'front' | 'back';
-
-/** Начать следить за курсором. Без mode: лицом к нам, а если курсор высоко над котом, иногда спиной. */
-export function startCursorWatch(ms = between(LIFE.watch), mode?: WatchMode): void {
-  const over = mouse.x >= 0 && mouse.y - headY() < -150;
+export function startCursorWatch(ms = between(LIFE.watch)): void {
   setState('idle', ms);
   cat.watchUntil = now() + ms;
   cat.swipeUntil = 0;
-  cat.watchBack = (mode ?? (over && Math.random() < 0.4 ? 'back' : 'front')) === 'back';
-  const poses: AnimName[] = cat.watchBack ? ['wagSitB', 'wagSitB', 'wagStandB'] : ['wagBlinkSitF', 'blinkSitF'];
-  cat.head = { pose: pick(poses), hx: 0, hy: 0, turnedAt: 0 };
+  cat.head = { gaze: 0, target: 0, up: false, turnedAt: 0, blinkAt: now() + rand(1500, 4000) };
   const s = T('act.watch');
   if (s && Math.random() < 0.4) say(s, 2200);
 }
 
 export const watchingCursor = (t: number): boolean => !!cat.watchUntil && t < cat.watchUntil;
-
-// Куда повернуть голову: на сколько пикселей листа (±3 вбок, ±1 вверх/вниз).
-function gazeTarget(): [number, number] {
-  if (mouse.x < 0) return [0, 0];
-  const dx = mouse.x - cx();
-  const dy = mouse.y - headY();
-  return [Math.round(3 * Math.tanh(dx / 260)), dy < -90 ? -1 : dy > 160 ? 1 : 0];
-}
 
 /** Поза, пока кот смотрит на курсор. */
 export function watchPose(t: number): AnimName | HeadTurn {
@@ -65,10 +59,21 @@ export function watchPose(t: number): AnimName | HeadTurn {
     cat.swipeCool = t + 2500;
     return cat.swipePose;
   }
-  return { watch: cat.head.pose, hx: cat.head.hx, hy: cat.head.hy };
+  const h = cat.head;
+  return { gaze: h.gaze, up: h.up, blink: t >= h.blinkAt && t < h.blinkAt + BLINK_MS };
 }
 
-/** Каждый кадр: не пора ли заметить курсор, повернуть голову или перестать следить. */
+// Куда вести голову: положение -3..3 по горизонтали (с запасом) и смотреть ли вверх.
+function aim(): void {
+  const h = cat.head;
+  if (!mouse.seen) return;
+  const want = GAZE_MAX * Math.tanh((mouse.x - cx()) / 300);
+  if (Math.abs(want - h.target) > TURN_SLACK) h.target = Math.round(want);
+  const dy = mouse.y - headY();
+  h.up = h.up ? dy < -60 : dy < -120;
+}
+
+/** Каждый кадр: не пора ли заметить курсор, повернуть голову, моргнуть или перестать следить. */
 export function updateCursorWatch(t: number): void {
   // заметить курсор: когда сидит без дела, занят собой или гуляет, а мышь шевелится рядом
   const calm = cat.state === 'idle' || cat.state === 'act'
@@ -78,16 +83,14 @@ export function updateCursorWatch(t: number): void {
     if (mouse.dist > 150 && mouseMoving(400) && !busyWithPerson() && !openPanel() && Math.random() < 0.3) startCursorWatch();
   }
   if (!cat.watchUntil) return;
-  // голова поворачивается по пикселю за раз, а не прыгает
   const h = cat.head;
-  if (t - h.turnedAt > 80) {
-    const [tx, ty] = gazeTarget();
-    if (tx !== h.hx || ty !== h.hy) {
-      h.hx += Math.sign(tx - h.hx);
-      h.hy += Math.sign(ty - h.hy);
-      h.turnedAt = t;
-    }
+  aim();
+  // голова идёт к цели по одному положению, а не прыгает
+  if (h.gaze !== h.target && t - h.turnedAt >= TURN_STEP) {
+    h.gaze += Math.sign(h.target - h.gaze);
+    h.turnedAt = t;
   }
+  if (t > h.blinkAt + BLINK_MS) h.blinkAt = t + rand(2500, 6000);
   // мышка давно стоит: коту надоело
   if (t - cat.since > 4000 && !mouseMoving(LIFE.watchBored)) cat.watchUntil = 0;
 }
