@@ -91,13 +91,13 @@
 
 ## Запуск
 
-Нужен [Node.js](https://nodejs.org) 18 или новее.
+Нужен [Node.js](https://nodejs.org) 22.18 или новее.
 
 ```bash
 git clone https://github.com/prettyw1ld/Desktop-Helper.git
 cd Desktop-Helper
 npm install      # заодно скачает офлайн-модель голоса (~40 МБ)
-npm start
+npm start        # собирает TypeScript в build/ и запускает
 ```
 
 ### Подключить ИИ (необязательно)
@@ -121,39 +121,46 @@ npm run dist:mac   # macOS
 ## Как устроено
 
 ```
-Человек ──► Кот (окно поверх всех) ──► Урок (scenarios.js)
+Человек ──► Кот (окно поверх всех) ──► Урок (scenarios.ts)
                      │                         │
-                     │                ищет кнопку: locate.js
+                     │                ищет кнопку: locate.ts
                      │                (UI Automation / Accessibility)
                      │                         │
                      ▼                         ▼
              «Что произошло?»,        показывает лапкой ──► ждёт ──► проверяет сам
-           «Объясни, что это»                                         (coach.js)
+           «Объясни, что это»                                         (coach.ts)
                      │
                      ▼
-        ИИ по желанию: guide.js + llm.js (Groq)
+        ИИ по желанию: guide.ts + llm.ts (Groq)
 ```
 
-| Файл | Что внутри |
+Код на TypeScript. Главный процесс и окно кота общаются через мост `src/preload/preload.ts`; все данные между ними описаны в `src/shared/types.ts`.
+
+| Папка | Что внутри |
 |---|---|
-| `src/main.js` | окно поверх всех, трей, настройки, автозапуск |
-| `src/locate.js`, `src/native/` | поиск кнопок без ИИ на Windows и Mac |
-| `src/renderer/scenarios.js` | уроки: шаги, подсказки, проверки |
-| `src/renderer/coach.js` | ведёт по уроку: показывает, ждёт, сам проверяет |
-| `src/guide.js`, `src/screen-region.js` | снимок экрана и выделенная область для ИИ |
-| `src/llm.js`, `src/http.js` | запросы к ИИ, подбор моделей, повторы и ожидание лимита |
-| `src/stt.js`, `src/renderer/voice.js` | голос: Whisper по ключу, Vosk без интернета |
-| `src/files.js` | помощь с файлами и папками |
-| `src/renderer/inspect.js` | «Объясни, что это» |
-| `src/renderer/playful.js`, `home.js` | открытка, клубок, домик навыков |
-| `src/renderer/app.js`, `cats.js` | поведение и анимации кота, панели |
+| `src/main/` | главный процесс: окно поверх всех, трей, настройки, напоминания, автозапуск, IPC |
+| `src/main/ai/` | снимок экрана и подсказки ИИ (`guide.ts`), чат (`llm.ts`), голос (`stt.ts`), сеть (`http.ts`) |
+| `src/main/system/` | поиск кнопок без ИИ (`locate.ts`), окна других программ, файлы, календарь |
+| `src/native/` | помощник «доступности» для Mac на Swift |
+| `src/shared/` | тексты на двух языках и общие типы |
+| `src/renderer/cat/` | кот: анимации (`sprites.ts`), поведение, слежка за курсором, позы |
+| `src/renderer/guide/` | уроки (`scenarios.ts`, `coach.ts`), подсказки ИИ, «Объясни, что это», тренажёр мыши |
+| `src/renderer/panels/` | окна: «Чем помочь?», уроки, чат, напоминания, настройки, голосовой ввод |
+| `src/renderer/ui/`, `home/`, `input/` | облачко, рамка с клубком, иконки, домик навыков, мышь |
+| `tools/` | сборка (`build.mts`), скачивание модели голоса, новые кадры кота (`make_extra_sprites.py`) |
 
-Тесты: `node --test tools/test-file-help.js`.
+Команды:
+```bash
+npm run build       # собрать в build/
+npm run watch       # пересобирать при изменениях
+npm run typecheck   # проверить типы
+npm test            # тесты (test/)
+```
 
-Интерфейс открывается и в обычном браузере (`src/renderer/index.html`) с ненастоящим рабочим столом для отладки: `?onboarded` пропускает тренировку мышки, `?color=white` меняет окрас.
+Интерфейс открывается и в обычном браузере (`build/renderer/index.html` после `npm run build`) с ненастоящим рабочим столом для отладки: `?onboarded` пропускает тренировку мышки, `?color=white` меняет окрас.
 
 ## Стек
-Electron 33, чистый JavaScript без фреймворков, PowerShell и UI Automation (Windows), Swift и Accessibility API (macOS), Vosk (WebAssembly), Groq API, Web Audio.
+Electron 33, TypeScript без фреймворков (сборка esbuild), PowerShell и UI Automation (Windows), Swift и Accessibility API (macOS), Vosk (WebAssembly), Groq API, Web Audio.
 
 ## Команда
 - Дамир Ходжиев

@@ -11,7 +11,7 @@ Most new frames are made by copying, shifting and patching existing frames, plus
 tiny effects (Zzz, hearts, "!", "…"). The "held by the scruff" pose was drawn with PixelLab
 from the ginger sitting frame and is kept in design/cats/pixellab/scruff_ginger.png;
 the white and black versions are recoloured from it here.
-Row order must match XBASE and the extra animations in src/renderer/cats.js.
+Row order must match XBASE and the extra animations in src/renderer/cat/sprites.ts.
 """
 import struct
 import zlib

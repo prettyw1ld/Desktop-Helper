@@ -3,27 +3,37 @@
   "productName": "Пушик",
   "version": "0.9.0",
   "description": "Кот Пуш: десктопный питомец-помощник, который гуляет по рабочему столу",
-  "main": "src/main.js",
+  "main": "build/main.js",
   "scripts": {
+    "build": "node tools/build.mts",
+    "watch": "node tools/build.mts --watch",
+    "typecheck": "tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json && tsc -p tsconfig.test.json",
+    "test": "node tools/build.mts --tests && node --test \"build/test/*.test.js\"",
+    "prestart": "node tools/build-mac-locator.mts && npm run build",
     "start": "electron .",
+    "predist": "node tools/build-mac-locator.mts && npm run typecheck && npm run build",
     "dist": "electron-builder",
-    "dist:win": "electron-builder --win",
-    "dist:mac": "electron-builder --mac",
-    "postinstall": "node tools/fetch-vosk-model.js",
-    "vosk": "node tools/fetch-vosk-model.js",
-    "prestart": "node tools/build-mac-locator.js",
-    "predist": "node tools/build-mac-locator.js",
-    "predist:mac": "node tools/build-mac-locator.js"
+    "dist:win": "npm run predist && electron-builder --win",
+    "dist:mac": "npm run predist && electron-builder --mac",
+    "postinstall": "node tools/fetch-vosk-model.mts",
+    "vosk": "node tools/fetch-vosk-model.mts"
   },
   "devDependencies": {
+    "@happy-dom/global-registrator": "^21.0.4",
+    "@types/node": "^26.6.6",
     "electron": "^33.2.1",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.28.2",
+    "happy-dom": "^21.0.4",
+    "typescript": "^7.0.2"
   },
   "build": {
     "appId": "com.prettyw1ld.pushik",
     "productName": "Пушик",
     "files": [
-      "src/**/*",
+      "build/**/*",
+      "!build/test/**",
+      "!build/**/*.map",
       "assets/**/*",
       "package.json"
     ],
@@ -51,7 +61,11 @@
     ],
     "asarUnpack": [
       "assets/mac/**"
-    ]
+    ],
+    "directories": {
+      "buildResources": "build-resources",
+      "output": "dist"
+    }
   },
   "author": "prettyw1ld",
   "license": "MIT",
@@ -59,5 +73,8 @@
   "dependencies": {
     "node-ical": "^0.27.3",
     "vosk-browser": "^0.0.8"
+  },
+  "engines": {
+    "node": ">=22.18"
   }
 }
