@@ -155,11 +155,13 @@ function withShotConsent(go: () => void): void {
   endTrainer();
   const text = T('shot.ask');
   const yes = () => {
+    guide.active = false;
     settings.shotConsent = true;
     void api.saveSettings({ shotConsent: true }).then(setSettings);
     go();
   };
-  const no = () => { hideBubble(); showPanel('lessons'); };
+  const no = () => { guide.active = false; hideBubble(); showPanel('lessons'); };
+  guide.active = true;  // пока ждём ответа, случайные фразы не перебивают вопрос
   say(text, Infinity, { guide: true, explain: T('shot.tip'), actions: [[T('shot.yes'), yes, true], [T('shot.no'), no]] });
   speak(text);
 }
