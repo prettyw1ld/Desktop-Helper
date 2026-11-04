@@ -6,6 +6,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import vm from 'node:vm';
 import { createFileActions } from '../src/main/system/files';
+import { parseProcessList, remoteApps } from '../src/main/system/remote-watch';
 import { MAC_ROLES, MAC_SCRIPT, WIN_SCRIPT } from '../src/main/system/locate';
 import { extraFor, fallbackModel, resolve } from '../src/main/ai/providers';
 import { cleanPlan, formatMarks, pickMark, refineCrop, showGoal, stepOf, boxUnits, withTaskbar, type Mark } from '../src/main/ai/show';
@@ -41,17 +42,17 @@ test('macOS fallback returns JSON from its run handler and skips the sharing con
   const props = (title: string, w: number, h: number) => ({
     name: () => title, position: () => [188, 188], size: () => [w, h], attributes: { byName: () => ({ value: () => false }) },
   });
-  const folder = { ...props('', 96, 18), role: () => 'AXTextField', description: () => '', title: () => '', value: () => 'Мои открытки', focused: () => false };
+  const folder = { ...props('', 96, 18), role: () => 'AXTextField', description: () => '', title: () => '', value: () => 'Мои заметки', focused: () => false };
   const actual = { ...props('Пушик — учимся работать с файлами', 920, 464), entireContents: () => [folder] };
   const proc = { name: () => 'Finder', windows: () => [props('Window', 52, 20), actual] };
-  const q = { op: 'find' as const, scope: 'proc:^Finder$', firstWindow: true, name: 'Мои открытки', roles: MAC_ROLES.ListItem ?? [] };
+  const q = { op: 'find' as const, scope: 'proc:^Finder$', firstWindow: true, name: 'Мои заметки', roles: MAC_ROLES.ListItem ?? [] };
   const c = vm.createContext({ Application: () => ({ processes: { whose: () => () => [proc] } }), ObjC: { import() {} } });
   vm.runInContext(MAC_SCRIPT(q, 1), c);
   const reply: unknown = vm.runInContext('run()', c);
   assert.equal(typeof reply, 'string');
   const result = JSON.parse(reply as string);
   assert.equal(result.win.title, 'Пушик — учимся работать с файлами');
-  assert.equal(result.items[0].name.trim(), 'Мои открытки');
+  assert.equal(result.items[0].name.trim(), 'Мои заметки');
   assert.equal(result.items[0].type, 'AXTextField');
 });
 
@@ -194,4 +195,14 @@ test('taskbar buttons stay pointable while Start hides them from UI Automation',
   const open = withTaskbar([it('Часы', 'popup')], 2000);
   assert.deepEqual(open.map((x) => x.name), ['Пуск', 'Поиск', 'Часы']);
   assert.equal(withTaskbar([it('Часы', 'popup')], 2000 + 11 * 60_000).length, 1, 'old taskbar is forgotten');
+});
+
+test('remote-watch: замечает программы удалённого доступа по именам процессов', () => {
+  const win = '"System Idle Process","0","Services","0","8 K"\r\n"AnyDesk.exe","4120","Console","1","20 000 K"\r\n"TeamViewer_Service.exe","900","Services","0","9 000 K"\r\n';
+  const procs = parseProcessList(win, 'win32');
+  assert.deepEqual(procs, ['System Idle Process', 'AnyDesk.exe', 'TeamViewer_Service.exe']);
+  // служба TeamViewer сама по себе не тревога: только окно программы
+  assert.deepEqual(remoteApps(procs), ['AnyDesk']);
+  assert.deepEqual(remoteApps(parseProcessList('launchd\nTeamViewer\nrustdesk\n', 'darwin')), ['TeamViewer', 'RustDesk']);
+  assert.deepEqual(remoteApps(['chrome.exe', 'explorer.exe']), []);
 });

@@ -9,7 +9,6 @@
   <link rel="stylesheet" href="inspect.css" />
   <link rel="stylesheet" href="light-blue.css" />
   <link rel="stylesheet" href="playful.css" />
-  <link rel="stylesheet" href="home.css" />
 </head>
 <body>
   <div id="cat" class="cat hit">
@@ -28,7 +27,7 @@
   <!-- Главное окно новичка: чем помочь -->
   <section id="panel-help" class="panel help hit hidden">
     <header><b data-i18n="help.title"></b><button class="icon" data-close data-i18n-title="close">✕</button></header>
-    <button type="button" id="inspect-element" class="big">Объясни, что это</button>
+    <button type="button" id="inspect-element" class="big" data-i18n="help.inspect"></button>
     <button type="button" id="mic" class="big mic hidden" data-i18n-title="help.mic"></button>
     <div id="mic-state" role="status" aria-live="polite" class="sub big-sub hidden"></div>
     <form id="ask-form" class="ask hidden" aria-hidden="true">
@@ -45,7 +44,6 @@
   <!-- Уроки: все обучалки, что пройдено и прогресс -->
   <section id="panel-lessons" class="panel help lessons hit hidden">
     <header><b data-i18n="les.title"></b><button class="icon" data-close data-i18n-title="close">✕</button></header>
-    <button id="open-skill-home" type="button" class="big">Домик освоенных навыков</button>
     <div class="les-progress"><div id="les-bar" class="bar"></div></div>
     <div id="les-count" class="sub big-sub"></div>
     <details id="lesson-dropdown" class="lesson-dropdown">

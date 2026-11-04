@@ -5,10 +5,10 @@ import { celebrate, showPose } from '../cat/poses';
 import { api } from '../core/api';
 import { dom } from '../core/dom';
 import { T } from '../core/i18n';
-import { setSkills } from '../core/settings';
+import { setSettings, setSkills, settings } from '../core/settings';
 import { Sound } from '../core/sound';
-import { say, type Action } from '../ui/bubble';
-import { closePanels } from '../ui/panels';
+import { hideBubble, say, type Action } from '../ui/bubble';
+import { closePanels, showPanel } from '../ui/panels';
 import { hideRing, showRing } from '../ui/ring';
 import { speak, stopSpeaking } from '../ui/speech';
 import { endGuide } from './control';
@@ -50,11 +50,15 @@ export function stepLabel(): string {
   return n >= 2 && i >= 1 && i <= n ? T('g.stepOf', { i, n }) : '';
 }
 
+// Кнопку не нашли через «доступность», место только угадано: честно говорим «примерно здесь».
+const approxOf = (res: LookResult): boolean => !!res.target && !res.snapped;
+
 function showStep(res: LookResult): void {
   guide.last = res;
-  showRing(res.target);
+  const approx = approxOf(res);
+  showRing(res.target, approx);
   const sayIt = () => {
-    say(res.say, Infinity, { actions: aiStepActions(), guide: true, step: stepLabel() });
+    say(res.say, Infinity, { actions: aiStepActions(), guide: true, step: stepLabel(), explain: approx ? T('g.approx') : undefined });
     speak(res.say);
     watchScreen();
   };
@@ -64,7 +68,8 @@ function showStep(res: LookResult): void {
 
 /** Повторить текущую подсказку (после переноса кота). */
 export function repeatAiStep(): void {
-  if (guide.last?.say) say(guide.last.say, Infinity, { guide: true, actions: aiStepActions(), step: stepLabel() });
+  const last = guide.last;
+  if (last?.say) say(last.say, Infinity, { guide: true, actions: aiStepActions(), step: stepLabel(), explain: approxOf(last) ? T('g.approx') : undefined });
 }
 
 async function done(res: LookResult): Promise<void> {
@@ -143,23 +148,45 @@ export async function look(mode: LookMode): Promise<void> {
 }
 
 /** Начать подсказки ИИ к цели. */
+/** Снимок всего экрана уходит на сервер ИИ: в первый раз спрашиваем разрешения. */
+function withShotConsent(go: () => void): void {
+  if (settings.shotConsent) { go(); return; }
+  closePanels();
+  endTrainer();
+  const text = T('shot.ask');
+  const yes = () => {
+    guide.active = false;
+    settings.shotConsent = true;
+    void api.saveSettings({ shotConsent: true }).then(setSettings);
+    go();
+  };
+  const no = () => { guide.active = false; hideBubble(); showPanel('lessons'); };
+  guide.active = true;  // пока ждём ответа, случайные фразы не перебивают вопрос
+  say(text, Infinity, { guide: true, explain: T('shot.tip'), actions: [[T('shot.yes'), yes, true], [T('shot.no'), no]] });
+  speak(text);
+}
+
 export function startGuide(goal: string, mode: LookMode = 'start'): void {
   goal = String(goal || '').trim();
   if (!goal) return;
-  closePanels();
-  endTrainer();
-  Object.assign(guide, { active: true, kind: 'ai', goal, history: [], plan: [], stepIndex: 0, screenSummary: '', last: null, busy: false });
-  look(mode);
+  withShotConsent(() => {
+    closePanels();
+    endTrainer();
+    Object.assign(guide, { active: true, kind: 'ai', goal, history: [], plan: [], stepIndex: 0, screenSummary: '', last: null, busy: false });
+    look(mode);
+  });
 }
 
 /** «Я запутался» с ИИ: что сейчас на экране и как вернуться. */
 export function imLostAI(): void {
-  closePanels();
-  endTrainer();
-  if (!guide.active) Object.assign(guide, { goal: '', history: [], plan: [], stepIndex: 0, kind: 'ai' });
-  guide.active = true;
-  guide.busy = false;
-  look('confused');
+  withShotConsent(() => {
+    closePanels();
+    endTrainer();
+    if (!guide.active) Object.assign(guide, { goal: '', history: [], plan: [], stepIndex: 0, kind: 'ai' });
+    guide.active = true;
+    guide.busy = false;
+    look('confused');
+  });
 }
 
 export function initAiGuide(): void {

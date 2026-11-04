@@ -95,7 +95,6 @@ export function mockApi(): PushikApi {
     openDrive: async () => true,
     transcribe: async () => ({ text: 'Хочу позвонить по видео' }),
     askMic: async () => true,
-    savePostcard: async () => ({ saved: true }),
     addSkill: async (name) => {
       s.skills = [...s.skills.filter((x) => x.name !== name), { name, at: Date.now() }];
       return s.skills;

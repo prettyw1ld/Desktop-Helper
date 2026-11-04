@@ -13,8 +13,8 @@ import { setSettings, settings } from './core/settings';
 import { initAiGuide } from './guide/ai-guide';
 import { initCoach, startTourOnce } from './guide/coach';
 import { initInspect } from './guide/inspect';
+import { initScamGuard } from './guide/scam';
 import { afterFirstTraining, initTrainer, startTrainer } from './guide/trainer';
-import { initSkillHome } from './home/skill-home';
 import { initMouse } from './input/mouse';
 import { addMsg, initChat } from './panels/chat';
 import { initHelp } from './panels/help';
@@ -39,7 +39,7 @@ async function start(): Promise<void> {
   initTrainer();
   initAiGuide();
   initInspect();
-  initSkillHome();
+  initScamGuard();
   initMouse();
   initCursorWatch();
   initTrayCommands();

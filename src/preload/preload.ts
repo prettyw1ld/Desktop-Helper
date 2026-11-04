@@ -21,7 +21,6 @@ const api: PushikApi = {
   guideUnwatch: () => ipcRenderer.send('guide:unwatch'),
   transcribe: (audio, mime) => ipcRenderer.invoke('stt:transcribe', { audio, mime }),
   askMic: () => ipcRenderer.invoke('mic:ask'),
-  savePostcard: (data) => ipcRenderer.invoke('postcard:save', data),
   addSkill: (name) => ipcRenderer.invoke('skills:add', name),
   locate: (q) => ipcRenderer.invoke('locate', q),
   openUri: (uri) => ipcRenderer.invoke('open:uri', uri),

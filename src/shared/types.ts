@@ -43,7 +43,8 @@ export interface Settings {
   onboarded: boolean;        // пройден ли тренажёр мыши при первом запуске
   contact: string;           // кому чаще всего звонят (для урока «Позвонить»)
   voice: VoiceMode;          // offline = Vosk в самом приложении, whisper = сервис по ключу
-  firstSuccessCard?: Skill;  // открытка за первый успех
+  trustedRemote: string[];   // программы удалённого доступа, про которые человек сказал «это свои»
+  shotConsent: boolean;      // человек разрешил отправлять снимок экрана ИИ
 }
 
 export type SecretKey = 'apiKey' | 'calendarUrl' | 'sttKey' | 'groqKey' | 'deepseekKey' | 'qwenKey';
@@ -177,12 +178,9 @@ export type FilePlace = 'downloads' | 'documents' | 'practice';
 export interface FilesRequest { op: 'access' | 'permissions' | 'open' | 'choose'; place?: FilePlace }
 export interface FilesResult { trusted?: boolean; ok?: boolean; canceled?: boolean; error?: string }
 
-export interface SaveResult { saved?: boolean; canceled?: boolean; error?: string }
-
 /** Окно другой программы: [id, x, y, w, h] в координатах окна кота. */
 export type WinRect = [id: number, x: number, y: number, w: number, h: number];
 
-export interface SkillEarned { name: string; first: boolean; card: Skill | null }
 
 /** События из главного процесса в окно кота. */
 export interface PushikEvents {
@@ -195,13 +193,13 @@ export interface PushikEvents {
   'windows': WinRect[];
   'screen-changed': undefined;
   'ai-wait': number;
-  'skill-earned': SkillEarned;
   'work-area': Rect;   // где пол и стены для кота внутри окна (без панели задач)
+  'remote-app': string; // запустилась программа удалённого доступа (защита от мошенников)
 }
 export type PushikEvent = keyof PushikEvents;
 export const PUSHIK_EVENTS: PushikEvent[] = [
   'reminder', 'reminders-changed', 'open', 'settings-changed', 'calendar-soon', 'calendar-changed',
-  'windows', 'screen-changed', 'ai-wait', 'skill-earned', 'work-area',
+  'windows', 'screen-changed', 'ai-wait', 'work-area', 'remote-app',
 ];
 
 /** Мост preload.ts: что окно кота может попросить у главного процесса. */
@@ -224,7 +222,6 @@ export interface PushikApi {
   guideUnwatch(): void;
   transcribe(audio: ArrayBuffer, mime: string): Promise<{ text: string } | ErrorReply>;
   askMic(): Promise<boolean>;
-  savePostcard(dataUrl: string): Promise<SaveResult>;
   addSkill(name: string): Promise<Skill[]>;
   locate(q: LocateQuery): Promise<LocateResult>;
   openUri(uri: string): Promise<boolean>;

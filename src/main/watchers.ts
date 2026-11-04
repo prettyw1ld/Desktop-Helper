@@ -1,8 +1,9 @@
-// Фоновые наблюдатели: календарь и окна других программ.
+// Фоновые наблюдатели: календарь, окна других программ и программы удалённого доступа.
 import { screen } from 'electron';
 import { T } from '../shared/i18n';
 import type { CalendarList } from '../shared/types';
 import * as calendar from './system/calendar';
+import * as remoteWatch from './system/remote-watch';
 import * as windowsWatch from './system/windows';
 import * as settings from './settings';
 import * as ui from './ui';
@@ -41,6 +42,15 @@ export function startWindowsWatch(): void {
   }, toDip);
 }
 
+// ---------- Программы удалённого доступа ----------
+export function startRemoteWatch(): void {
+  remoteWatch.start((name) => {
+    if ((settings.get().trustedRemote || []).includes(name)) return;
+    ui.send('remote-app', name);
+  });
+}
+
 export function stopAll(): void {
   windowsWatch.stop();
+  remoteWatch.stop();
 }

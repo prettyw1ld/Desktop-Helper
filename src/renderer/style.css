@@ -108,6 +108,7 @@ button { font: inherit; cursor: pointer; }
   box-shadow: 0 0 0 3px var(--ink), 0 0 0 9999px rgba(27, 29, 34, .18);
   animation: ring 1.1s ease-in-out infinite;
 }
+.ring.approx { border-style: dashed; border-radius: 28px; }
 /* мигает, но не растёт: рамка всегда ровно вокруг кнопки, даже вокруг большого окна */
 @keyframes ring { 0%,100% { border-color: var(--yellow); } 50% { border-color: #fff3a6; } }
 .bubble::after {

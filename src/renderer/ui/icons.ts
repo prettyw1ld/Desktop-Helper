@@ -60,7 +60,8 @@ export function refreshIcons(): void {
     const e = document.querySelector(sel);
     if (e) setIconLabel(e, name, stripEmoji(e.textContent ?? ''));
   };
-  labeled('#inspect-element', 'inspect');
+  const first = document.querySelector<HTMLElement>('#inspect-element');
+  labeled('#inspect-element', first?.dataset.mode === 'lessons' ? 'book' : 'inspect');
   const extras: Record<string, IconName> = { chat: 'chat', settings: 'gear', lessons: 'book' };
   for (const [action, name] of Object.entries(extras)) {
     const e = document.querySelector<HTMLElement>(`.extras [data-act="${action}"]`);
