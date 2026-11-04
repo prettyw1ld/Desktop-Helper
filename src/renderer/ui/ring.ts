@@ -11,9 +11,11 @@ let retract: number | null = null;
 // клубок рисуется по кадрам только пока виден: в покое цикл стоит и не грузит компьютер
 let wake: (() => void) | null = null;
 
-export function showRing(t: Rect | null | undefined): void {
+/** approx: место угадано, а не найдено точно — рамка шире и пунктиром. */
+export function showRing(t: Rect | null | undefined, approx = false): void {
   if (!t) { hideRing(); return; }
-  const pad = 6;
+  ring.classList.toggle('approx', approx);
+  const pad = approx ? 36 : 6;
   // рамку держим в пределах экрана: у развёрнутых окон края уходят за экран
   const x1 = Math.max(2, t.x - pad);
   const y1 = Math.max(2, t.y - pad);

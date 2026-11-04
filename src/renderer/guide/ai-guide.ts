@@ -50,11 +50,15 @@ export function stepLabel(): string {
   return n >= 2 && i >= 1 && i <= n ? T('g.stepOf', { i, n }) : '';
 }
 
+// Кнопку не нашли через «доступность», место только угадано: честно говорим «примерно здесь».
+const approxOf = (res: LookResult): boolean => !!res.target && !res.snapped;
+
 function showStep(res: LookResult): void {
   guide.last = res;
-  showRing(res.target);
+  const approx = approxOf(res);
+  showRing(res.target, approx);
   const sayIt = () => {
-    say(res.say, Infinity, { actions: aiStepActions(), guide: true, step: stepLabel() });
+    say(res.say, Infinity, { actions: aiStepActions(), guide: true, step: stepLabel(), explain: approx ? T('g.approx') : undefined });
     speak(res.say);
     watchScreen();
   };
@@ -64,7 +68,8 @@ function showStep(res: LookResult): void {
 
 /** Повторить текущую подсказку (после переноса кота). */
 export function repeatAiStep(): void {
-  if (guide.last?.say) say(guide.last.say, Infinity, { guide: true, actions: aiStepActions(), step: stepLabel() });
+  const last = guide.last;
+  if (last?.say) say(last.say, Infinity, { guide: true, actions: aiStepActions(), step: stepLabel(), explain: approxOf(last) ? T('g.approx') : undefined });
 }
 
 async function done(res: LookResult): Promise<void> {
