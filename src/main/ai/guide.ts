@@ -5,6 +5,9 @@ import type { LookMode, LookRequest, LookResult, LookStatus, Rect, Settings } fr
 import { aiError, fetchAI, fetchAIRetry, readError } from './http';
 import { CLAUDE_URL, cleanReply, extraFor, pickModel, resolve } from './llm';
 import { cropSelection, INSPECT_PROMPT, INSPECT_SYSTEM } from './screen-region';
+import { cleanPlan, nameRegex, pickNearest, scopesFor, stepOf, uiaTypes, type ElementHint } from './show';
+import * as locate from '../system/locate';
+import { toOverlayRect } from '../overlay';
 
 const SHOT_W = 1024; // ширина снимка для модели (меньше = быстрее ответ)
 const STATUSES: LookStatus[] = ['step', 'done', 'not_found', 'explain', 'danger'];
@@ -30,6 +33,23 @@ const STEP_SCHEMA = {
       properties: { x: { type: 'number' }, y: { type: 'number' }, w: { type: 'number' }, h: { type: 'number' } },
       required: ['x', 'y', 'w', 'h'],
     },
+    plan: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'For start: think through the WHOLE route from the current screen to the goal, 2-10 steps, one physical action each, '
+        + 'max 8 words, plain words (e.g. ["Нажми «Пуск»", "Напиши «часы»", "Открой «Часы»", "Нажми «Таймер»", "Нажми «Старт»"]). '
+        + 'For check: send it again only if the route must change; otherwise omit.',
+    },
+    stepIndex: { type: 'number', description: 'Which plan step (1-based) the current "say" is.' },
+    element: {
+      type: 'object',
+      description: 'The thing in "target", so the computer can find it exactly. Omit if there is no target.',
+      properties: {
+        name: { type: 'string', description: 'Its exact visible text or label as written on the screen, e.g. "Таймер". Empty for pictures without text.' },
+        type: { type: 'string', enum: ['button', 'tab', 'text field', 'menu item', 'list item', 'icon', 'link', 'checkbox', 'other'] },
+        area: { type: 'string', enum: ['taskbar', 'start menu', 'window', 'popup', 'desktop'] },
+      },
+    },
     practiceGoal: { type: 'string', description: 'For inspect explanations: one safe, specific, reversible beginner exercise with the selected element, phrased as a verifiable goal. No delete, payment, send, installation, credentials, or configuration changes. Empty if no safe exercise exists.' },
     skill: { type: 'string', description: 'Only for done: the learned skill in 2-5 words, e.g. "Позвонить по видео".' },
   },
@@ -48,6 +68,9 @@ interface StepAnswer {
   target?: Partial<Rect>;
   practiceGoal?: unknown;
   skill?: string;
+  plan?: unknown;
+  stepIndex?: unknown;
+  element?: ElementHint;
 }
 
 export function systemPrompt(lang: string, platform: NodeJS.Platform): string {
@@ -71,7 +94,11 @@ export function systemPrompt(lang: string, platform: NodeJS.Platform): string {
   ].join('\n');
 }
 
-function userText({ mode, goal = '', history = [], previousSummary }: LookRequest): string {
+function planText(plan: string[] = []): string {
+  return plan.length ? `Planned route:\n${plan.map((p, i) => `${i + 1}. ${p}`).join('\n')}\n` : '';
+}
+
+function userText({ mode, goal = '', history = [], previousSummary, plan = [] }: LookRequest): string {
   if (mode === 'practice') {
     return `The user chose to practice this goal themselves: ${goal}. Give exactly ONE safe physical action to begin, with status step and its target. `
       + 'Do not claim success before they attempt it. Never perform the action yourself. If the goal is already achieved, ask them to choose another element using status not_found. '
@@ -85,9 +112,12 @@ function userText({ mode, goal = '', history = [], previousSummary }: LookReques
   if (mode === 'check') {
     return `Goal: "${goal}".\n${done}\nThe person says they did the last hint (or the screen changed). Look at the new screenshot. `
       + `Previous visible state: ${previousSummary || 'unknown; do not invent a comparison'}. Fill whatChanged using visible evidence; acknowledge uncertainty. `
-      + 'If the goal is reached, answer "done". If the last step worked, give the NEXT step. If it did not work, kindly show the same thing again in other words.';
+      + 'If the goal is reached, answer "done". If the last step worked, give the NEXT step. If it did not work, kindly show the same thing again in other words.\n'
+      + `${planText(plan)}Follow the planned route and set stepIndex. If the screen shows the route must change (other window, step already done), send a new full plan.`;
   }
-  return `Goal: "${goal}".\n${done}\nShow the first step towards the goal on this screen.`;
+  return `Goal: "${goal}".\n${done}\nFirst think through the whole route from this screen to the goal and put it in "plan". `
+    + 'If the needed app is not visible, the route starts from what IS visible (for example the Start button or search). '
+    + 'Then show step 1 of the plan: "say", "target", "element", stepIndex 1.';
 }
 
 // ---------- Снимок экрана ----------
@@ -257,6 +287,29 @@ function unsureInspect(out: StepAnswer): StepAnswer {
 
 const CHECK_MODES: LookMode[] = ['check'];
 
+const withTimeout = <T,>(p: Promise<T>, ms: number, fallback: T): Promise<T> =>
+  Promise.race([p, new Promise<T>((r) => setTimeout(() => r(fallback), ms))]);
+
+/**
+ * Точная лапка: ищем названную ИИ кнопку через UI Automation (Windows) / Accessibility (Mac)
+ * и берём настоящий прямоугольник рядом с догадкой ИИ. Не нашли или долго: остаётся догадка ИИ.
+ */
+async function snapTarget(guess: Rect | null, hint: ElementHint | undefined): Promise<{ target: Rect | null; snapped: boolean }> {
+  const name = nameRegex(hint?.name);
+  if (!name || !locate.supported() || hint?.area === 'desktop') return { target: guess, snapped: false };
+  const types = uiaTypes(hint?.type);
+  const started = Date.now();
+  for (const scope of scopesFor(hint?.area)) {
+    const left = 3000 - (Date.now() - started);
+    if (left < 300) break;
+    const q = { op: 'find' as const, name, ...(types.length ? { types } : {}), ...(scope ? { scope } : {}) };
+    const res = await withTimeout(locate.ask(q, toOverlayRect), left, { error: 'timeout' });
+    const hit = pickNearest(res.items ?? [], guess, hint?.name);
+    if (hit) return { target: { x: hit.x, y: hit.y, w: hit.w, h: hit.h }, snapped: true };
+  }
+  return { target: guess, snapped: false };
+}
+
 /** Посмотреть на экран и решить, что сказать и куда показать. target — в координатах окна кота. */
 export async function look(req: LookRequest & { settings: Settings; overlay: BrowserWindow | null }): Promise<LookResult> {
   const { mode, selection, settings, overlay } = req;
@@ -279,6 +332,9 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
   const fn = r.kind === 'ollama' ? askOllama : r.kind === 'openai' ? askOpenAI : askClaude;
   let out = await fn(input);
   if (inspect && (!out.confidence || out.confidence === 'low')) out = unsureInspect(out);
+  const plan = inspect ? [] : cleanPlan(out.plan);
+  const guess = inspect ? null : toOverlay(out.target, shot);
+  const { target, snapped } = inspect || out.status === 'done' ? { target: guess, snapped: false } : await snapTarget(guess, out.element);
   return {
     status: STATUSES.includes(out.status as LookStatus) ? out.status as LookStatus : 'step',
     screenSummary: String(out.screenSummary || '').slice(0, 1000),
@@ -287,7 +343,10 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
     explain: out.explain ? String(out.explain).trim() : '',
     skill: out.skill ? String(out.skill).trim() : '',
     practiceGoal: typeof out.practiceGoal === 'string' ? out.practiceGoal.trim().slice(0, 500) : '',
-    target: inspect ? null : toOverlay(out.target, shot),
+    target,
+    snapped,
+    plan,
+    stepIndex: stepOf(out.stepIndex, plan.length ? plan : req.plan ?? []),
   };
 }
 

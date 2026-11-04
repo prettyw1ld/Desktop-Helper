@@ -3,6 +3,7 @@
 import type { Settings } from '../../shared/types';
 import { aiError, fetchAI, fetchAIRetry, readError } from './http';
 import { extraFor, fallbackModel, resolve } from './providers';
+import { SHOW_MARK, showGoal } from './show';
 
 export const CLAUDE_URL = 'https://api.anthropic.com/v1/messages';
 export { extraFor, OPENAI_PRESETS, resolve, type Resolved } from './providers';
@@ -86,6 +87,10 @@ export function systemPrompt({ userName, lang }: { userName?: string; lang?: str
     'Отвечай коротко и тепло, по-русски, если человек не пишет на другом языке.',
     'Иногда можно вставить «мяу» или «мур», но без перебора. Ответ показывается в маленьком окошке,',
     'поэтому избегай длинных простыней текста. Не используй разметку: ни звёздочек, ни решёток, ни таблиц.',
+    'Если человек спрашивает, как что-то сделать на компьютере (открыть, найти, включить, настроить, поставить таймер и т.п.),',
+    'НЕ пиши шаги текстом: ты покажешь их лапкой прямо на экране. Тогда ответь ровно одной строкой:',
+    `${SHOW_MARK} <цель коротко, своими словами человека, с подробностями>, например: ${SHOW_MARK} Поставить таймер на 5 минут в приложении Часы.`,
+    'Напоминания ставь сам инструментом, а не показом.',
     userName ? `Пользователя зовут ${userName}.` : '',
     `Сейчас: ${now}.`,
   ];
@@ -96,6 +101,10 @@ export function systemPrompt({ userName, lang }: { userName?: string; lang?: str
     'Answer briefly and kindly, in English unless the user writes in another language.',
     'You may add a "meow" or "purr" now and then, but not too often. Replies are shown in a small window,',
     'so avoid long walls of text and complex formatting.',
+    'If the person asks how to do something on the computer (open, find, turn on, set up, start a timer, etc.),',
+    'do NOT write the steps: you will show them with your paw right on the screen. Then answer with exactly one line:',
+    `${SHOW_MARK} <the goal, short, with details>, e.g. ${SHOW_MARK} Set a 5 minute timer in the Clock app.`,
+    'Set reminders yourself with the tool, not by showing.',
     userName ? `The user's name is ${userName}.` : '',
     `Now: ${now}.`,
   ];
@@ -126,7 +135,7 @@ interface AskInput {
   tools: ChatTools;
   system: string;
 }
-interface AskOutput { reply: string; actions: string[] }
+interface AskOutput { reply: string; actions: string[]; show?: string }
 
 // ---------- Claude ----------
 interface ClaudeBlock { type: string; text?: string; id?: string; name?: string; input?: unknown }
@@ -239,10 +248,14 @@ export async function ask(opts: AskOptions): Promise<AskOutput & { history: Chat
   };
   const fn = r.kind === 'ollama' ? askOllama : r.kind === 'openai' ? askOpenAI : askClaude;
   const { reply, actions } = await fn(input);
-  const text = reply || (opts.lang === 'en' ? 'Purr!' : 'Мур!');
+  const show = showGoal(reply);
+  const text = show
+    ? (opts.lang === 'en' ? `I'll show you on the screen: ${show}` : `Сейчас покажу на экране: ${show}`)
+    : reply || (opts.lang === 'en' ? 'Purr!' : 'Мур!');
   return {
     reply: text,
     actions,
+    show,
     history: [...opts.history, { role: 'user', content: opts.text }, { role: 'assistant', content: text }],
   };
 }
