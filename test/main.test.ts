@@ -41,17 +41,17 @@ test('macOS fallback returns JSON from its run handler and skips the sharing con
   const props = (title: string, w: number, h: number) => ({
     name: () => title, position: () => [188, 188], size: () => [w, h], attributes: { byName: () => ({ value: () => false }) },
   });
-  const folder = { ...props('', 96, 18), role: () => 'AXTextField', description: () => '', title: () => '', value: () => 'Мои открытки', focused: () => false };
+  const folder = { ...props('', 96, 18), role: () => 'AXTextField', description: () => '', title: () => '', value: () => 'Мои заметки', focused: () => false };
   const actual = { ...props('Пушик — учимся работать с файлами', 920, 464), entireContents: () => [folder] };
   const proc = { name: () => 'Finder', windows: () => [props('Window', 52, 20), actual] };
-  const q = { op: 'find' as const, scope: 'proc:^Finder$', firstWindow: true, name: 'Мои открытки', roles: MAC_ROLES.ListItem ?? [] };
+  const q = { op: 'find' as const, scope: 'proc:^Finder$', firstWindow: true, name: 'Мои заметки', roles: MAC_ROLES.ListItem ?? [] };
   const c = vm.createContext({ Application: () => ({ processes: { whose: () => () => [proc] } }), ObjC: { import() {} } });
   vm.runInContext(MAC_SCRIPT(q, 1), c);
   const reply: unknown = vm.runInContext('run()', c);
   assert.equal(typeof reply, 'string');
   const result = JSON.parse(reply as string);
   assert.equal(result.win.title, 'Пушик — учимся работать с файлами');
-  assert.equal(result.items[0].name.trim(), 'Мои открытки');
+  assert.equal(result.items[0].name.trim(), 'Мои заметки');
   assert.equal(result.items[0].type, 'AXTextField');
 });
 

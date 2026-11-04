@@ -36,7 +36,7 @@ test('dragging the cat by the scruff keeps the lesson and restores its current i
   assert.equal(cat.state, 'drag');
   assert.ok(dom.cat.classList.contains('dragging'));
   // пока кота несут, урок не перескакивает на следующий шаг
-  desk.top = { proc: 'Finder', title: 'Мои открытки' };
+  desk.top = { proc: 'Finder', title: 'Мои заметки' };
   mock.timers.tick(1200);
   await settle();
   assert.equal(coach.advancing, false);
@@ -50,7 +50,7 @@ test('dragging the cat by the scruff keeps the lesson and restores its current i
   // курсор держит кота за загривок: верх блока кота смещён от курсора на высоту загривка
   const expected = 230 - (CAT_H - (CAT_H - SCRUFF_Y));
   assert.equal(cat.y, Math.max(0, Math.min(expected, floorY())));
-  assert.ok(bubbleText().includes('Мои открытки'));
+  assert.ok(bubbleText().includes('Мои заметки'));
 });
 
 test('instruction stays inside the viewport as the cat moves from top to bottom', () => {

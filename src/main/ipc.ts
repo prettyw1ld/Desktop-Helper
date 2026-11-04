@@ -1,9 +1,7 @@
 // Все запросы из окна кота (preload.ts) к главному процессу.
-import { app, dialog, ipcMain, nativeImage, screen, shell, systemPreferences } from 'electron';
-import fs from 'node:fs';
-import path from 'node:path';
+import { app, dialog, ipcMain, screen, shell, systemPreferences } from 'electron';
 import { T } from '../shared/i18n';
-import type { ChatResult, ErrorReply, FilesRequest, LocateQuery, LookRequest, LookResult, Rect, ReminderKind, SaveResult, Settings, Skill } from '../shared/types';
+import type { ChatResult, ErrorReply, FilesRequest, LocateQuery, LookRequest, LookResult, Rect, ReminderKind, Settings, Skill } from '../shared/types';
 import { errorDetails, type AiError } from './ai/http';
 import * as guide from './ai/guide';
 import { ask, type ChatMessage, type ChatTools } from './ai/llm';
@@ -141,47 +139,20 @@ function registerVoice(): void {
   });
 }
 
-// ---------- Навыки и открытка за первый успех ----------
+// ---------- Навыки ----------
 function addSkill(name: unknown): Skill[] {
   const s = settings.get();
   const n = String(name || '').trim().slice(0, 300);
   if (!n) return s.skills;
   const same = (x: Skill) => x.name.toLowerCase() === n.toLowerCase();
-  const isNew = !(s.skills || []).some(same);
   const skills = (s.skills || []).filter((x) => !same(x));
   skills.push({ name: n, at: Date.now() });
-  const first = isNew && !n.startsWith('Изучено:') && !s.firstSuccessCard;
-  const card = first ? { name: n, at: Date.now() } : s.firstSuccessCard;
-  settings.save({ skills, ...(first ? { firstSuccessCard: card } : {}) });
-  if (isNew) ui.send('skill-earned', { name: n, first, card: first && card ? card : null });
+  settings.save({ skills });
   return skills;
-}
-
-async function savePostcard(data: unknown): Promise<SaveResult> {
-  if (typeof data !== 'string' || data.length > 8_000_000 || !data.startsWith('data:image/png;base64,')) {
-    return { error: 'Не удалось подготовить открытку.' };
-  }
-  const image = nativeImage.createFromDataURL(data);
-  if (image.isEmpty()) return { error: 'Открытка пуста.' };
-  const opts: Electron.SaveDialogOptions = {
-    title: 'Сохранить открытку Пушика',
-    defaultPath: path.join(app.getPath('pictures'), 'Первый успех с Пушиком.png'),
-    filters: [{ name: 'PNG', extensions: ['png'] }],
-  };
-  const win = ui.win();
-  const chosen = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts);
-  if (chosen.canceled || !chosen.filePath) return { canceled: true };
-  try {
-    fs.writeFileSync(chosen.filePath, image.toPNG());
-    return { saved: true };
-  } catch {
-    return { error: 'Не удалось сохранить файл. Выбери другую папку.' };
-  }
 }
 
 function registerSkills(): void {
   ipcMain.handle('skills:add', (_e, name: unknown) => addSkill(name));
-  ipcMain.handle('postcard:save', (_e, data: unknown) => savePostcard(data));
 }
 
 // ---------- Чат ----------

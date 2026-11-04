@@ -89,7 +89,7 @@ async function readVolume(): Promise<Volume | null> {
   return typeof res.volume === 'number' ? { volume: res.volume, muted: !!res.muted } : null;
 }
 
-const FOLDER_TITLES = { practice: 'Пушик — учимся работать с файлами', postcards: 'Мои открытки', downloads: 'Загрузки|Downloads' };
+const FOLDER_TITLES = { practice: 'Пушик — учимся работать с файлами', notes: 'Мои заметки', downloads: 'Загрузки|Downloads' };
 
 /** Выполнено ли условие шага. */
 export async function check(cond: Cond | undefined, step?: Step): Promise<boolean> {

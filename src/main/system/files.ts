@@ -15,7 +15,7 @@ export interface FileDeps {
 
 const PRACTICE_FILES: [string, string][] = [
   ['Привет от Пушика.txt', 'Привет! Это учебный файл Пушика.\nТы научился открывать документы. Мур!\n'],
-  ['Мои открытки/Открытка.txt', 'Хорошего дня!\nТвои настоящие файлы лежат в других папках.\n'],
+  ['Мои заметки/Заметка.txt', 'Хорошего дня!\nТвои настоящие файлы лежат в других папках.\n'],
 ];
 
 export function createFileActions(deps: FileDeps): (req?: Partial<FilesRequest>, owner?: BrowserWindow | null) => Promise<FilesResult> {
@@ -25,7 +25,7 @@ export function createFileActions(deps: FileDeps): (req?: Partial<FilesRequest>,
   // Учебная папка. Файлы, которые человек мог поменять, не перезаписываем.
   async function preparePractice(): Promise<string> {
     const folder = path.join(app.getPath('userData'), 'Пушик — учимся работать с файлами');
-    await fs.mkdir(path.join(folder, 'Мои открытки'), { recursive: true });
+    await fs.mkdir(path.join(folder, 'Мои заметки'), { recursive: true });
     for (const [name, text] of PRACTICE_FILES) {
       try { await fs.writeFile(path.join(folder, name), text, { flag: 'wx' }); } catch (err) {
         if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;

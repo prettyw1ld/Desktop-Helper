@@ -28,18 +28,18 @@ const startFilesLesson = async () => {
 
 test('Finder lesson waits for the right folder in Finder, not an unrelated window', async () => {
   assert.equal(await check({ filePlace: 'practice' }), true);
-  desk.top = { proc: 'TextEdit', title: 'Мои открытки' };
-  assert.equal(await check({ filePlace: 'postcards' }), false);
-  desk.top = { proc: 'Finder', title: 'Мои открытки' };
-  assert.equal(await check({ filePlace: 'postcards' }), true);
+  desk.top = { proc: 'TextEdit', title: 'Мои заметки' };
+  assert.equal(await check({ filePlace: 'notes' }), false);
+  desk.top = { proc: 'Finder', title: 'Мои заметки' };
+  assert.equal(await check({ filePlace: 'notes' }), true);
 });
 
 test('folder completion checks Finder even while the cat or another app is in front', async () => {
   api.locate = async (q) => {
     desk.requests.push(q);
-    return { win: q.op === 'window' ? { proc: 'Finder', title: 'Мои открытки' } : { proc: 'Electron', title: 'Пушик' } };
+    return { win: q.op === 'window' ? { proc: 'Finder', title: 'Мои заметки' } : { proc: 'Electron', title: 'Пушик' } };
   };
-  assert.equal(await check({ filePlace: 'postcards' }), true);
+  assert.equal(await check({ filePlace: 'notes' }), true);
   assert.equal(desk.requests[0]?.op, 'window');
   assert.equal(desk.requests[0]?.scope, 'proc:^Finder$');
 });
@@ -47,10 +47,10 @@ test('folder completion checks Finder even while the cat or another app is in fr
 test('lesson starts with opening the practice folder; duplicate completion cannot skip a step', async () => {
   await startFilesLesson();
   assert.equal(coach.i, 0);
-  assert.equal(coach.steps[0]?.find?.name, 'Мои открытки');
+  assert.equal(coach.steps[0]?.find?.name, 'Мои заметки');
   await doneClicked();
   assert.equal(coach.advancing, false); // папка ещё не открыта
-  desk.top = { proc: 'Finder', title: 'Мои открытки' };
+  desk.top = { proc: 'Finder', title: 'Мои заметки' };
   await doneClicked();
   const timer = coach.advance;
   await doneClicked();
@@ -65,7 +65,7 @@ test('lesson starts with opening the practice folder; duplicate completion canno
 
 test('stopping cancels pending advancement and a delayed lookup cannot resurrect a hint', async () => {
   await startFilesLesson();
-  desk.top = { proc: 'Finder', title: 'Мои открытки' };
+  desk.top = { proc: 'Finder', title: 'Мои заметки' };
   await doneClicked();
   stopCoach();
   mock.timers.tick(500);
@@ -96,7 +96,7 @@ test('file lessons live in «Уроки»; downloaded-file goal wins over generi
 test('a Finder control appearing after navigation shows the ring and the cat jumps to it', async () => {
   await startFilesLesson();
   assert.equal(bubbleText().includes(T('files.missing')), false);
-  desk.items = [{ name: 'Мои открытки', type: 'AXStaticText', x: 227, y: 460, w: 96, h: 18, focused: false, enabled: true, proc: 'Finder' }];
+  desk.items = [{ name: 'Мои заметки', type: 'AXStaticText', x: 227, y: 460, w: 96, h: 18, focused: false, enabled: true, proc: 'Finder' }];
   mock.timers.tick(1200); // опрос
   await settle();
   assert.equal(ringShown(), true);

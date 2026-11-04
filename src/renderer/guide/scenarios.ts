@@ -33,7 +33,7 @@ export interface Cond {
   manual?: boolean;
   volumeUp?: boolean;
   volumeMax?: boolean;
-  filePlace?: 'practice' | 'postcards' | 'downloads';
+  filePlace?: 'practice' | 'notes' | 'downloads';
   foreground?: boolean;
   drive?: boolean;
   top?: string;
@@ -82,8 +82,8 @@ const SCENARIOS: Scenario[] = [
     skill: { ru: 'Папки, файлы и поиск', en: 'Folders, files and search' },
     words: 'обучение папки файлы проводник finder',
     mac: [
-      { say: 'Нажми два раза на папку «Мои открытки».',
-        find: finder('Мои открытки', ['ListItem']), wait: { filePlace: 'postcards' },
+      { say: 'Нажми два раза на папку «Мои заметки».',
+        find: finder('Мои заметки', ['ListItem']), wait: { filePlace: 'notes' },
         hint: 'Это учебные файлы. Быстро нажми на название папки два раза.' },
       { say: 'Нажми стрелку «Назад» слева вверху.',
         find: finder('назад|back|previous'), wait: { filePlace: 'practice' },
@@ -104,8 +104,8 @@ const SCENARIOS: Scenario[] = [
         hint: 'Если предлагается искать на всём Mac, выбери учебную папку. Когда увидишь файл, нажми «Нашёл файл».' },
     ],
     win: [
-      { say: 'Это Проводник: в нём лежат папки и файлы. Нажми два раза на папку «Мои открытки».',
-        find: explorer('^Мои открытки$', ['ListItem', 'DataItem']), wait: { filePlace: 'postcards' },
+      { say: 'Это Проводник: в нём лежат папки и файлы. Нажми два раза на папку «Мои заметки».',
+        find: explorer('^Мои заметки$', ['ListItem', 'DataItem']), wait: { filePlace: 'notes' },
         hint: 'Это учебные файлы, их не жалко. Быстро нажми два раза левой кнопкой мыши.' },
       { say: 'Нажми стрелку «Назад» слева вверху окна.',
         find: explorer('^(Назад|Back)'), wait: { filePlace: 'practice' },
