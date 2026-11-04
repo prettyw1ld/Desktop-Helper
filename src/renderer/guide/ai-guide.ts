@@ -5,10 +5,10 @@ import { celebrate, showPose } from '../cat/poses';
 import { api } from '../core/api';
 import { dom } from '../core/dom';
 import { T } from '../core/i18n';
-import { setSkills } from '../core/settings';
+import { setSettings, setSkills, settings } from '../core/settings';
 import { Sound } from '../core/sound';
-import { say, type Action } from '../ui/bubble';
-import { closePanels } from '../ui/panels';
+import { hideBubble, say, type Action } from '../ui/bubble';
+import { closePanels, showPanel } from '../ui/panels';
 import { hideRing, showRing } from '../ui/ring';
 import { speak, stopSpeaking } from '../ui/speech';
 import { endGuide } from './control';
@@ -148,23 +148,43 @@ export async function look(mode: LookMode): Promise<void> {
 }
 
 /** Начать подсказки ИИ к цели. */
+/** Снимок всего экрана уходит на сервер ИИ: в первый раз спрашиваем разрешения. */
+function withShotConsent(go: () => void): void {
+  if (settings.shotConsent) { go(); return; }
+  closePanels();
+  endTrainer();
+  const text = T('shot.ask');
+  const yes = () => {
+    settings.shotConsent = true;
+    void api.saveSettings({ shotConsent: true }).then(setSettings);
+    go();
+  };
+  const no = () => { hideBubble(); showPanel('lessons'); };
+  say(text, Infinity, { guide: true, explain: T('shot.tip'), actions: [[T('shot.yes'), yes, true], [T('shot.no'), no]] });
+  speak(text);
+}
+
 export function startGuide(goal: string, mode: LookMode = 'start'): void {
   goal = String(goal || '').trim();
   if (!goal) return;
-  closePanels();
-  endTrainer();
-  Object.assign(guide, { active: true, kind: 'ai', goal, history: [], plan: [], stepIndex: 0, screenSummary: '', last: null, busy: false });
-  look(mode);
+  withShotConsent(() => {
+    closePanels();
+    endTrainer();
+    Object.assign(guide, { active: true, kind: 'ai', goal, history: [], plan: [], stepIndex: 0, screenSummary: '', last: null, busy: false });
+    look(mode);
+  });
 }
 
 /** «Я запутался» с ИИ: что сейчас на экране и как вернуться. */
 export function imLostAI(): void {
-  closePanels();
-  endTrainer();
-  if (!guide.active) Object.assign(guide, { goal: '', history: [], plan: [], stepIndex: 0, kind: 'ai' });
-  guide.active = true;
-  guide.busy = false;
-  look('confused');
+  withShotConsent(() => {
+    closePanels();
+    endTrainer();
+    if (!guide.active) Object.assign(guide, { goal: '', history: [], plan: [], stepIndex: 0, kind: 'ai' });
+    guide.active = true;
+    guide.busy = false;
+    look('confused');
+  });
 }
 
 export function initAiGuide(): void {

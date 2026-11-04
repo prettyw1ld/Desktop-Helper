@@ -44,6 +44,7 @@ export interface Settings {
   contact: string;           // кому чаще всего звонят (для урока «Позвонить»)
   voice: VoiceMode;          // offline = Vosk в самом приложении, whisper = сервис по ключу
   trustedRemote: string[];   // программы удалённого доступа, про которые человек сказал «это свои»
+  shotConsent: boolean;      // человек разрешил отправлять снимок экрана ИИ
 }
 
 export type SecretKey = 'apiKey' | 'calendarUrl' | 'sttKey' | 'groqKey' | 'deepseekKey' | 'qwenKey';
