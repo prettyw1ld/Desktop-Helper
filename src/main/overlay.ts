@@ -3,15 +3,14 @@
 import { BrowserWindow, screen } from 'electron';
 import path from 'node:path';
 import type { Rect } from '../shared/types';
-import { fitToWorkArea } from './geometry';
+import { overlayBounds, toFrame, workInFrame } from './geometry';
 import { setOnWait } from './ai/http';
 import { BUILD } from './paths';
 import * as ui from './ui';
 
 export function createWindow({ onLoad }: { onLoad?: () => void } = {}): BrowserWindow {
-  const { workArea } = screen.getPrimaryDisplay();
   const win = new BrowserWindow({
-    ...workArea,
+    ...overlayBounds(screen.getPrimaryDisplay().bounds),
     transparent: true,
     frame: false,
     resizable: false,
@@ -48,8 +47,11 @@ export function createWindow({ onLoad }: { onLoad?: () => void } = {}): BrowserW
   setOnWait((sec) => ui.send('ai-wait', sec));
   // Напоминания и прочее запускаем, когда окно готово, чтобы просроченные успели показаться котом.
   if (onLoad) win.webContents.once('did-finish-load', onLoad);
+  // где пол для кота: окно закрывает и панель задач, а гуляет кот над ней
+  const sendWork = () => { const d = screen.getPrimaryDisplay(); ui.send('work-area', workInFrame(d.workArea, d.bounds)); };
+  win.webContents.on('did-finish-load', sendWork);
 
-  const fitToScreen = () => { if (!win.isDestroyed()) win.setBounds(screen.getPrimaryDisplay().workArea); };
+  const fitToScreen = () => { if (!win.isDestroyed()) { win.setBounds(overlayBounds(screen.getPrimaryDisplay().bounds)); sendWork(); } };
   const events = ['display-metrics-changed', 'display-added', 'display-removed'] as const;
   for (const e of events) screen.on(e as 'display-added', fitToScreen);
   win.on('closed', () => {
@@ -70,11 +72,9 @@ export function toggleVisible(): void {
 
 // Экранные пиксели → координаты окна кота. Масштаб берём у того монитора, где кнопка.
 // Кнопку на другом мониторе (окно кота только на основном) не показываем: null.
-// Окно кота не заходит на панель задач, поэтому кнопку на ней показываем полоской у края окна
-// прямо над ней: кот встаёт рядом и показывает вниз, на настоящую кнопку.
 export function toOverlayRect(r: Rect, keep = false): Rect | null {
   const display = screen.getPrimaryDisplay();
   const raw = { x: r.x, y: r.y, width: r.w, height: r.h };
   const d = process.platform === 'win32' ? screen.screenToDipRect(null, raw) : raw;
-  return fitToWorkArea({ x: d.x, y: d.y, w: d.width, h: d.height }, display.workArea, display.bounds, keep);
+  return toFrame({ x: d.x, y: d.y, w: d.width, h: d.height }, display.bounds, keep);
 }

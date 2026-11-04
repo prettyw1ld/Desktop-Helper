@@ -1,5 +1,5 @@
 // «Объясни, что это»: вырезаем из снимка экрана область, которую обвёл человек.
-// Координаты выделения — точки (DIP) окна кота, то есть рабочей области основного экрана.
+// Координаты выделения — точки (DIP) окна кота, то есть всего основного экрана.
 import type { NativeImage } from 'electron';
 import type { Rect } from '../../shared/types';
 import type { Shot } from './guide';
@@ -9,7 +9,7 @@ export function selectionBox(shot: Pick<Shot, 'w' | 'h' | 'display'>, selection:
     throw new Error('Обведи элемент вместе с его названием.');
   }
   const d = shot.display;
-  const wa = d.workArea;
+  const wa = d.bounds; // окно кота начинается в углу экрана
   const b = d.bounds;
   const sx = shot.w / d.size.width;
   const sy = shot.h / d.size.height;

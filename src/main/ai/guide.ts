@@ -7,7 +7,7 @@ import { CLAUDE_URL, cleanReply, extraFor, pickModel, resolve } from './llm';
 import { cropSelection, INSPECT_PROMPT, INSPECT_SYSTEM } from './screen-region';
 import { boxUnits, cleanPlan, formatMarks, pickMark, stepOf, type ElementHint, type Mark } from './show';
 import { guideLog } from './guide-log';
-import { fitToWorkArea } from '../geometry';
+import { toFrame } from '../geometry';
 import * as locate from '../system/locate';
 import type { LocateItem } from '../../shared/types';
 
@@ -208,7 +208,7 @@ function toOverlay(box: Partial<Rect> | undefined, shot: Shot): Rect | null {
   const ky = display.size.height / (normalized ? 1000 : shot.h);
   const r = { x: x! * kx + display.bounds.x, y: y! * ky + display.bounds.y, w: w! * kx, h: h! * ky };
   if (r.w < 4 || r.h < 4) return null;
-  return fitToWorkArea(r, display.workArea, display.bounds);
+  return toFrame(r, display.bounds);
 }
 
 // ---------- Элементы экрана от системы (Windows UI Automation) ----------
@@ -237,7 +237,7 @@ async function screenMarks(shot: Promise<Shot>): Promise<Mark[]> {
     const k = sw / display.size.width;
     const inShot = { x: Math.round((d.x - display.bounds.x) * k), y: Math.round((d.y - display.bounds.y) * k), w: Math.round(d.width * k), h: Math.round(d.height * k) };
     if (inShot.x + inShot.w / 2 < 0 || inShot.y + inShot.h / 2 < 0 || inShot.x + inShot.w / 2 > sw || inShot.y + inShot.h / 2 > sh) continue;
-    const overlay = fitToWorkArea({ x: d.x, y: d.y, w: d.width, h: d.height }, display.workArea, display.bounds);
+    const overlay = toFrame({ x: d.x, y: d.y, w: d.width, h: d.height }, display.bounds);
     if (!overlay) continue;
     marks.push({ id: marks.length + 1, name: it.name, type: it.type, area: it.area || '', shot: inShot, overlay });
   }
@@ -438,8 +438,8 @@ export function watch({ masks = [], onChange }: { masks?: Rect[]; onChange: () =
       const { bmp } = small;
       const size = { width: small.w, height: small.h };
       const k = size.width / display.size.width;
-      const offX = display.workArea.x - display.bounds.x;
-      const offY = display.workArea.y - display.bounds.y;
+      const offX = 0; // окно кота начинается в углу экрана
+      const offY = 0;
       const masked = (x: number, y: number) => masks.some((m) => {
         const mx = (m.x + offX) * k;
         const my = (m.y + offY) * k;

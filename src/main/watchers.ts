@@ -35,8 +35,8 @@ export function startWindowsWatch(): void {
   if (!settings.get().windows) return;
   const toDip = (r: Electron.Rectangle) => (process.platform === 'win32' ? screen.screenToDipRect(null, r) : r);
   windowsWatch.start((list) => {
-    // переводим в координаты нашего окна (оно занимает рабочую область основного экрана)
-    const wa = screen.getPrimaryDisplay().workArea;
+    // переводим в координаты нашего окна (оно занимает весь основной экран)
+    const wa = screen.getPrimaryDisplay().bounds;
     ui.send('windows', list.map(([id, x, y, w, h]) => [id, x - wa.x, y - wa.y, w, h]));
   }, toDip);
 }

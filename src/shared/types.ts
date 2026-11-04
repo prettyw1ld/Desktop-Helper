@@ -196,11 +196,12 @@ export interface PushikEvents {
   'screen-changed': undefined;
   'ai-wait': number;
   'skill-earned': SkillEarned;
+  'work-area': Rect;   // где пол и стены для кота внутри окна (без панели задач)
 }
 export type PushikEvent = keyof PushikEvents;
 export const PUSHIK_EVENTS: PushikEvent[] = [
   'reminder', 'reminders-changed', 'open', 'settings-changed', 'calendar-soon', 'calendar-changed',
-  'windows', 'screen-changed', 'ai-wait', 'skill-earned',
+  'windows', 'screen-changed', 'ai-wait', 'skill-earned', 'work-area',
 ];
 
 /** Мост preload.ts: что окно кота может попросить у главного процесса. */

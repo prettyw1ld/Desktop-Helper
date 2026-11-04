@@ -9,7 +9,7 @@ import { createFileActions } from '../src/main/system/files';
 import { MAC_ROLES, MAC_SCRIPT, WIN_SCRIPT } from '../src/main/system/locate';
 import { extraFor, fallbackModel, resolve } from '../src/main/ai/providers';
 import { cleanPlan, formatMarks, pickMark, showGoal, stepOf, boxUnits, type Mark } from '../src/main/ai/show';
-import { fitToWorkArea } from '../src/main/geometry';
+import { overlayBounds, toFrame, workInFrame } from '../src/main/geometry';
 import { aiKey } from '../src/shared/types';
 import { goalFromHowTo, isHowTo, vagueGoal } from '../src/shared/howto';
 
@@ -116,14 +116,15 @@ test('precise paw: the AI picks a system element by number; otherwise the named 
   assert.equal(boxUnits({ x: 1100, y: 500, w: 120, h: 40 }, 1024, 576), 'px');
 });
 
-test('buttons on the taskbar are shown at the edge of the cat window, other monitors are skipped', () => {
-  const wa = { x: 0, y: 0, width: 1920, height: 1032 };
-  const bounds = { x: 0, y: 0, width: 1920, height: 1080 };
-  assert.deepEqual(fitToWorkArea({ x: 100, y: 200, w: 50, h: 40 }, wa, bounds), { x: 100, y: 200, w: 50, h: 40 });
-  // «Поиск» на панели задач внизу: полоска у нижнего края окна прямо над кнопкой
-  assert.deepEqual(fitToWorkArea({ x: 110, y: 1040, w: 210, h: 36 }, wa, bounds), { x: 110, y: 1004, w: 210, h: 28 });
-  assert.equal(fitToWorkArea({ x: 2100, y: 300, w: 50, h: 40 }, wa, bounds), null, 'second monitor');
-  assert.deepEqual(fitToWorkArea({ x: 2100, y: 300, w: 50, h: 40 }, wa, bounds, true), { x: 2100, y: 300, w: 50, h: 40 });
+test('the cat window covers the taskbar, so a taskbar button is highlighted where it really is', () => {
+  const bounds = { x: 0, y: 0, width: 1883, height: 1059 };
+  const work = { x: 0, y: 0, width: 1883, height: 1012 };
+  // «Поиск» у Дамира: 675,1040 220x32 в пикселях экрана → 661,1020 в точках (масштаб 1.02)
+  assert.deepEqual(toFrame({ x: 661.8, y: 1019.6, w: 215.7, h: 31.4 }, bounds), { x: 662, y: 1020, w: 216, h: 31 });
+  assert.equal(toFrame({ x: 2100, y: 300, w: 50, h: 40 }, bounds), null, 'second monitor');
+  assert.deepEqual(toFrame({ x: 2100, y: 300, w: 50, h: 40 }, bounds, true), { x: 2100, y: 300, w: 50, h: 40 });
+  assert.deepEqual(workInFrame(work, bounds), { x: 0, y: 0, w: 1883, h: 1012 }, 'the cat still walks above the taskbar');
+  assert.deepEqual(overlayBounds(bounds), { x: 0, y: 0, width: 1883, height: 1058 }, 'one pixel short of full screen');
 });
 
 test('"show me how…" requests are recognised without the AI; small talk is not', () => {

@@ -69,8 +69,15 @@ export const CAT_H = 140;
 export const SCRUFF_Y = CAT_H - 192 + 14 * 3;
 export const G = 2200; // гравитация, px/с²
 
-export const W = (): number => window.innerWidth;
-export const H = (): number => window.innerHeight;
+// Окно закрывает весь экран вместе с панелью задач; кот живёт в рабочей области над ней.
+// work приходит из главного процесса; пока не пришло — всё окно.
+const work = { right: 0, bottom: 0 };
+export function setWorkArea(r: { x: number; y: number; w: number; h: number }): void {
+  work.right = Math.max(0, r.x + r.w);
+  work.bottom = Math.max(0, r.y + r.h);
+}
+export const W = (): number => Math.min(window.innerWidth, work.right || window.innerWidth);
+export const H = (): number => Math.min(window.innerHeight, work.bottom || window.innerHeight);
 export const size = (): number => Number(settings.size) || 1;
 export const floorY = (): number => H() - CAT_H;
 export const cx = (): number => cat.x + CAT_W / 2;                 // центр кота по горизонтали

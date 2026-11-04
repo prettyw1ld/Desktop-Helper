@@ -4,7 +4,7 @@
 import { greeting, resetBreakTimer, scheduleChatter } from './app/care';
 import { initTrayCommands } from './app/tray-commands';
 import { startLoop } from './cat/behaviour';
-import { cat, floorY, setState, W } from './cat/cat';
+import { cat, floorY, setState, setWorkArea, W } from './cat/cat';
 import { initCursorWatch } from './cat/cursor-watch';
 import { refreshPlatforms, setWindows } from './cat/platforms';
 import { api } from './core/api';
@@ -45,6 +45,7 @@ async function start(): Promise<void> {
   initTrayCommands();
   afterFirstTraining(startTourOnce);
   api.on('windows', (list) => setWindows(list));
+  api.on('work-area', (r) => setWorkArea(r));
   window.addEventListener('resize', () => { cat.y = Math.min(cat.y, floorY()); refreshPlatforms(); });
 
   setSettings(await api.getSettings());

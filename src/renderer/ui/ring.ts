@@ -1,6 +1,5 @@
 // Рамка вокруг кнопки, на которую показывает кот, и клубок, который катится от кота к ней.
 import type { Rect } from '../../shared/types';
-import { H, W } from '../cat/cat';
 import { dom } from '../core/dom';
 
 const { ring } = dom;
@@ -18,8 +17,9 @@ export function showRing(t: Rect | null | undefined): void {
   // рамку держим в пределах экрана: у развёрнутых окон края уходят за экран
   const x1 = Math.max(2, t.x - pad);
   const y1 = Math.max(2, t.y - pad);
-  const x2 = Math.min(W() - 2, t.x + t.w + pad);
-  const y2 = Math.min(H() - 2, t.y + t.h + pad);
+  // рамка может лечь и на панель задач: ограничиваем всем окном, а не рабочей областью
+  const x2 = Math.min(innerWidth - 2, t.x + t.w + pad);
+  const y2 = Math.min(innerHeight - 2, t.y + t.h + pad);
   if (x2 - x1 < 8 || y2 - y1 < 8) { hideRing(); return; }
   Object.assign(ring.style, { left: `${x1}px`, top: `${y1}px`, width: `${x2 - x1}px`, height: `${y2 - y1}px` });
   ring.classList.remove('hidden');
