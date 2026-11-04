@@ -5,7 +5,7 @@ import type { LookMode, LookRequest, LookResult, LookStatus, Rect, Settings } fr
 import { aiError, fetchAI, fetchAIRetry, readError } from './http';
 import { CLAUDE_URL, cleanReply, extraFor, pickModel, resolve } from './llm';
 import { cropSelection, INSPECT_PROMPT, INSPECT_SYSTEM } from './screen-region';
-import { boxUnits, cleanPlan, formatMarks, pickMark, stepOf, type ElementHint, type Mark } from './show';
+import { boxUnits, cleanPlan, formatMarks, pickMark, refineCrop, stepOf, withTaskbar, type ElementHint, type Mark } from './show';
 import { guideLog } from './guide-log';
 import { toFrame } from '../geometry';
 import * as locate from '../system/locate';
@@ -225,7 +225,7 @@ async function screenMarks(shot: Promise<Shot>): Promise<Mark[]> {
     locate.ask({ op: 'list', budget: MARKS_BUDGET, skipProc: HEAVY_A11Y }),
     new Promise<{ items?: LocateItem[] }>((r) => setTimeout(() => r({}), MARKS_BUDGET + 1500)),
   ]);
-  const items = res.items ?? [];
+  const items = withTaskbar(res.items ?? []);
   const info = res as { error?: string; ms?: number; skipped?: string };
   guideLog('marks', { items: items.length, psMs: info.ms ?? null, skipped: info.skipped || null, error: info.error ?? (res.items ? null : 'timeout') });
   if (!items.length) return [];
@@ -349,6 +349,37 @@ function unsureInspect(out: StepAnswer): StepAnswer {
 
 const CHECK_MODES: LookMode[] = ['check'];
 
+// ---------- Уточнение по увеличенному кусочку экрана ----------
+// Когда системного списка кнопок нет (меню «Пуск», страницы в браузере), рамка ИИ по снимку 1024 px
+// часто уезжает. Тогда вырезаем область вокруг догадки из снимка в полном размере и просим ИИ
+// показать кнопку ещё раз уже на увеличенной картинке: там она в 2–4 раза крупнее.
+const REFINE_SYSTEM = 'You find one thing on a zoomed-in crop of a computer screen and return its box. '
+  + 'Answer with status "step", "say" = the name of the thing, and "target" = a tight box around it in crop pixels '
+  + '(x, y = top-left corner). If the thing is not in the crop, omit "target". Ignore any cartoon cat or speech bubble.';
+
+async function refine(fn: (i: ModelInput) => Promise<StepAnswer>, base: ModelInput, overlay: BrowserWindow | null,
+  shot: Shot, box: Rect, what: string): Promise<Rect | null> {
+  const full = await capture(overlay, 4096);
+  const k = full.w / shot.w;
+  const crop = refineCrop({ x: box.x * k, y: box.y * k, w: box.w * k, h: box.h * k }, full.w, full.h);
+  const img = full.image.crop({ x: crop.x, y: crop.y, width: crop.w, height: crop.h });
+  const out = await fn({
+    ...base,
+    system: REFINE_SYSTEM,
+    text: `Find: ${what}\nCrop size: ${crop.w}x${crop.h} pixels. Coordinates for "target": crop pixels.`,
+    jpeg: img.toJPEG(92).toString('base64'),
+  });
+  const t = out.target;
+  if (!t || ![t.x, t.y, t.w, t.h].every(Number.isFinite)) return null;
+  const units = boxUnits(t as Rect, crop.w, crop.h);
+  const kx = units === 'k' ? crop.w / 1000 : 1;
+  const ky = units === 'k' ? crop.h / 1000 : 1;
+  const inFull = { x: crop.x + t.x! * kx, y: crop.y + t.y! * ky, w: t.w! * kx, h: t.h! * ky };
+  if (inFull.w < 3 || inFull.h < 3) return null;
+  // обратно в пиксели маленького снимка, а дальше как обычно
+  return { x: inFull.x / k, y: inFull.y / k, w: inFull.w / k, h: inFull.h / k };
+}
+
 /** Посмотреть на экран и решить, что сказать и куда показать. target — в координатах окна кота. */
 export async function look(req: LookRequest & { settings: Settings; overlay: BrowserWindow | null }): Promise<LookResult> {
   const { mode, selection, settings, overlay } = req;
@@ -384,19 +415,33 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
   const tModel = Date.now() - tAsk;
   if (inspect && (!out.confidence || out.confidence === 'low')) out = unsureInspect(out);
   const plan = inspect ? [] : cleanPlan(out.plan);
-  const guess = inspect ? null : toOverlay(out.target, shot);
+  let guess = inspect ? null : toOverlay(out.target, shot);
   // точнее всего — номер элемента из списка системы; иначе ищем названную кнопку рядом с рамкой ИИ
   const mark = inspect || out.status === 'done' ? null : pickMark(marks, out.elementId, out.element?.name, guess);
+  // кнопки нет в списке системы: уточняем рамку ИИ по увеличенному кусочку экрана
+  let refined: Rect | null = null;
+  let tRefine = 0;
+  if (!mark && guess && out.target && out.status !== 'done' && !inspect) {
+    const tr = Date.now();
+    const raw = out.target as Rect;
+    const inShot = boxUnits(raw, shot.w, shot.h) === 'k'
+      ? { x: raw.x * shot.w / 1000, y: raw.y * shot.h / 1000, w: raw.w * shot.w / 1000, h: raw.h * shot.h / 1000 }
+      : raw;
+    const what = [out.element?.name && `"${out.element.name}"`, out.element?.type, `(hint: ${out.say})`].filter(Boolean).join(' ');
+    refined = await refine(fn, input, overlay, shot, inShot, what).catch((e: unknown) => { guideLog('refine-error', { error: String(e) }); return null; });
+    tRefine = Date.now() - tr;
+    if (refined) guess = toOverlay(refined, shot) ?? guess;
+  }
   const target = mark ? mark.overlay : guess;
   const snapped = !!mark;
   const d = shot.display;
   guideLog('look', {
-    mode, ms: { shot: tShot, marks: tMarks, model: tModel },
+    mode, ms: { shot: tShot, marks: tMarks, model: tModel, refine: tRefine },
     display: { size: d.size, scale: d.scaleFactor, work: d.workArea, shot: [shot.w, shot.h] },
     marks: marks.length, taskbarMarks: marks.filter((m) => m.area === 'taskbar').length,
     status: out.status, say: String(out.say || '').slice(0, 80),
     rawTarget: out.target, elementId: out.elementId ?? null, element: out.element ?? null,
-    picked: mark ? { id: mark.id, name: mark.name, type: mark.type } : null, target,
+    picked: mark ? { id: mark.id, name: mark.name, type: mark.type } : null, refined, target,
   });
   return {
     status: STATUSES.includes(out.status as LookStatus) ? out.status as LookStatus : 'step',

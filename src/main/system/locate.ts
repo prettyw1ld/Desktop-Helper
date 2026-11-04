@@ -33,6 +33,17 @@ public static class PushTop {
   // Настоящие пиксели на любом экране и масштабе (125%, 150%, два монитора). Старые Windows: как раньше.
   public static void Init() { try { if (SetProcessDpiAwarenessContext(new IntPtr(-4))) return; } catch { } SetProcessDPIAware(); }
   public static long Tray() { return FindWindow("Shell_TrayWnd", null).ToInt64(); }
+  // Меню «Пуск», поиск и панели Windows 11 живут в особом слое окон: среди детей корня UI Automation
+  // их нет. Находим их напрямую по классу окна; открытое = видимое и не «спрятанное» (cloaked).
+  public static long[] Immersive() {
+    var res = new List<long>();
+    IntPtr h = IntPtr.Zero;
+    while ((h = FindWindowEx(IntPtr.Zero, h, "Windows.UI.Core.CoreWindow", null)) != IntPtr.Zero) {
+      int cloaked;
+      if (IsWindowVisible(h) && !(DwmGetWindowAttribute(h, 14, out cloaked, 4) == 0 && cloaked != 0)) res.Add(h.ToInt64());
+    }
+    return res.ToArray();
+  }
   // Значки рабочего стола: список внутри Progman (или WorkerW, если включены обои-слайдшоу)
   [DllImport("user32.dll")] static extern IntPtr FindWindowEx(IntPtr p, IntPtr after, string cls, string title);
   public static long Desktop() {
@@ -189,16 +200,10 @@ function Roots($scope) {
     if ($h -ne 0) { $roots += ,@($AE::FromHandle([IntPtr]$h), 'explorer') }
   } elseif ($scope -eq 'start') {
     # меню «Пуск» и поиск Windows 10/11
-    $cond = New-Object System.Windows.Automation.PropertyCondition($AE::ClassNameProperty, 'Windows.UI.Core.CoreWindow')
-    foreach ($el in $AE::RootElement.FindAll($TS::Children, $cond)) {
-      if (-not $el.Current.IsOffscreen) { $roots += ,@($el, 'start') }
-    }
+    foreach ($ih in [PushTop]::Immersive()) { $roots += ,@($AE::FromHandle([IntPtr]$ih), 'start') }
   } elseif ($scope -eq 'popup') {
     # всплывающие панели Windows (громкость, быстрые настройки) и верхнее окно (Параметры)
-    $cond = New-Object System.Windows.Automation.PropertyCondition($AE::ClassNameProperty, 'Windows.UI.Core.CoreWindow')
-    foreach ($el in $AE::RootElement.FindAll($TS::Children, $cond)) {
-      if (-not $el.Current.IsOffscreen) { $roots += ,@($el, 'popup') }
-    }
+    foreach ($ih in [PushTop]::Immersive()) { $roots += ,@($AE::FromHandle([IntPtr]$ih), 'popup') }
     $w = Wins 1
     if ($w.Count) { $roots += ,$w[0] }
   } elseif ($scope -eq 'top') {
@@ -243,7 +248,8 @@ function Find($q) {
       if ($q.name -and -not ($c.Name -match $q.name -or $c.AutomationId -match $q.name)) { continue }
       $r = Rect $el
       if (-not $r) { continue }
-      if (-not (Visible $el $r)) { continue }
+      # «Пуск» и панели Windows 11 сверху всех, но проверка «что под точкой» их не видит: им не проверяем
+      if ($root[1] -ne 'start' -and $root[1] -ne 'popup' -and -not (Visible $el $r)) { continue }
       $r.name = $c.Name
       $r.type = $c.ControlType.ProgrammaticName -replace 'ControlType\\.', ''
       $r.focused = $c.HasKeyboardFocus
@@ -308,10 +314,7 @@ function ListAll($q) {
   $roots = @()
   $h = [PushTop]::Tray()
   if ($h -ne 0) { $roots += ,@($AE::FromHandle([IntPtr]$h), 'taskbar') }
-  $cond = New-Object System.Windows.Automation.PropertyCondition($AE::ClassNameProperty, 'Windows.UI.Core.CoreWindow')
-  foreach ($el in $AE::RootElement.FindAll($TS::Children, $cond)) {
-    if (-not $el.Current.IsOffscreen) { $roots += ,@($el, 'popup') }
-  }
+  foreach ($ih in [PushTop]::Immersive()) { $roots += ,@($AE::FromHandle([IntPtr]$ih), 'popup') }
   # Браузеры и программы на Chromium/Electron от обхода включают у себя полную «доступность»
   # и начинают тормозить вместе со всей системой. Их окна не обходим: там кот показывает по рамке ИИ.
   $skipped = ''

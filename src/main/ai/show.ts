@@ -1,4 +1,5 @@
 // Показ на экране вместо текста: разбор ответов модели. Без electron, чтобы легко проверять в тестах.
+import type { LocateItem } from '../../shared/types';
 
 // Метка в ответе чата: «не отвечай текстом, а покажи на экране».
 export const SHOW_MARK = '[SHOW]';
@@ -85,4 +86,28 @@ export function stepOf(index: unknown, plan: string[]): number {
 export function cleanPlan(plan: unknown): string[] {
   if (!Array.isArray(plan)) return [];
   return plan.map((s) => String(s ?? '').replace(/^\s*\d+[.)]\s*/, '').trim().slice(0, 160)).filter(Boolean).slice(0, 12);
+}
+
+/**
+ * Какой кусочек снимка в полном размере показать ИИ для уточнения: вокруг его рамки,
+ * в 3 раза больше неё, но не меньше 560×380 и не больше 900×600, целиком внутри экрана.
+ */
+export function refineCrop(box: Box, fullW: number, fullH: number): Box {
+  const cx = box.x + box.w / 2;
+  const cy = box.y + box.h / 2;
+  const w = Math.round(Math.min(fullW, Math.max(560, Math.min(900, box.w * 3))));
+  const h = Math.round(Math.min(fullH, Math.max(380, Math.min(600, box.h * 3))));
+  const x = Math.round(Math.max(0, Math.min(fullW - w, cx - w / 2)));
+  const y = Math.round(Math.max(0, Math.min(fullH - h, cy - h / 2)));
+  return { x, y, w, h };
+}
+
+// Пока открыт «Пуск», Windows не отдаёт кнопки панели задач, хотя они на виду.
+// Берём их из прошлого списка (панель задач почти не меняется), чтобы кот мог показать и туда.
+let lastTaskbar: { items: LocateItem[]; at: number } | null = null;
+export function withTaskbar(items: LocateItem[], now = Date.now()): LocateItem[] {
+  const bar = items.filter((it) => it.area === 'taskbar');
+  if (bar.length) { lastTaskbar = { items: bar, at: now }; return items; }
+  if (!items.length || !lastTaskbar || now - lastTaskbar.at > 10 * 60_000) return items;
+  return [...lastTaskbar.items, ...items];
 }

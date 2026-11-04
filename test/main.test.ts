@@ -8,7 +8,7 @@ import vm from 'node:vm';
 import { createFileActions } from '../src/main/system/files';
 import { MAC_ROLES, MAC_SCRIPT, WIN_SCRIPT } from '../src/main/system/locate';
 import { extraFor, fallbackModel, resolve } from '../src/main/ai/providers';
-import { cleanPlan, formatMarks, pickMark, showGoal, stepOf, boxUnits, type Mark } from '../src/main/ai/show';
+import { cleanPlan, formatMarks, pickMark, refineCrop, showGoal, stepOf, boxUnits, withTaskbar, type Mark } from '../src/main/ai/show';
 import { overlayBounds, toFrame, workInFrame } from '../src/main/geometry';
 import { aiKey } from '../src/shared/types';
 import { goalFromHowTo, isHowTo, vagueGoal } from '../src/shared/howto';
@@ -166,4 +166,32 @@ test('Windows locator runs from a script file, so its size never hits the comman
   assert.match(src, /'-File', scriptFile\(\)/);
   const ps = WIN_SCRIPT(1);
   for (const op of ['shot', 'grid', 'list']) assert.match(ps, new RegExp(`\\$q\\.op -eq '${op}'`));
+});
+
+test('zoom-in crop for refining the AI box stays around the guess and inside the screen', () => {
+  // поле поиска в «Пуске» у Дамира: рамка ИИ в полном снимке 1920×1080
+  const c = refineCrop({ x: 951, y: 521, w: 484, h: 26 }, 1920, 1080);
+  assert.deepEqual(c, { x: 743, y: 344, w: 900, h: 380 });
+  const edge = refineCrop({ x: 1900, y: 1060, w: 20, h: 20 }, 1920, 1080);
+  assert.deepEqual(edge, { x: 1360, y: 700, w: 560, h: 380 }, 'clamped to the corner');
+});
+
+test('Start menu and Search are found by window class, not among UI Automation root children', () => {
+  const ps = WIN_SCRIPT(1);
+  // Windows 11 держит «Пуск» и поиск в особом слое окон: RootElement их не показывает
+  assert.match(ps, /FindWindowEx\(IntPtr\.Zero, h, "Windows\.UI\.Core\.CoreWindow", null\)/);
+  assert.doesNotMatch(ps, /RootElement\.FindAll\(\$TS::Children, \$cond\)/);
+  const list = ps.slice(ps.indexOf('function ListAll'), ps.indexOf('function Volume'));
+  assert.match(list, /\[PushTop\]::Immersive\(\)/);
+  const find = ps.slice(ps.indexOf('function Find'), ps.indexOf('function ListAll'));
+  assert.match(find, /\$root\[1\] -ne 'start' -and \$root\[1\] -ne 'popup' -and -not \(Visible/, 'point check skips the top layer');
+});
+
+test('taskbar buttons stay pointable while Start hides them from UI Automation', () => {
+  const it = (name: string, area: string) => ({ name, type: 'Button', area, x: 0, y: 0, w: 10, h: 10, enabled: true, focused: false, proc: '' });
+  const closed = withTaskbar([it('Пуск', 'taskbar'), it('Поиск', 'taskbar')], 1000);
+  assert.equal(closed.length, 2);
+  const open = withTaskbar([it('Часы', 'popup')], 2000);
+  assert.deepEqual(open.map((x) => x.name), ['Пуск', 'Поиск', 'Часы']);
+  assert.equal(withTaskbar([it('Часы', 'popup')], 2000 + 11 * 60_000).length, 1, 'old taskbar is forgotten');
 });
