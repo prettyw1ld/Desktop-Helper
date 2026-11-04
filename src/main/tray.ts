@@ -1,5 +1,6 @@
 // Значок в трее и его меню.
-import { app, Menu, nativeImage, Tray, type MenuItemConstructorOptions } from 'electron';
+import { app, Menu, nativeImage, shell, Tray, type MenuItemConstructorOptions } from 'electron';
+import { logFile } from './ai/guide-log';
 import path from 'node:path';
 import { T } from '../shared/i18n';
 import * as autostart from './autostart';
@@ -36,6 +37,8 @@ export function rebuildMenu(): void {
   items.push(
     { type: 'separator' },
     { label: T('tray.toggle'), click: toggleVisible },
+    // для команды: что делал помощник (тайминги, куда показал), чтобы разбирать промахи и тормоза
+    ...(settings.hasAi(s) ? [{ label: T('tray.log'), click: () => { void shell.openPath(logFile()); } }] : []),
     { label: T('tray.quit'), click: () => app.quit() },
   );
   ui.state.tray.setContextMenu(Menu.buildFromTemplate(items));

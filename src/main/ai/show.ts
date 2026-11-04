@@ -63,8 +63,15 @@ export function pickMark(marks: Mark[], id: unknown, name = '', guess: Box | nul
   return bestD <= maxDist ? best : null;
 }
 
-/** Модели Qwen с зрением обучены давать рамки в долях 0..1000, а не в пикселях снимка. */
-export const usesNormalizedBoxes = (model: string): boolean => /qwen/i.test(model);
+/**
+ * В чём модель дала рамку. Просим пиксели снимка, но Qwen и некоторые другие по привычке
+ * отвечают в долях 0..1000. Если рамка вылезает за снимок, но влезает в 1000×1000, это доли.
+ */
+export function boxUnits(box: Box, shotW: number, shotH: number): 'px' | 'k' {
+  const outside = box.x + box.w > shotW * 1.02 || box.y + box.h > shotH * 1.02;
+  const fitsK = box.x >= 0 && box.y >= 0 && box.x + box.w <= 1000 && box.y + box.h <= 1000;
+  return outside && fitsK ? 'k' : 'px';
+}
 
 /** Номер шага в плане: целое от 1 до длины плана, иначе 0 (не показываем «Шаг N из M»). */
 export function stepOf(index: unknown, plan: string[]): number {

@@ -133,6 +133,7 @@ export interface LocateQuery {
   enabled?: boolean;
   firstWindow?: boolean;
   budget?: number;      // list: сколько миллисекунд можно искать
+  skipProc?: string;    // list: регулярка программ, чьи окна не обходить
 }
 
 export interface LocateItem extends Rect {

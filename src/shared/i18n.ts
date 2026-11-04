@@ -65,7 +65,7 @@ const STR: Record<Lang, Dict> = {
     'greet.day': 'Привет{name}! Я Пуш. Кликни по мне 🐾', 'greet.evening': 'Добрый вечер{name}! Мур 🌆',
     // главный процесс
     'tray.call': 'Позвать Пуша', 'tray.chat': 'Чат с Пушем', 'tray.reminders': 'Напоминания',
-    'tray.settings': 'Настройки', 'tray.toggle': 'Спрятать / показать', 'tray.quit': 'Выход',
+    'tray.settings': 'Настройки', 'tray.log': 'Журнал подсказок', 'tray.toggle': 'Спрятать / показать', 'tray.quit': 'Выход',
     'notif.focus': 'Пуш: фокус-сессия закончилась', 'notif.reminder': 'Пуш напоминает', 'notif.calendar': 'Пуш: скоро встреча',
     'rem.default': 'Напоминание',
     'err.noKey': 'Мяу! ИИ пока не подключён, поэтому свободно болтать я не умею. Зато помогу по «Урокам» 🐾',
@@ -263,7 +263,7 @@ const STR: Record<Lang, Dict> = {
     'greet.night': 'Can\'t sleep{name}? I am here 🌙', 'greet.morning': 'Good morning{name}! Meow ☀️',
     'greet.day': 'Hi{name}! I am Push. Click me 🐾', 'greet.evening': 'Good evening{name}! Purr 🌆',
     'tray.call': 'Call Push', 'tray.chat': 'Chat with Push', 'tray.reminders': 'Reminders',
-    'tray.settings': 'Settings', 'tray.toggle': 'Hide / show', 'tray.quit': 'Quit',
+    'tray.settings': 'Settings', 'tray.log': 'Hint log', 'tray.toggle': 'Hide / show', 'tray.quit': 'Quit',
     'notif.focus': 'Push: focus session is over', 'notif.reminder': 'Push reminds you', 'notif.calendar': 'Push: meeting soon',
     'rem.default': 'Reminder',
     'err.noKey': 'Meow! AI is not connected yet, so I cannot chat freely. But I can help with the Lessons 🐾',
