@@ -123,7 +123,7 @@ export interface LookResult {
 export interface ChatResult { reply: string; actions: string[]; show?: string }
 
 // ---------- Поиск кнопок через «доступность» ----------
-export type LocateOp = 'find' | 'top' | 'window' | 'drives' | 'volume';
+export type LocateOp = 'find' | 'top' | 'window' | 'drives' | 'volume' | 'list';
 
 export interface LocateQuery {
   op: LocateOp;
@@ -132,6 +132,7 @@ export interface LocateQuery {
   types?: string[];     // Button, Edit, ListItem…
   enabled?: boolean;
   firstWindow?: boolean;
+  budget?: number;      // list: сколько миллисекунд можно искать
 }
 
 export interface LocateItem extends Rect {
@@ -140,6 +141,7 @@ export interface LocateItem extends Rect {
   focused: boolean;
   enabled: boolean;
   proc: string;
+  area?: string;        // list: taskbar | popup | window | desktop
 }
 
 export interface LocateWindow {

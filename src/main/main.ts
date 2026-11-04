@@ -43,6 +43,8 @@ function onReady(): void {
       reminders.load();
       watchers.startCalendar();
       watchers.startWindowsWatch();
+      // точная лапка в подсказках ИИ берёт кнопки через PowerShell: запускаем его заранее
+      if (settings.hasAi()) setTimeout(() => locate.warm(), 4000);
     },
   });
   tray.createTray();
