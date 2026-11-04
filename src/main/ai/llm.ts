@@ -3,6 +3,7 @@
 import type { Settings } from '../../shared/types';
 import { aiError, fetchAI, fetchAIRetry, readError } from './http';
 import { extraFor, fallbackModel, resolve } from './providers';
+import { goalFromHowTo, isHowTo, vagueGoal } from '../../shared/howto';
 import { SHOW_MARK, showGoal } from './show';
 
 export const CLAUDE_URL = 'https://api.anthropic.com/v1/messages';
@@ -234,6 +235,14 @@ async function askOllama({ ollamaUrl, ollamaModel, history, text, tools, system 
   throw new Error('too many steps');
 }
 
+/** Цель из просьбы; для «как это сделать?» берём последнюю понятную просьбу из истории. */
+function howToGoal(text: string, history: ChatMessage[]): string {
+  const goal = goalFromHowTo(text);
+  if (!vagueGoal(goal)) return goal;
+  const prev = [...history].reverse().find((m) => m.role === 'user' && !vagueGoal(goalFromHowTo(m.content)));
+  return prev ? goalFromHowTo(prev.content) : '';
+}
+
 export type AskOptions = Settings & { history: ChatMessage[]; text: string; tools: ChatTools };
 
 /** Вызовы инструментов живут внутри одного запроса; в историю попадает только текст. */
@@ -248,9 +257,10 @@ export async function ask(opts: AskOptions): Promise<AskOutput & { history: Chat
   };
   const fn = r.kind === 'ollama' ? askOllama : r.kind === 'openai' ? askOpenAI : askClaude;
   const { reply, actions } = await fn(input);
-  const show = showGoal(reply);
+  // модель забыла метку, а просьба явно «как сделать»: всё равно показываем, а не пишем текстом
+  const show = showGoal(reply) || (isHowTo(opts.text) ? howToGoal(opts.text, opts.history) : '');
   const text = show
-    ? (opts.lang === 'en' ? `I'll show you on the screen: ${show}` : `Сейчас покажу на экране: ${show}`)
+    ? (opts.lang === 'en' ? `Let me show you on the screen: ${show} 🐾` : `Сейчас покажу на экране: ${show} 🐾`)
     : reply || (opts.lang === 'en' ? 'Purr!' : 'Мур!');
   return {
     reply: text,

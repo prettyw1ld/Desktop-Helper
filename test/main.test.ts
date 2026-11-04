@@ -6,10 +6,12 @@ import path from 'node:path';
 import { test } from 'node:test';
 import vm from 'node:vm';
 import { createFileActions } from '../src/main/system/files';
-import { MAC_ROLES, MAC_SCRIPT } from '../src/main/system/locate';
+import { MAC_ROLES, MAC_SCRIPT, WIN_SCRIPT } from '../src/main/system/locate';
 import { extraFor, fallbackModel, resolve } from '../src/main/ai/providers';
-import { cleanPlan, nameRegex, pickNearest, scopesFor, showGoal, stepOf, uiaTypes } from '../src/main/ai/show';
+import { cleanPlan, formatMarks, pickMark, showGoal, stepOf, usesNormalizedBoxes, type Mark } from '../src/main/ai/show';
+import { fitToWorkArea } from '../src/main/geometry';
 import { aiKey } from '../src/shared/types';
+import { goalFromHowTo, isHowTo, vagueGoal } from '../src/shared/howto';
 
 test('practice files survive repeated setup; folder actions reject arbitrary paths; picker cancel does not open', async () => {
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'pushik-files-test-'));
@@ -92,19 +94,64 @@ test('walkthrough plan: steps are cleaned and "step N of M" only shows for a val
   assert.equal(stepOf(undefined, plan), 0);
 });
 
-test('precise paw: the system button nearest to the AI guess wins; far or ambiguous matches are ignored', () => {
-  const a = { name: 'Таймер', x: 100, y: 100, w: 80, h: 30 };
-  const b = { name: 'Таймер', x: 900, y: 600, w: 80, h: 30 };
-  const c = { name: 'Таймеры и будильники', x: 120, y: 140, w: 200, h: 30 };
-  assert.equal(pickNearest([a, b, c], { x: 110, y: 95, w: 70, h: 40 }, 'Таймер'), a);
-  assert.equal(pickNearest([b], { x: 110, y: 95, w: 70, h: 40 }, 'Таймер'), null, 'too far from the guess');
-  assert.equal(pickNearest([a, b], null, 'Таймер'), null, 'two candidates and no guess');
-  assert.equal(pickNearest([a], null, 'Таймер'), a);
-  assert.equal(nameRegex('«Старт (5)»'), '^\\s*Старт \\(5\\)');
-  assert.equal(nameRegex('x'), '');
-  assert.deepEqual(uiaTypes('Tab'), ['TabItem', 'Button', 'ListItem']);
-  assert.deepEqual(uiaTypes('other'), []);
-  assert.deepEqual(scopesFor('taskbar'), ['taskbar']);
-  assert.deepEqual(scopesFor('start menu'), ['start', 'popup']);
-  assert.deepEqual(scopesFor('window'), ['popup', '']);
+test('precise paw: the AI picks a system element by number; otherwise the named one nearest to its box', () => {
+  const mk = (id: number, name: string, x: number, y: number): Mark => ({ id, name, type: 'Button', area: 'taskbar', shot: { x, y, w: 80, h: 30 }, overlay: { x, y, w: 80, h: 30 } });
+  const a = mk(1, 'Таймер', 100, 100);
+  const b = mk(2, 'Таймер', 900, 600);
+  const c = mk(3, 'Поиск', 120, 140);
+  assert.equal(pickMark([a, b, c], 3), c, 'number wins');
+  assert.equal(pickMark([a, b, c], '2'), b);
+  assert.equal(pickMark([a, b, c], 99, 'Таймер', { x: 110, y: 95, w: 70, h: 40 }), a, 'bad number: nearest by name');
+  assert.equal(pickMark([b], undefined, 'Таймер', { x: 110, y: 95, w: 70, h: 40 }), null, 'too far from the AI box');
+  assert.equal(pickMark([a, b], undefined, '«Таймер»'), null, 'two with that name and no box');
+  assert.equal(pickMark([a, c], undefined, 'таймер'), a);
+  assert.equal(pickMark([a], undefined, ''), null);
+  const text = formatMarks([c]);
+  assert.match(text, /\[3\] Button "Поиск" \(taskbar\) at 120,140 size 80x30/);
+  assert.match(formatMarks([]), /target/);
+  assert.equal(usesNormalizedBoxes('qwen/qwen3.8-27b'), true);
+  assert.equal(usesNormalizedBoxes('claude-sonnet'), false);
+});
+
+test('buttons on the taskbar are shown at the edge of the cat window, other monitors are skipped', () => {
+  const wa = { x: 0, y: 0, width: 1920, height: 1032 };
+  const bounds = { x: 0, y: 0, width: 1920, height: 1080 };
+  assert.deepEqual(fitToWorkArea({ x: 100, y: 200, w: 50, h: 40 }, wa, bounds), { x: 100, y: 200, w: 50, h: 40 });
+  // «Поиск» на панели задач внизу: полоска у нижнего края окна прямо над кнопкой
+  assert.deepEqual(fitToWorkArea({ x: 110, y: 1040, w: 210, h: 36 }, wa, bounds), { x: 110, y: 1004, w: 210, h: 28 });
+  assert.equal(fitToWorkArea({ x: 2100, y: 300, w: 50, h: 40 }, wa, bounds), null, 'second monitor');
+  assert.deepEqual(fitToWorkArea({ x: 2100, y: 300, w: 50, h: 40 }, wa, bounds, true), { x: 2100, y: 300, w: 50, h: 40 });
+});
+
+test('"show me how…" requests are recognised without the AI; small talk is not', () => {
+  const howTo = [
+    'покажи как поставить таймер на 5 минут',
+    'а ты можешь мне объяснить как это сделать и показать?',
+    'Как мне открыть калькулятор?',
+    'как сделать звук громче',
+    'хочу позвонить внуку',
+    'где найти мои загрузки',
+    'научи отправлять фото',
+    'how do I open the calculator',
+  ];
+  for (const t of howTo) assert.equal(isHowTo(t), true, t);
+  for (const t of ['как дела?', 'Как тебя зовут', 'расскажи сказку', 'напомни через 20 минут позвонить маме', 'привет', 'спасибо!']) {
+    assert.equal(isHowTo(t), false, t);
+  }
+  assert.equal(goalFromHowTo('покажи как поставить таймер на 5 минут'), 'Поставить таймер на 5 минут');
+  assert.equal(goalFromHowTo('Покажи мне, пожалуйста, как открыть калькулятор?'), 'Открыть калькулятор');
+  assert.equal(goalFromHowTo('хочу позвонить внуку'), 'Хочу позвонить внуку');
+  assert.equal(vagueGoal(goalFromHowTo('а ты можешь мне объяснить как это сделать и показать?')), true);
+  assert.equal(vagueGoal(goalFromHowTo('покажи как поставить таймер на 5 минут')), false);
+});
+
+test('Windows locator lists screen elements within a time budget and its script stays balanced', () => {
+  const ps = WIN_SCRIPT(1);
+  assert.match(ps, /elseif \(\$q\.op -eq 'list'\) \{ \$res = ListAll \$q \}/);
+  const fn = ps.slice(ps.indexOf('function ListAll'), ps.indexOf('function Volume'));
+  assert.match(fn, /Stopwatch/);
+  for (const [o, c] of [['{', '}'], ['(', ')'], ['[', ']']]) {
+    assert.equal(fn.split(o).length, fn.split(c).length, `balanced ${o}${c}`);
+  }
+  assert.match(fn, /-replace 'ControlType\\\.'/, 'regex escape survives the template string');
 });

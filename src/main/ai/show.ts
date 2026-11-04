@@ -9,68 +9,62 @@ export function showGoal(reply: string): string {
   return m ? m[1]!.split('\n')[0]!.replace(/[«»"]/g, '').trim().slice(0, 300) : '';
 }
 
-// ---------- Точная лапка: уточняем место кнопки через «доступность» системы ----------
-// ИИ по картинке промахивается на пару сантиметров. Он называет кнопку («Таймер»),
-// а UI Automation (Windows) или Accessibility (Mac) знает её точный прямоугольник.
+// ---------- Точная лапка: элементы экрана от системы ----------
+// ИИ по картинке промахивается. Windows (UI Automation) знает точные прямоугольники кнопок:
+// мы даём ИИ пронумерованный список, он выбирает номер, и кот показывает ровно в кнопку.
 
 /** Что ИИ сказал о кнопке, на которую показывает. */
 export interface ElementHint { name?: string; type?: string; area?: string }
 
 interface Box { x: number; y: number; w: number; h: number }
-interface Named extends Box { name: string }
 
-const TYPES: Record<string, string[]> = {
-  button: ['Button', 'SplitButton', 'MenuItem', 'ListItem'],
-  tab: ['TabItem', 'Button', 'ListItem'],
-  'text field': ['Edit', 'ComboBox'],
-  'menu item': ['MenuItem', 'ListItem', 'Button'],
-  'list item': ['ListItem', 'DataItem', 'TreeItem'],
-  icon: ['ListItem', 'Button', 'TreeItem'],
-  link: ['Hyperlink', 'Button', 'Text'],
-  checkbox: ['CheckBox', 'RadioButton', 'Button'],
-};
+/** Кнопка от системы: где она на снимке (для ИИ) и в окне кота (для лапки). */
+export interface Mark { id: number; name: string; type: string; area: string; shot: Box; overlay: Box }
 
-/** Тип элемента со слов ИИ → типы UI Automation; пусто = искать среди любых. */
-export const uiaTypes = (type = ''): string[] => TYPES[type.toLowerCase().trim()] ?? [];
+const AREA: Record<string, string> = { taskbar: 'taskbar', popup: 'start menu / popup', window: 'window', desktop: 'desktop icon, may be hidden under windows' };
 
-/** Где искать: сначала там, где ИИ видит кнопку, потом во всех окнах. */
-export function scopesFor(area = ''): string[] {
-  const a = area.toLowerCase();
-  if (/task ?bar|панел/.test(a)) return ['taskbar'];
-  if (/start|пуск/.test(a)) return ['start', 'popup'];
-  return ['popup', ''];
+/** Список для ИИ: «[3] Button "Поиск" (taskbar) at 110,500 size 210x40». */
+export function formatMarks(marks: Mark[], max = 160): string {
+  if (!marks.length) return 'No list of screen elements this time: point with "target" only.';
+  const lines = marks.slice(0, max).map((m) => {
+    const name = m.name.replace(/\s+/g, ' ').trim().slice(0, 60);
+    return `[${m.id}] ${m.type} "${name}" (${AREA[m.area] ?? m.area}) at ${m.shot.x},${m.shot.y} size ${m.shot.w}x${m.shot.h}`;
+  });
+  return 'Screen elements found by the system (number, type, name, where; coordinates in screenshot pixels):\n'
+    + `${lines.join('\n')}\nIf the thing to press is one of these, put its number into "elementId". `
+    + 'Pick only what is really visible on the screenshot.';
 }
 
-/** Регулярка «имя целиком или имя в начале», без спецсимволов, без учёта регистра (в PowerShell -match). */
-export function nameRegex(name = ''): string {
-  const clean = name.replace(/[«»"“”]/g, '').trim().slice(0, 60);
-  if (clean.length < 2) return '';
-  return `^\\s*${clean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`;
-}
-
+const norm = (s = '') => s.replace(/[«»"“”]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
 const center = (b: Box) => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 });
 
 /**
- * Из найденных системой кнопок берём ту, что ближе всего к догадке ИИ.
- * Если догадки нет, берём только единственную кнопку с таким именем: иначе непонятно, какую показывать.
+ * Какую кнопку показать: номер от ИИ, иначе кнопка с названным именем рядом с рамкой ИИ
+ * (или единственная с таким именем). Ничего не подошло: null, тогда остаётся рамка ИИ.
  */
-export function pickNearest<T extends Named>(items: T[], guess: Box | null, name = '', maxDist = 260): T | null {
-  const ok = items.filter((it) => it.w >= 4 && it.h >= 4 && it.w < 1600 && it.h < 900);
-  if (!ok.length) return null;
-  const want = name.replace(/[«»"“”]/g, '').trim().toLowerCase();
-  const exact = ok.filter((it) => it.name.trim().toLowerCase() === want);
-  const pool = exact.length ? exact : ok;
+export function pickMark(marks: Mark[], id: unknown, name = '', guess: Box | null = null, maxDist = 260): Mark | null {
+  const n = Math.round(Number(id));
+  const byId = Number.isFinite(n) ? marks.find((m) => m.id === n) : undefined;
+  if (byId) return byId;
+  const want = norm(name);
+  if (want.length < 2) return null;
+  const exact = marks.filter((m) => norm(m.name) === want);
+  const pool = exact.length ? exact : marks.filter((m) => norm(m.name).startsWith(want));
+  if (!pool.length) return null;
   if (!guess) return pool.length === 1 ? pool[0]! : null;
   const g = center(guess);
-  let best: T | null = null;
+  let best: Mark | null = null;
   let bestD = Infinity;
-  for (const it of pool) {
-    const c = center(it);
+  for (const m of pool) {
+    const c = center(m.overlay);
     const d = Math.hypot(c.x - g.x, c.y - g.y);
-    if (d < bestD) { best = it; bestD = d; }
+    if (d < bestD) { best = m; bestD = d; }
   }
   return bestD <= maxDist ? best : null;
 }
+
+/** Модели Qwen с зрением обучены давать рамки в долях 0..1000, а не в пикселях снимка. */
+export const usesNormalizedBoxes = (model: string): boolean => /qwen/i.test(model);
 
 /** Номер шага в плане: целое от 1 до длины плана, иначе 0 (не показываем «Шаг N из M»). */
 export function stepOf(index: unknown, plan: string[]): number {

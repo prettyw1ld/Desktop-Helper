@@ -5,9 +5,10 @@ import type { LookMode, LookRequest, LookResult, LookStatus, Rect, Settings } fr
 import { aiError, fetchAI, fetchAIRetry, readError } from './http';
 import { CLAUDE_URL, cleanReply, extraFor, pickModel, resolve } from './llm';
 import { cropSelection, INSPECT_PROMPT, INSPECT_SYSTEM } from './screen-region';
-import { cleanPlan, nameRegex, pickNearest, scopesFor, stepOf, uiaTypes, type ElementHint } from './show';
+import { cleanPlan, formatMarks, pickMark, stepOf, usesNormalizedBoxes, type ElementHint, type Mark } from './show';
+import { fitToWorkArea } from '../geometry';
 import * as locate from '../system/locate';
-import { toOverlayRect } from '../overlay';
+import type { LocateItem } from '../../shared/types';
 
 const SHOT_W = 1024; // ширина снимка для модели (меньше = быстрее ответ)
 const STATUSES: LookStatus[] = ['step', 'done', 'not_found', 'explain', 'danger'];
@@ -29,7 +30,7 @@ const STEP_SCHEMA = {
     explain: { type: 'string', description: 'Only for explain/danger: 1-2 short sentences about what is on the screen and how to go back.' },
     target: {
       type: 'object',
-      description: 'Box around the thing to press, in screenshot pixels. Omit if there is nothing to point at.',
+      description: 'Box around the thing to press, in the coordinate system given in the request. Omit if there is nothing to point at.',
       properties: { x: { type: 'number' }, y: { type: 'number' }, w: { type: 'number' }, h: { type: 'number' } },
       required: ['x', 'y', 'w', 'h'],
     },
@@ -41,6 +42,7 @@ const STEP_SCHEMA = {
         + 'For check: send it again only if the route must change; otherwise omit.',
     },
     stepIndex: { type: 'number', description: 'Which plan step (1-based) the current "say" is.' },
+    elementId: { type: 'number', description: 'If the thing to press is in the numbered list of screen elements, its number. This is the most precise way to point: prefer it over "target".' },
     element: {
       type: 'object',
       description: 'The thing in "target", so the computer can find it exactly. Omit if there is no target.',
@@ -71,6 +73,7 @@ interface StepAnswer {
   plan?: unknown;
   stepIndex?: unknown;
   element?: ElementHint;
+  elementId?: unknown;
 }
 
 export function systemPrompt(lang: string, platform: NodeJS.Platform): string {
@@ -85,7 +88,9 @@ export function systemPrompt(lang: string, platform: NodeJS.Platform): string {
     '- describe things by colour, shape, picture and where they are on the screen;',
     '- warm and calm, like talking to a grandmother; you may start with "Мур!" rarely;',
     '- never ask for passwords, card numbers or codes from SMS; never suggest installing unknown programs.',
-    'Rules for "target": the box (x, y, w, h in screenshot pixels, x/y = top-left corner) must tightly cover the thing to press.',
+    'Pointing: if the request lists screen elements with numbers, find the thing to press there and give its number in "elementId": that is exact.',
+    'Rules for "target": the box (x, y, w, h, x/y = top-left corner, in the coordinate system given in the request) must tightly cover the thing to press.',
+    'Always give "target" too, even with elementId: it is the fallback.',
     'Prefer a slightly bigger box over missing the element. Ignore any cartoon cat, speech bubble or yellow ring on the screenshot: that is you.',
     'If the screen shows a bank card form, a download of an .exe from an unknown site or a scary "your PC is infected" banner, answer status "danger" and tell the person not to type anything and how to close it.',
     'If the goal is already reached on this screen, answer "done" with a short happy phrase and the skill name.',
@@ -159,27 +164,44 @@ export async function capture(overlay: BrowserWindow | null, width = SHOT_W): Pr
 }
 
 // Перевод рамки из пикселей снимка в координаты окна кота (оно на всю рабочую область).
-function toOverlay(box: Partial<Rect> | undefined, shot: Shot): Rect | null {
+function toOverlay(box: Partial<Rect> | undefined, shot: Shot, normalized = false): Rect | null {
   if (!box) return null;
   const { x, y, w, h } = box;
   if (![x, y, w, h].every(Number.isFinite)) return null;
   const { display } = shot;
-  const kx = display.size.width / shot.w;
-  const ky = display.size.height / shot.h;
-  const wa = display.workArea;
-  const r = {
-    x: Math.round(x! * kx + display.bounds.x - wa.x),
-    y: Math.round(y! * ky + display.bounds.y - wa.y),
-    w: Math.round(w! * kx),
-    h: Math.round(h! * ky),
-  };
+  // Qwen обучен давать рамки в долях 0..1000 по каждой оси, а не в пикселях снимка
+  const kx = display.size.width / (normalized ? 1000 : shot.w);
+  const ky = display.size.height / (normalized ? 1000 : shot.h);
+  const r = { x: x! * kx + display.bounds.x, y: y! * ky + display.bounds.y, w: w! * kx, h: h! * ky };
   if (r.w < 4 || r.h < 4) return null;
-  // рамка за краем экрана: обрезаем, чтобы кот не прыгал за экран
-  r.x = Math.max(0, Math.min(r.x, wa.width - 8));
-  r.y = Math.max(0, Math.min(r.y, wa.height - 8));
-  r.w = Math.min(r.w, wa.width - r.x);
-  r.h = Math.min(r.h, wa.height - r.y);
-  return r;
+  return fitToWorkArea(r, display.workArea, display.bounds);
+}
+
+// ---------- Элементы экрана от системы (Windows UI Automation) ----------
+// Кнопки с точными прямоугольниками. ИИ выбирает номер, и кот показывает ровно в кнопку.
+const MARKS_BUDGET = 1200;
+
+async function screenMarks(shot: Promise<Shot>): Promise<Mark[]> {
+  if (process.platform !== 'win32') return [];
+  const res = await Promise.race([
+    locate.ask({ op: 'list', budget: MARKS_BUDGET }),
+    new Promise<{ items?: LocateItem[] }>((r) => setTimeout(() => r({}), MARKS_BUDGET + 1500)),
+  ]);
+  const items = res.items ?? [];
+  if (!items.length) return [];
+  const { display, w: sw, h: sh } = await shot;
+  const marks: Mark[] = [];
+  for (const it of items) {
+    // UI Automation даёт настоящие пиксели экрана; переводим в точки (DIP), как у Electron
+    const d = screen.screenToDipRect(null, { x: it.x, y: it.y, width: it.w, height: it.h });
+    const k = sw / display.size.width;
+    const inShot = { x: Math.round((d.x - display.bounds.x) * k), y: Math.round((d.y - display.bounds.y) * k), w: Math.round(d.width * k), h: Math.round(d.height * k) };
+    if (inShot.x + inShot.w / 2 < 0 || inShot.y + inShot.h / 2 < 0 || inShot.x + inShot.w / 2 > sw || inShot.y + inShot.h / 2 > sh) continue;
+    const overlay = fitToWorkArea({ x: d.x, y: d.y, w: d.width, h: d.height }, display.workArea, display.bounds);
+    if (!overlay) continue;
+    marks.push({ id: marks.length + 1, name: it.name, type: it.type, area: it.area || '', shot: inShot, overlay });
+  }
+  return marks;
 }
 
 // ---------- Модели ----------
@@ -287,40 +309,27 @@ function unsureInspect(out: StepAnswer): StepAnswer {
 
 const CHECK_MODES: LookMode[] = ['check'];
 
-const withTimeout = <T,>(p: Promise<T>, ms: number, fallback: T): Promise<T> =>
-  Promise.race([p, new Promise<T>((r) => setTimeout(() => r(fallback), ms))]);
-
-/**
- * Точная лапка: ищем названную ИИ кнопку через UI Automation (Windows) / Accessibility (Mac)
- * и берём настоящий прямоугольник рядом с догадкой ИИ. Не нашли или долго: остаётся догадка ИИ.
- */
-async function snapTarget(guess: Rect | null, hint: ElementHint | undefined): Promise<{ target: Rect | null; snapped: boolean }> {
-  const name = nameRegex(hint?.name);
-  if (!name || !locate.supported() || hint?.area === 'desktop') return { target: guess, snapped: false };
-  const types = uiaTypes(hint?.type);
-  const started = Date.now();
-  for (const scope of scopesFor(hint?.area)) {
-    const left = 3000 - (Date.now() - started);
-    if (left < 300) break;
-    const q = { op: 'find' as const, name, ...(types.length ? { types } : {}), ...(scope ? { scope } : {}) };
-    const res = await withTimeout(locate.ask(q, toOverlayRect), left, { error: 'timeout' });
-    const hit = pickNearest(res.items ?? [], guess, hint?.name);
-    if (hit) return { target: { x: hit.x, y: hit.y, w: hit.w, h: hit.h }, snapped: true };
-  }
-  return { target: guess, snapped: false };
-}
-
 /** Посмотреть на экран и решить, что сказать и куда показать. target — в координатах окна кота. */
 export async function look(req: LookRequest & { settings: Settings; overlay: BrowserWindow | null }): Promise<LookResult> {
   const { mode, selection, settings, overlay } = req;
   const inspect = mode === 'inspect';
-  const shot = await capture(overlay, inspect ? 4096 : SHOT_W);
+  // снимок и список кнопок от системы делаем одновременно: так быстрее и они совпадают
+  const shotP = capture(overlay, inspect ? 4096 : SHOT_W);
+  const marksP = inspect ? Promise.resolve([] as Mark[]) : screenMarks(shotP).catch(() => [] as Mark[]);
+  const shot = await shotP;
+  const marks = await marksP;
   const image = inspect ? cropSelection(shot, selection) : shot.image;
   const system = inspect ? INSPECT_SYSTEM : systemPrompt(settings.lang, process.platform);
   const size = image.getSize();
-  const text = `${inspect ? INSPECT_PROMPT : userText(req)}\nImage size: ${size.width}x${size.height} pixels.`;
-
   const r = resolve(settings);
+  const normalized = !inspect && r.kind === 'openai' && usesNormalizedBoxes(r.vision);
+  const coords = normalized
+    ? 'Coordinates for "target": normalized 0..1000 on each axis (0,0 = top-left corner, 1000,1000 = bottom-right corner).'
+    : `Coordinates for "target": screenshot pixels. Image size: ${size.width}x${size.height} pixels.`;
+  const text = inspect
+    ? `${INSPECT_PROMPT}\nImage size: ${size.width}x${size.height} pixels.`
+    : `${userText(req)}\n${coords}\n${formatMarks(marks)}`;
+
   const input: ModelInput = {
     ...settings,
     url: r.kind === 'openai' ? r.url : '',
@@ -333,8 +342,11 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
   let out = await fn(input);
   if (inspect && (!out.confidence || out.confidence === 'low')) out = unsureInspect(out);
   const plan = inspect ? [] : cleanPlan(out.plan);
-  const guess = inspect ? null : toOverlay(out.target, shot);
-  const { target, snapped } = inspect || out.status === 'done' ? { target: guess, snapped: false } : await snapTarget(guess, out.element);
+  const guess = inspect ? null : toOverlay(out.target, shot, normalized);
+  // точнее всего — номер элемента из списка системы; иначе ищем названную кнопку рядом с рамкой ИИ
+  const mark = inspect || out.status === 'done' ? null : pickMark(marks, out.elementId, out.element?.name, guess);
+  const target = mark ? mark.overlay : guess;
+  const snapped = !!mark;
   return {
     status: STATUSES.includes(out.status as LookStatus) ? out.status as LookStatus : 'step',
     screenSummary: String(out.screenSummary || '').slice(0, 1000),
@@ -351,7 +363,8 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
 }
 
 // ---------- Слежка за изменениями экрана ----------
-// Маленькие снимки раз в 1.2 с. Сравниваем с первым, пропуская места, где нарисован сам кот
+// Маленькие снимки раз в 2 с (снимок экрана в Windows недешёвый: чаще — и всё начинает подтормаживать).
+// Через 90 с без изменений перестаём следить: дальше человек нажмёт «Сделал». Сравниваем с первым, пропуская места, где нарисован сам кот
 // (masks в координатах окна кота). Если экран заметно поменялся, зовём onChange.
 let watchTimer: NodeJS.Timeout | null = null;
 
@@ -360,8 +373,10 @@ export function watch({ masks = [], onChange }: { masks?: Rect[]; onChange: () =
   let base: Buffer | null = null;
   let busy = false;
   const W = 160;
+  const until = Date.now() + 90_000;
   watchTimer = setInterval(async () => {
     if (busy) return;
+    if (Date.now() > until) { unwatch(); return; }
     busy = true;
     try {
       const display = screen.getPrimaryDisplay();
@@ -394,7 +409,7 @@ export function watch({ masks = [], onChange }: { masks?: Rect[]; onChange: () =
       // поменялось больше 3% экрана: открылось окно, страница и т.п.
       if (n && diff / n > 0.03) { unwatch(); onChange(); }
     } catch { /* нет доступа к экрану: просто ждём кнопку «Сделал» */ } finally { busy = false; }
-  }, 1200);
+  }, 2000);
 }
 
 export function unwatch(): void {

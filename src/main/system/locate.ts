@@ -32,6 +32,14 @@ public static class PushTop {
   // Настоящие пиксели на любом экране и масштабе (125%, 150%, два монитора). Старые Windows: как раньше.
   public static void Init() { try { if (SetProcessDpiAwarenessContext(new IntPtr(-4))) return; } catch { } SetProcessDPIAware(); }
   public static long Tray() { return FindWindow("Shell_TrayWnd", null).ToInt64(); }
+  // Значки рабочего стола: список внутри Progman (или WorkerW, если включены обои-слайдшоу)
+  [DllImport("user32.dll")] static extern IntPtr FindWindowEx(IntPtr p, IntPtr after, string cls, string title);
+  public static long Desktop() {
+    IntPtr view = FindWindowEx(FindWindow("Progman", null), IntPtr.Zero, "SHELLDLL_DefView", null);
+    IntPtr w = IntPtr.Zero;
+    while (view == IntPtr.Zero && (w = FindWindowEx(IntPtr.Zero, w, "WorkerW", null)) != IntPtr.Zero) view = FindWindowEx(w, IntPtr.Zero, "SHELLDLL_DefView", null);
+    return view == IntPtr.Zero ? 0 : FindWindowEx(view, IntPtr.Zero, "SysListView32", null).ToInt64();
+  }
   // Окна программ сверху вниз (без кота и без невидимых): "hwnd:pid"
   public static string[] List(uint skipPid, int max) {
     var res = new List<string>();
@@ -224,6 +232,63 @@ function Window($q) {
   return @{ win = $null }
 }
 
+# Все нажимаемые элементы на виду: панель задач, «Пуск» и всплывающие панели, верхнее окно, рабочий стол.
+# ИИ выбирает из них номер, и кот показывает точно в кнопку, а не туда, где ИИ «на глаз» её увидел.
+# Обходим дерево вширь с ограничением по времени, чтобы помощник никогда не ждал дольше бюджета.
+function ListAll($q) {
+  $budget = 1200
+  if ($q.budget) { $budget = [int]$q.budget }
+  $sw = [System.Diagnostics.Stopwatch]::StartNew()
+  $cr = New-Object System.Windows.Automation.CacheRequest
+  foreach ($p in @($AE::NameProperty, $AE::ControlTypeProperty, $AE::BoundingRectangleProperty, $AE::IsOffscreenProperty, $AE::IsEnabledProperty)) { $cr.Add($p) }
+  $cr.TreeScope = $TS::Element
+  $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
+  $want = @('Button','SplitButton','MenuItem','TabItem','ListItem','TreeItem','DataItem','Edit','ComboBox','Hyperlink','CheckBox','RadioButton','Slider')
+  $roots = @()
+  $h = [PushTop]::Tray()
+  if ($h -ne 0) { $roots += ,@($AE::FromHandle([IntPtr]$h), 'taskbar') }
+  $cond = New-Object System.Windows.Automation.PropertyCondition($AE::ClassNameProperty, 'Windows.UI.Core.CoreWindow')
+  foreach ($el in $AE::RootElement.FindAll($TS::Children, $cond)) {
+    if (-not $el.Current.IsOffscreen) { $roots += ,@($el, 'popup') }
+  }
+  foreach ($w in (Wins 1)) { $roots += ,@($w[0], 'window') }
+  $pm = [PushTop]::Desktop()
+  if ($pm -ne 0) { $roots += ,@($AE::FromHandle([IntPtr]$pm), 'desktop') }
+  $items = @()
+  foreach ($root in $roots) {
+    $queue = New-Object System.Collections.Queue
+    $queue.Enqueue(@($root[0], 0))
+    $area = $root[1]
+    # на каждую область своя доля времени, чтобы большое окно браузера не съело всё
+    $stop = $sw.ElapsedMilliseconds + [Math]::Max(150, ($budget - $sw.ElapsedMilliseconds) / 2)
+    if ($area -eq 'taskbar') { $stop = $sw.ElapsedMilliseconds + 400 }
+    while ($queue.Count -gt 0 -and $items.Count -lt 180) {
+      if ($sw.ElapsedMilliseconds -gt $stop -or $sw.ElapsedMilliseconds -gt $budget) { break }
+      $pair = $queue.Dequeue()
+      $node = $pair[0]
+      $depth = $pair[1]
+      $child = $null
+      try { $child = $walker.GetFirstChild($node, $cr) } catch { }
+      while ($child) {
+        try {
+          $c = $child.Cached
+          if (-not $c.IsOffscreen) {
+            $type = $c.ControlType.ProgrammaticName -replace 'ControlType\\.', ''
+            $r = $c.BoundingRectangle
+            if ($want -contains $type -and -not $r.IsEmpty -and $r.Width -ge 4 -and $r.Height -ge 4 -and ($c.Name -or $type -eq 'Edit')) {
+              $items += @{ name = [string]$c.Name; type = $type; area = $area; x = [int]$r.X; y = [int]$r.Y; w = [int]$r.Width; h = [int]$r.Height; enabled = $c.IsEnabled; focused = $false; proc = '' }
+            }
+            if ($depth -lt 30) { $queue.Enqueue(@($child, ($depth + 1))) }
+          }
+        } catch { }
+        if ($sw.ElapsedMilliseconds -gt $budget) { break }
+        try { $child = $walker.GetNextSibling($child, $cr) } catch { $child = $null }
+      }
+    }
+  }
+  return @{ items = $items; ms = $sw.ElapsedMilliseconds }
+}
+
 function Volume() {
   return @{ volume = [Math]::Round([PushVol]::Level(), 3); muted = [PushVol]::Muted() }
 }
@@ -247,6 +312,7 @@ while ($true) {
     elseif ($q.op -eq 'window') { $res = Window $q }
     elseif ($q.op -eq 'drives') { $res = Drives }
     elseif ($q.op -eq 'volume') { $res = Volume }
+    elseif ($q.op -eq 'list') { $res = ListAll $q }
     $res.id = $q.id
   } catch {
     $res = @{ id = $q.id; error = [string]$_ }
@@ -460,6 +526,11 @@ export async function ask(q: LocateQuery, toOverlay: ToOverlay = (r) => r): Prom
   if (res.win?.rect) res.win.rect = toOverlay(res.win.rect, true);
   if (res.win?.close) res.win.close = toOverlay(res.win.close);
   return res;
+}
+
+/** Запустить PowerShell заранее: первый запуск с компиляцией C# занимает пару секунд, пусть это будет не во время подсказки. */
+export function warm(): void {
+  if (process.platform === 'win32') { try { winServer(); } catch { /* нет PowerShell: кот обойдётся рамкой ИИ */ } }
 }
 
 export function stop(): void {

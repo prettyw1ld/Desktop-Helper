@@ -3,6 +3,7 @@
 import { BrowserWindow, screen } from 'electron';
 import path from 'node:path';
 import type { Rect } from '../shared/types';
+import { fitToWorkArea } from './geometry';
 import { setOnWait } from './ai/http';
 import { BUILD } from './paths';
 import * as ui from './ui';
@@ -69,13 +70,11 @@ export function toggleVisible(): void {
 
 // Экранные пиксели → координаты окна кота. Масштаб берём у того монитора, где кнопка.
 // Кнопку на другом мониторе (окно кота только на основном) не показываем: null.
+// Окно кота не заходит на панель задач, поэтому кнопку на ней показываем полоской у края окна
+// прямо над ней: кот встаёт рядом и показывает вниз, на настоящую кнопку.
 export function toOverlayRect(r: Rect, keep = false): Rect | null {
-  const wa = screen.getPrimaryDisplay().workArea;
+  const display = screen.getPrimaryDisplay();
   const raw = { x: r.x, y: r.y, width: r.w, height: r.h };
   const d = process.platform === 'win32' ? screen.screenToDipRect(null, raw) : raw;
-  const o = { x: Math.round(d.x - wa.x), y: Math.round(d.y - wa.y), w: Math.round(d.width), h: Math.round(d.height) };
-  const cx = o.x + o.w / 2;
-  const cy = o.y + o.h / 2;
-  if (!keep && (cx < 0 || cy < 0 || cx > wa.width || cy > wa.height)) return null;
-  return o;
+  return fitToWorkArea({ x: d.x, y: d.y, w: d.width, h: d.height }, display.workArea, display.bounds, keep);
 }

@@ -228,7 +228,15 @@ function tickFrame(): void {
 }
 
 // Одна ошибка в кадре не должна останавливать кота: иначе он замирает посреди прыжка, а облачко не появляется.
+// Кот пиксельный: 30 кадров в секунду ему хватает. Прозрачное окно на весь экран дорого перерисовывать,
+// и на слабых компьютерах 60 кадров давали подтормаживания всего рабочего стола.
+const FRAME_MS = 1000 / 30 - 2;
+let lastFrame = 0;
+
 function tick(): void {
+  const t = now();
+  if (t - lastFrame < FRAME_MS) { requestAnimationFrame(tick); return; }
+  lastFrame = t;
   if (bubbleShown()) { try { placeBubble(); } catch { /* пусто */ } }
   try { tickFrame(); } catch (err) { console.error('tick', err); }
   requestAnimationFrame(tick);

@@ -9,6 +9,8 @@ const { ring } = dom;
 let destination: Rect | null = null;
 let started = 0;
 let retract: number | null = null;
+// клубок рисуется по кадрам только пока виден: в покое цикл стоит и не грузит компьютер
+let wake: (() => void) | null = null;
 
 export function showRing(t: Rect | null | undefined): void {
   if (!t) { hideRing(); return; }
@@ -24,6 +26,7 @@ export function showRing(t: Rect | null | undefined): void {
   destination = { ...t };
   started = performance.now();
   retract = null;
+  wake?.();
 }
 
 export function hideRing(): void {
@@ -62,8 +65,12 @@ export function initYarn(): void {
       if (retract !== null && progress === 0) { destination = null; route.style.display = 'none'; }
     } else {
       route.style.display = 'none';
+      running = false;
+      return;
     }
     requestAnimationFrame(animate);
   };
-  requestAnimationFrame(animate);
+  let running = false;
+  wake = () => { if (!running) { running = true; requestAnimationFrame(animate); } };
+  wake();
 }
