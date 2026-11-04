@@ -39,8 +39,8 @@ const norm = (s = '') => s.replace(/[«»"“”]/g, '').replace(/\s+/g, ' ').tr
 const center = (b: Box) => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 });
 
 /**
- * Какую кнопку показать: номер от ИИ, иначе кнопка с названным именем рядом с рамкой ИИ
- * (или единственная с таким именем). Ничего не подошло: null, тогда остаётся рамка ИИ.
+ * Какую кнопку показать: номер от ИИ, иначе кнопка с названным именем ближе всех к рамке ИИ
+ * (или единственная с таким именем, даже если рамка ИИ далеко). Ничего не подошло: null, тогда остаётся рамка ИИ.
  */
 export function pickMark(marks: Mark[], id: unknown, name = '', guess: Box | null = null, maxDist = 260): Mark | null {
   const n = Math.round(Number(id));
@@ -60,7 +60,9 @@ export function pickMark(marks: Mark[], id: unknown, name = '', guess: Box | nul
     const d = Math.hypot(c.x - g.x, c.y - g.y);
     if (d < bestD) { best = m; bestD = d; }
   }
-  return bestD <= maxDist ? best : null;
+  if (bestD <= maxDist) return best;
+  // ИИ промахнулся рамкой сильнее, но кнопка с таким именем на экране одна: показываем её
+  return pool.length === 1 ? pool[0]! : null;
 }
 
 /**

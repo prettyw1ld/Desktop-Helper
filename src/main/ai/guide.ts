@@ -1,6 +1,6 @@
 // Помощник для новичка: снимок экрана → модель с зрением → куда показать лапкой.
 // Снимок живёт только в памяти и на диск не пишется.
-import { desktopCapturer, screen, type BrowserWindow, type Display, type NativeImage } from 'electron';
+import { desktopCapturer, nativeImage, screen, type BrowserWindow, type Display, type NativeImage } from 'electron';
 import type { LookMode, LookRequest, LookResult, LookStatus, Rect, Settings } from '../../shared/types';
 import { aiError, fetchAI, fetchAIRetry, readError } from './http';
 import { CLAUDE_URL, cleanReply, extraFor, pickModel, resolve } from './llm';
@@ -147,9 +147,13 @@ export async function capture(overlay: BrowserWindow | null, width = SHOT_W): Pr
   const fade = ok && process.platform === 'linux';
   if (ok && !fade) { overlay.setContentProtection(true); await sleep(60); }
   if (fade) { overlay.setOpacity(0); await sleep(90); }
-  let sources: Electron.DesktopCapturerSource[];
+  let sources: Electron.DesktopCapturerSource[] = [];
+  let fast: NativeImage | null = null;
   try {
-    sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: w, height: h } });
+    // Windows: быстрый снимок через PowerShell (BitBlt). Снимок Electron на некоторых компьютерах идёт 2 с
+    // и всё это время тормозит систему. Не вышло — берём снимок Electron.
+    if (process.platform === 'win32') fast = await winShot(width);
+    if (!fast) sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: w, height: h } });
   } finally {
     if (ok && !overlay.isDestroyed()) {
       if (fade) overlay.setOpacity(1);
@@ -158,10 +162,38 @@ export async function capture(overlay: BrowserWindow | null, width = SHOT_W): Pr
       overlay.moveTop();
     }
   }
+  if (fast) { const size = fast.getSize(); return { image: fast, w: size.width, h: size.height, display }; }
   const src = primarySource(sources, display);
   if (!src || src.thumbnail.isEmpty()) throw aiError('no screenshot', { code: 'noShot' });
   const size = src.thumbnail.getSize();
   return { image: src.thumbnail, w: size.width, h: size.height, display };
+}
+
+const withTimeout = <T,>(p: Promise<T>, ms: number, fallback: T): Promise<T> =>
+  Promise.race([p, new Promise<T>((r) => setTimeout(() => r(fallback), ms))]);
+
+async function winShot(width: number): Promise<NativeImage | null> {
+  const t = Date.now();
+  const res = await withTimeout(locate.ask({ op: 'shot', width }), 4000, { error: 'timeout' });
+  if (!res.jpeg) { guideLog('shot-fallback', { error: res.error ?? 'empty' }); return null; }
+  const img = nativeImage.createFromBuffer(Buffer.from(res.jpeg, 'base64'));
+  if (img.isEmpty()) { guideLog('shot-fallback', { error: 'bad image' }); return null; }
+  guideLog('shot', { ms: Date.now() - t, w: res.w, h: res.h, screen: [res.sw, res.sh] });
+  return img;
+}
+
+/** Маленький снимок для слежки за экраном: BGRA и размер. Windows — через PowerShell, иначе Electron. */
+async function smallShot(display: Display, W: number): Promise<{ bmp: Buffer; w: number; h: number } | null> {
+  const h = Math.round((display.size.height * W) / display.size.width);
+  if (process.platform === 'win32') {
+    const res = await withTimeout(locate.ask({ op: 'grid', width: W, height: h }), 3000, { error: 'timeout' });
+    if (res.grid) return { bmp: Buffer.from(res.grid, 'base64'), w: W, h };
+  }
+  const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: W, height: h } });
+  const src = primarySource(sources, display);
+  if (!src) return null;
+  const size = src.thumbnail.getSize();
+  return { bmp: src.thumbnail.toBitmap(), w: size.width, h: size.height };
 }
 
 // Перевод рамки из пикселей снимка в координаты окна кота (оно на всю рабочую область).
@@ -187,6 +219,8 @@ const HEAVY_A11Y = '^(chrome|msedge|browser|opera|brave|vivaldi|firefox|Code|Cur
 
 async function screenMarks(shot: Promise<Shot>): Promise<Mark[]> {
   if (process.platform !== 'win32') return [];
+  // PowerShell один и отвечает по очереди: сначала снимок (кот на это время скрыт), потом список кнопок
+  await shot;
   const res = await Promise.race([
     locate.ask({ op: 'list', budget: MARKS_BUDGET, skipProc: HEAVY_A11Y }),
     new Promise<{ items?: LocateItem[] }>((r) => setTimeout(() => r({}), MARKS_BUDGET + 1500)),
@@ -399,12 +433,10 @@ export function watch({ masks = [], onChange }: { masks?: Rect[]; onChange: () =
     busy = true;
     try {
       const display = screen.getPrimaryDisplay();
-      const h = Math.round((display.size.height * W) / display.size.width);
-      const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: W, height: h } });
-      const src = primarySource(sources, display);
-      if (!src || !watchTimer) return;
-      const bmp = src.thumbnail.toBitmap();
-      const size = src.thumbnail.getSize();
+      const small = await smallShot(display, W);
+      if (!small || !watchTimer) return;
+      const { bmp } = small;
+      const size = { width: small.w, height: small.h };
       const k = size.width / display.size.width;
       const offX = display.workArea.x - display.bounds.x;
       const offY = display.workArea.y - display.bounds.y;

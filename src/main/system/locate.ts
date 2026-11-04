@@ -4,6 +4,7 @@
 // Все координаты на выходе в экранных точках (DIP), как у окна кота.
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import type { LocateQuery, LocateResult, Rect } from '../../shared/types';
 import { ASSETS } from '../paths';
@@ -88,6 +89,66 @@ public static class PushVol {
 }
 "@
 } catch { }
+# Снимок экрана средствами Windows (BitBlt): в десятки раз быстрее снимка Electron,
+# который на некоторых компьютерах занимает 2 секунды и подтормаживает всю систему.
+try {
+Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @"
+using System; using System.Drawing; using System.Drawing.Imaging; using System.IO; using System.Runtime.InteropServices;
+public static class PushShot {
+  [DllImport("user32.dll")] static extern int GetSystemMetrics(int i);
+  static Bitmap Grab(out int sw, out int sh) {
+    sw = GetSystemMetrics(0); sh = GetSystemMetrics(1);
+    var bmp = new Bitmap(sw, sh, PixelFormat.Format32bppArgb);
+    using (var g = Graphics.FromImage(bmp)) g.CopyFromScreen(0, 0, 0, 0, new Size(sw, sh), CopyPixelOperation.SourceCopy);
+    return bmp;
+  }
+  static Bitmap Scale(Bitmap src, int w, int h, bool fast) {
+    var dst = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+    using (var g = Graphics.FromImage(dst)) {
+      g.InterpolationMode = fast ? System.Drawing.Drawing2D.InterpolationMode.Bilinear : System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+      g.DrawImage(src, 0, 0, w, h);
+    }
+    return dst;
+  }
+  public static string Jpeg(int width, out int w, out int h, out int sw, out int sh) {
+    using (var full = Grab(out sw, out sh)) {
+      w = Math.Min(width, sw); h = (int)Math.Round((double)sh * w / sw);
+      Bitmap img = w == sw ? full : Scale(full, w, h, false);
+      try {
+        ImageCodecInfo enc = null;
+        foreach (var c in ImageCodecInfo.GetImageEncoders()) if (c.MimeType == "image/jpeg") enc = c;
+        var p = new EncoderParameters(1);
+        p.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, 90L);
+        using (var ms = new MemoryStream()) { img.Save(ms, enc, p); return Convert.ToBase64String(ms.ToArray()); }
+      } finally { if (img != full) img.Dispose(); }
+    }
+  }
+  public static string Grid(int w, int h) {
+    int sw, sh;
+    using (var full = Grab(out sw, out sh)) using (var small = Scale(full, w, h, true)) {
+      var data = small.LockBits(new Rectangle(0, 0, w, h), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+      var bytes = new byte[data.Stride * h];
+      Marshal.Copy(data.Scan0, bytes, 0, bytes.Length);
+      small.UnlockBits(data);
+      return Convert.ToBase64String(bytes);
+    }
+  }
+}
+"@
+} catch { }
+
+function Shot($q) {
+  $w = 0; $h = 0; $sw = 0; $sh = 0
+  $width = 1024
+  if ($q.width) { $width = [int]$q.width }
+  $b = [PushShot]::Jpeg($width, [ref]$w, [ref]$h, [ref]$sw, [ref]$sh)
+  return @{ jpeg = $b; w = $w; h = $h; sw = $sw; sh = $sh }
+}
+
+function Grid($q) {
+  return @{ grid = [PushShot]::Grid([int]$q.width, [int]$q.height); w = [int]$q.width; h = [int]$q.height }
+}
+
 $AE = [System.Windows.Automation.AutomationElement]
 $TS = [System.Windows.Automation.TreeScope]
 
@@ -319,6 +380,8 @@ while ($true) {
     elseif ($q.op -eq 'drives') { $res = Drives }
     elseif ($q.op -eq 'volume') { $res = Volume }
     elseif ($q.op -eq 'list') { $res = ListAll $q }
+    elseif ($q.op -eq 'shot') { $res = Shot $q }
+    elseif ($q.op -eq 'grid') { $res = Grid $q }
     $res.id = $q.id
   } catch {
     $res = @{ id = $q.id; error = [string]$_ }
@@ -335,10 +398,18 @@ const pending = new Map<number, (res: LocateResult) => void>();
 // Кириллицу передаём экранированной: так кодировка консоли не важна.
 const asciiJson = (o: unknown): string => JSON.stringify(o).replace(/[\u007f-\uffff]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
 
+// Скрипт кладём во временный файл и запускаем через -File. Раньше он шёл через -EncodedCommand,
+// и когда скрипт вырос, команда стала длиннее предела Windows (32 767 символов): PowerShell не запускался вовсе.
+function scriptFile(): string {
+  const file = path.join(os.tmpdir(), `pushik-locator-${process.pid}.ps1`);
+  // BOM: иначе Windows PowerShell 5 читает русские комментарии в скрипте как кракозябры
+  fs.writeFileSync(file, `\uFEFF${WIN_SCRIPT(process.pid)}`, 'utf8');
+  return file;
+}
+
 function winServer(): ChildProcessWithoutNullStreams {
   if (ps) return ps;
-  const encoded = Buffer.from(WIN_SCRIPT(process.pid), 'utf16le').toString('base64');
-  const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded],
+  const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', scriptFile()],
     { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
   ps = child;
   let buf = '';
@@ -363,6 +434,7 @@ function winServer(): ChildProcessWithoutNullStreams {
   };
   child.on('exit', dead);
   child.on('error', dead);
+  child.on('exit', () => { try { fs.unlinkSync(path.join(os.tmpdir(), `pushik-locator-${process.pid}.ps1`)); } catch { /* уже нет */ } });
   return child;
 }
 
@@ -373,10 +445,11 @@ function winAsk(q: LocateQuery, timeout = 6000): Promise<LocateResult> {
     pending.set(id, (res) => { clearTimeout(t); resolve(res); });
     try {
       winServer().stdin.write(`${asciiJson({ ...q, id })}\n`);
-    } catch {
+    } catch (e) {
       clearTimeout(t);
       pending.delete(id);
-      resolve({ error: 'no powershell' });
+      // настоящая причина видна в журнале подсказок (раньше тут молча был ENAMETOOLONG)
+      resolve({ error: `no powershell: ${(e as Error).message}` });
     }
   });
 }
