@@ -1,15 +1,37 @@
 // Главное окно новичка «Чем помочь?»: «Объясни, что это», голос и текст.
-// Готовые задачи живут в «Уроках».
+// Готовые задачи живут в «Уроках». Без ИИ первая большая кнопка ведёт в уроки,
+// а если нет микрофона, видно поле, куда можно написать задачу.
 import { $ } from '../core/dom';
+import { T } from '../core/i18n';
 import { settings } from '../core/settings';
+import { setIconLabel } from '../ui/icons';
 import { routeGoal } from '../guide/router';
 import { registerPanel, showPanel, isPanel } from '../ui/panels';
 import { initMic, micState, refreshMic } from './mic';
 
+/** Без ИИ «Объясни, что это» не сработает, поэтому на её месте — вход в уроки. */
+export function firstButton(): HTMLElement {
+  const ai = settings.aiReady;
+  const b = $('#inspect-element');
+  b.dataset.mode = ai ? 'inspect' : 'lessons';
+  setIconLabel(b, ai ? 'inspect' : 'book', T(ai ? 'help.inspect' : 'help.lessons'));
+  $('.extras [data-act="lessons"]').classList.toggle('hidden', !ai);
+  return b;
+}
+
+// Поле для текста — запасной путь, когда сказать задачу голосом нельзя.
+function showAskIfNoMic(): void {
+  const noMic = $('#mic').classList.contains('hidden');
+  const form = $('#ask-form');
+  form.classList.toggle('hidden', !noMic);
+  form.setAttribute('aria-hidden', String(!noMic));
+}
+
 function renderHelp(): void {
   micState('');
   $('.extras [data-act="chat"]').classList.toggle('hidden', !settings.aiReady);
-  void refreshMic();
+  firstButton();
+  void refreshMic().then(showAskIfNoMic);
 }
 
 export function initHelp(): void {

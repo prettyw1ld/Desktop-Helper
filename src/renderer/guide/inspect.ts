@@ -7,7 +7,7 @@ import { $, dom, el } from '../core/dom';
 import { setSkills } from '../core/settings';
 import { setIgnore } from '../input/mouse';
 import { hideBubble, say, type Action } from '../ui/bubble';
-import { closePanels } from '../ui/panels';
+import { closePanels, showPanel } from '../ui/panels';
 import { hideRing, showRing } from '../ui/ring';
 import { speak, stopSpeaking } from '../ui/speech';
 import { startGuide } from './ai-guide';
@@ -180,5 +180,8 @@ export function initInspect(): void {
   // Кота унесли: объяснение заканчивается, старая рамка убирается.
   document.addEventListener('mousemove', () => { if (active && !picker && cat.state === 'drag') stopInspect(); });
   window.addEventListener('resize', () => { if (active) stopInspect(); });
-  $('#inspect-element').addEventListener('click', choose);
+  $('#inspect-element').addEventListener('click', () => {
+    if ($('#inspect-element').dataset.mode === 'lessons') showPanel('lessons');
+    else choose();
+  });
 }

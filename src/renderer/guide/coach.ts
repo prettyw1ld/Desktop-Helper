@@ -355,7 +355,7 @@ function pointToLessons(): void {
   if (guide.active || trainer.step) return;
   hideBubble();
   showPanel('help');
-  const b = $('.extras [data-act="lessons"]');
+  const b = settings.aiReady ? $('.extras [data-act="lessons"]') : $('#inspect-element');
   b.classList.add('pulse');
   micState(T('les.here'));
   speak(T('les.here'));
@@ -365,8 +365,8 @@ function pointToLessons(): void {
 // Первый запуск: после тренировки мышки сразу обзор компьютера
 export function startTourOnce(): void {
   const tour = Scenarios.byId('tour');
-  const name = tour.skill[I18N.lang] || tour.skill.ru;
-  if ((settings.skills || []).some((x) => x.name === name)) return;
+  const names = Object.values(tour.skill);
+  if ((settings.skills || []).some((x) => names.includes(x.name))) return;
   runScenario(tour);
 }
 

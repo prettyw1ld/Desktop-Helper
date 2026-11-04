@@ -90,7 +90,7 @@ const STR: Record<Lang, Dict> = {
     'files.progress': 'Шаг {n} из {total}', 'files.menu': 'К урокам',
     'files.chooseNow': 'Сейчас откроется окно с папками. Выбери файл и нажми «Открыть».', 'files.canceled': 'Ничего страшного. Можно выбрать файл в другой раз.', 'files.opened': 'Мур! Файл открылся в своей программе.', 'files.chooseSkill': 'Открыть свой документ',
     'files.automation': 'Разреши Пушику управлять System Events в настройках «Автоматизация», затем повтори шаг.',
-    'help.title': 'Чем тебе помочь?', 'help.lost': '😵 Я запутался', 'help.ph': 'Или напиши, что хочешь сделать',
+    'help.title': 'Чем тебе помочь?', 'help.inspect': 'Объясни, что это', 'help.lessons': 'Выбрать урок', 'help.lost': '😵 Я запутался', 'help.ph': 'Или напиши, что хочешь сделать',
     'help.mic': 'Сказать задачу', 'help.micStop': 'Остановить запись', 'help.go': 'Показать', 'help.skills': '⭐ Что я уже умею',
     'help.noSkills': 'Пока пусто. Пройдём первый шаг вместе!',
     'help.tasks': ['📞 Позвонить по видео', '🖼 Посмотреть фото с флешки', '🔎 Найти в интернете', '🔊 Сделать звук громче', '🔠 Сделать буквы крупнее'],
@@ -125,7 +125,7 @@ const STR: Record<Lang, Dict> = {
     'coach.noLocator': 'На этом компьютере я не вижу кнопки, но расскажу словами 🐾',
     'coach.open': 'Открой за меня', 'coach.opening': 'Открываю! Мур 🐾',
     'coach.notYet': 'Пока не вижу, что получилось. Попробуй ещё раз, я покажу 🐾',
-    'coach.unknown': 'Этому я пока не научился. Выбери одну из больших кнопок, с ними я помогу 🐾',
+    'coach.unknown': 'Этому я пока не научился. Открой «Уроки»: там всё, что я умею показать 🐾',
     'lost.desktop': 'Сейчас ничего не открыто, видно рабочий стол. Всё хорошо! Нажми на меня и выбери, что хочешь сделать.',
     'lost.window': 'Сейчас открыто: {name}.', 'lost.close': 'Если хочешь закрыть, нажми на крестик, я показываю на него.',
     'lost.noClose': 'Чтобы закрыть окно, нажми на крестик в правом верхнем углу.',
@@ -157,7 +157,7 @@ const STR: Record<Lang, Dict> = {
     'files.progress': 'Step {n} of {total}', 'files.menu': 'Choose another task',
     'files.chooseNow': 'A window with folders will open. Choose a file and press Open.', 'files.canceled': 'No problem. You can choose a file another time.', 'files.opened': 'Purr! The file opened in its program.', 'files.chooseSkill': 'Open my document',
     'files.automation': 'Allow Pushik to control System Events in Automation settings, then try again.',
-    'help.title': 'How can I help?', 'help.lost': '😵 I am lost', 'help.ph': 'Or type what you want to do',
+    'help.title': 'How can I help?', 'help.inspect': 'Explain what this is', 'help.lessons': 'Choose a lesson', 'help.lost': '😵 I am lost', 'help.ph': 'Or type what you want to do',
     'help.mic': 'Say your task', 'help.micStop': 'Stop recording', 'help.go': 'Show me', 'help.skills': '⭐ What I can do already',
     'help.noSkills': 'Nothing yet. Let us take the first step together!',
     'help.tasks': ['📞 Make a video call', '🖼 Look at photos from a USB stick', '🔎 Search the internet', '🔊 Turn the sound up', '🔠 Make the text bigger'],
@@ -189,7 +189,7 @@ const STR: Record<Lang, Dict> = {
     'coach.noLocator': 'I cannot see buttons on this computer, but I will tell you in words 🐾',
     'coach.open': 'Open it for me', 'coach.opening': 'Opening! Purr 🐾',
     'coach.notYet': 'I do not see it yet. Try again, I will show you 🐾',
-    'coach.unknown': 'I have not learned this yet. Pick one of the big buttons and I will help 🐾',
+    'coach.unknown': 'I have not learned this yet. Open «Lessons»: there is everything I can show 🐾',
     'lost.desktop': 'Nothing is open, you see the desktop. All is fine! Click me and choose what to do.',
     'lost.window': 'Open now: {name}.', 'lost.close': 'To close it, press the cross I am pointing at.',
     'lost.noClose': 'To close the window, press the cross in the top right corner.',
@@ -290,6 +290,10 @@ export const I18N = {
     let s = STR[lang][key] ?? STR.ru[key] ?? key;
     if (Array.isArray(s)) s = s[Math.floor(Math.random() * s.length)] ?? '';
     return fill(s, vars);
+  },
+  // одна и та же строка на всех языках (например, название урока)
+  all(key: string): string[] {
+    return I18N.langs.map((l) => STR[l][key] ?? STR.ru[key]).filter((s): s is string => typeof s === 'string');
   },
   // список целиком (например, варианты реплики)
   list(key: string): string[] {
