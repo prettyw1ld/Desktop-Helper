@@ -225,9 +225,9 @@ function registerChat(): void {
     if (noAi()) return { error: T('err.noKey') };
     const locale = s.lang === 'en' ? 'en-US' : 'ru-RU';
     try {
-      const { reply, history, actions } = await ask({ ...settings.forAi(s), history: chatHistory, text, tools: chatTools(locale) });
+      const { reply, history, actions, show } = await ask({ ...settings.forAi(s), history: chatHistory, text, tools: chatTools(locale) });
       chatHistory = history.slice(-30);
-      return { reply, actions };
+      return show ? { reply, actions, show } : { reply, actions };
     } catch (err) {
       return aiFailure(err, 'chat:send', 'err.ask');
     }

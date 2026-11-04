@@ -115,7 +115,8 @@ export interface LookResult {
   target: Rect | null;  // в координатах окна кота
 }
 
-export interface ChatResult { reply: string; actions: string[] }
+/** show: цель, которую кот покажет на экране по шагам вместо текстового ответа. */
+export interface ChatResult { reply: string; actions: string[]; show?: string }
 
 // ---------- Поиск кнопок через «доступность» ----------
 export type LocateOp = 'find' | 'top' | 'window' | 'drives' | 'volume';

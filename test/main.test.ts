@@ -8,6 +8,7 @@ import vm from 'node:vm';
 import { createFileActions } from '../src/main/system/files';
 import { MAC_ROLES, MAC_SCRIPT } from '../src/main/system/locate';
 import { extraFor, fallbackModel, resolve } from '../src/main/ai/providers';
+import { showGoal } from '../src/main/ai/show';
 import { aiKey } from '../src/shared/types';
 
 test('practice files survive repeated setup; folder actions reject arbitrary paths; picker cancel does not open', async () => {
@@ -73,4 +74,10 @@ test('each AI model goes to its own service with its own key; thinking is switch
   assert.equal(aiKey({ ...keys, provider: 'deepseek' }), 'sk-ds');
   assert.equal(aiKey({ ...keys, provider: 'qwen' }), '');          // без своего ключа Qwen не берёт чужой
   assert.equal(aiKey({ ...keys, provider: 'claude' }), 'claude-key');
+});
+
+test('chat "how do I…" answers turn into an on-screen walkthrough goal', () => {
+  assert.equal(showGoal('[SHOW] Поставить таймер на 5 минут в приложении Часы.'), 'Поставить таймер на 5 минут в приложении Часы.');
+  assert.equal(showGoal('Мур! [ПОКАЖУ]: Сделать «звук» громче\nещё строка'), 'Сделать звук громче');
+  assert.equal(showGoal('Привет! Как дела?'), '');
 });
