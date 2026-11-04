@@ -4,7 +4,6 @@ import { isError, type LookResult, type Rect } from '../../shared/types';
 import { cat, setState, startFall } from '../cat/cat';
 import { api } from '../core/api';
 import { $, dom, el } from '../core/dom';
-import { setSkills } from '../core/settings';
 import { setIgnore } from '../input/mouse';
 import { hideBubble, say, type Action } from '../ui/bubble';
 import { closePanels, showPanel } from '../ui/panels';
@@ -109,63 +108,26 @@ async function explain(): Promise<void> {
   goPoint(area, () => { if (token === epoch && active) showExplanation(res, token); });
 }
 
+// Короткое объяснение и всего две кнопки: «Понятно» и «Покажи, как» (если есть безопасное упражнение).
+// Повторить вслух — значок динамика рядом с текстом.
 function showExplanation(result: LookResult, token: number): void {
-  const alive = () => token === epoch && active;
-  let text = [result.say, result.explain].filter(Boolean).join('\n');
-  let saved = false;
-  let working = false;
-  const skillName = `Изучено: ${String(result.say || 'Элемент интерфейса').slice(0, 100)}`;
-
+  const text = [result.say, result.explain].filter(Boolean).join(' ')
+    || 'Не могу уверенно определить этот элемент. Выдели область точнее.';
   const practice = () => {
     const goal = result.practiceGoal;
     if (!goal) return;
     stopInspect();
     startGuide(goal, 'practice');
   };
-  const simpler = async () => {
-    if (working) return;
-    working = true;
-    render('Объясняю проще…');
-    try {
-      const out = await api.simplifyExplanation(text);
-      if (!alive()) return;
-      working = false;
-      if (isError(out)) { render(out.error); return; }
-      text = out.text || text;
-      render();
-      speak(text);
-    } catch {
-      if (alive()) { working = false; render('Не удалось упростить. Попробуй ещё раз.'); }
-    }
-  };
-  const saveSkill = async () => {
-    if (saved || working) return;
-    working = true;
-    try {
-      setSkills(await api.addSkill(skillName));
-      if (!alive()) return;
-      saved = true;
-      working = false;
-      render('Сохранено в разделе «Обучение».');
-    } catch {
-      if (alive()) { working = false; render('Не удалось сохранить навык. Попробуй ещё раз.'); }
-    }
-  };
-  function render(notice = ''): void {
-    dom.bubble.classList.add('inspect-explanation');
-    const actions: Action[] = [];
-    if (result.practiceGoal && result.status !== 'danger') actions.push(['Попробовать самому', practice, true]);
-    actions.push(
-      [working ? 'Подожди…' : 'Проще', () => { void simpler(); }],
-      [saved ? 'Навык сохранён' : 'Запомнить навык', () => { void saveSkill(); }],
-      ['Повторить', () => speak(text)],
-      ['Выбрать другое', choose],
-      ['Понятно', stopInspect],
-    );
-    const body = text || 'Не могу уверенно определить этот элемент. Выдели область точнее.';
-    say(notice ? `${body}\n\n${notice}` : body, Infinity, { guide: true, actions });
-  }
-  render();
+  const actions: Action[] = [['Понятно', stopInspect, true]];
+  if (result.practiceGoal && result.status !== 'danger') actions.push(['Покажи, как', practice]);
+  dom.bubble.classList.add('inspect-explanation');
+  say(text, Infinity, { guide: true, actions, danger: result.status === 'danger' });
+  const replay = el('button', 'replay', '🔊');
+  replay.title = 'Сказать ещё раз';
+  replay.setAttribute('aria-label', 'Сказать ещё раз');
+  replay.addEventListener('click', (e) => { e.stopPropagation(); if (token === epoch && active) speak(text); });
+  dom.bubbleText.append(replay);
   speak(text);
   api.guideWatch(guideMasks());
 }

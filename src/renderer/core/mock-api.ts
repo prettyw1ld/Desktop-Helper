@@ -67,6 +67,9 @@ export function mockApi(): PushikApi {
     simplifyExplanation: async (text) => ({ text }),
     guideLook: async ({ mode }) => {
       await new Promise((r) => setTimeout(r, 700));
+      if (mode === 'inspect') {
+        return { ...step('Это меню «Файл».', null, 'explain'), explain: 'Нажми на него — там «Открыть» и «Сохранить».', practiceGoal: 'Открыть меню «Файл»' };
+      }
       if (mode === 'confused') {
         return { ...step('Нажми на стрелку влево вверху', { x: 20, y: 20, w: 40, h: 40 }, 'explain'), explain: 'Сейчас открыт браузер, страница новостей.' };
       }

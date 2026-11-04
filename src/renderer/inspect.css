@@ -4,6 +4,7 @@
 #inspect-element{background:#d5eaf8;color:#24251f}
 #ring.inspect-highlight{border:3px solid #77b6df;background:#b5ddf518;box-shadow:0 0 0 5px #d5eaf84d;pointer-events:none}
 
-.inspect-explanation .bubble-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.inspect-explanation .bubble-actions{display:grid;grid-template-columns:1fr;gap:8px}
 .inspect-explanation .bubble-actions button{min-width:0;font-size:16px;padding:10px;white-space:normal}
 .inspect-explanation .bubble-actions button.primary{grid-column:1 / -1}
+.inspect-explanation .replay{margin-left:6px;border:0;background:none;font-size:18px;line-height:1;cursor:pointer;padding:2px 4px;vertical-align:middle}
