@@ -44,6 +44,7 @@ export const DEFAULTS: Settings = {
   onboarded: false,
   contact: '',
   voice: 'offline',
+  trustedRemote: [],
 };
 
 const SECRETS: SecretKey[] = ['apiKey', 'calendarUrl', 'sttKey', 'groqKey', 'deepseekKey', 'qwenKey'];

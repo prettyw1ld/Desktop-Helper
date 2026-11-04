@@ -43,6 +43,7 @@ export interface Settings {
   onboarded: boolean;        // пройден ли тренажёр мыши при первом запуске
   contact: string;           // кому чаще всего звонят (для урока «Позвонить»)
   voice: VoiceMode;          // offline = Vosk в самом приложении, whisper = сервис по ключу
+  trustedRemote: string[];   // программы удалённого доступа, про которые человек сказал «это свои»
 }
 
 export type SecretKey = 'apiKey' | 'calendarUrl' | 'sttKey' | 'groqKey' | 'deepseekKey' | 'qwenKey';
@@ -192,11 +193,12 @@ export interface PushikEvents {
   'screen-changed': undefined;
   'ai-wait': number;
   'work-area': Rect;   // где пол и стены для кота внутри окна (без панели задач)
+  'remote-app': string; // запустилась программа удалённого доступа (защита от мошенников)
 }
 export type PushikEvent = keyof PushikEvents;
 export const PUSHIK_EVENTS: PushikEvent[] = [
   'reminder', 'reminders-changed', 'open', 'settings-changed', 'calendar-soon', 'calendar-changed',
-  'windows', 'screen-changed', 'ai-wait', 'work-area',
+  'windows', 'screen-changed', 'ai-wait', 'work-area', 'remote-app',
 ];
 
 /** Мост preload.ts: что окно кота может попросить у главного процесса. */

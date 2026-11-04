@@ -13,6 +13,7 @@ import { setSettings, settings } from './core/settings';
 import { initAiGuide } from './guide/ai-guide';
 import { initCoach, startTourOnce } from './guide/coach';
 import { initInspect } from './guide/inspect';
+import { initScamGuard } from './guide/scam';
 import { afterFirstTraining, initTrainer, startTrainer } from './guide/trainer';
 import { initMouse } from './input/mouse';
 import { addMsg, initChat } from './panels/chat';
@@ -38,6 +39,7 @@ async function start(): Promise<void> {
   initTrainer();
   initAiGuide();
   initInspect();
+  initScamGuard();
   initMouse();
   initCursorWatch();
   initTrayCommands();
