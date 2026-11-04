@@ -10,6 +10,7 @@ import { MAC_ROLES, MAC_SCRIPT } from '../src/main/system/locate';
 import { extraFor, fallbackModel, resolve } from '../src/main/ai/providers';
 import { cleanPlan, nameRegex, pickNearest, scopesFor, showGoal, stepOf, uiaTypes } from '../src/main/ai/show';
 import { aiKey } from '../src/shared/types';
+import { goalFromHowTo, isHowTo, vagueGoal } from '../src/shared/howto';
 
 test('practice files survive repeated setup; folder actions reject arbitrary paths; picker cancel does not open', async () => {
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'pushik-files-test-'));
@@ -107,4 +108,26 @@ test('precise paw: the system button nearest to the AI guess wins; far or ambigu
   assert.deepEqual(scopesFor('taskbar'), ['taskbar']);
   assert.deepEqual(scopesFor('start menu'), ['start', 'popup']);
   assert.deepEqual(scopesFor('window'), ['popup', '']);
+});
+
+test('"show me how…" requests are recognised without the AI; small talk is not', () => {
+  const howTo = [
+    'покажи как поставить таймер на 5 минут',
+    'а ты можешь мне объяснить как это сделать и показать?',
+    'Как мне открыть калькулятор?',
+    'как сделать звук громче',
+    'хочу позвонить внуку',
+    'где найти мои загрузки',
+    'научи отправлять фото',
+    'how do I open the calculator',
+  ];
+  for (const t of howTo) assert.equal(isHowTo(t), true, t);
+  for (const t of ['как дела?', 'Как тебя зовут', 'расскажи сказку', 'напомни через 20 минут позвонить маме', 'привет', 'спасибо!']) {
+    assert.equal(isHowTo(t), false, t);
+  }
+  assert.equal(goalFromHowTo('покажи как поставить таймер на 5 минут'), 'Поставить таймер на 5 минут');
+  assert.equal(goalFromHowTo('Покажи мне, пожалуйста, как открыть калькулятор?'), 'Открыть калькулятор');
+  assert.equal(goalFromHowTo('хочу позвонить внуку'), 'Хочу позвонить внуку');
+  assert.equal(vagueGoal(goalFromHowTo('а ты можешь мне объяснить как это сделать и показать?')), true);
+  assert.equal(vagueGoal(goalFromHowTo('покажи как поставить таймер на 5 минут')), false);
 });

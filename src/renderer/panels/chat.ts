@@ -1,6 +1,7 @@
 // Чат с котом (если у команды есть ИИ).
 import { isError } from '../../shared/types';
 import { happy } from '../cat/poses';
+import { goalFromHowTo, isHowTo, vagueGoal } from '../../shared/howto';
 import { routeGoal } from '../guide/router';
 import { api } from '../core/api';
 import { $, dom, el } from '../core/dom';
@@ -26,6 +27,14 @@ export function initChat(): void {
     if (!text) return;
     input.value = '';
     addMsg('me', text);
+    // «Покажи, как…» узнаём сами и сразу ведём по экрану: ИИ не всегда слушается и пишет шаги текстом
+    // «как это сделать?» без самой задачи: пусть ИИ вспомнит задачу из прошлых сообщений
+    if (isHowTo(text) && !vagueGoal(goalFromHowTo(text))) {
+      const goal = goalFromHowTo(text);
+      addMsg('from-cat', T('chat.showing', { goal }));
+      setTimeout(() => routeGoal(goal), 700);
+      return;
+    }
     const typing = addMsg('from-cat typing', T('chat.thinking'));
     dom.cat.classList.add('thinking');
     const res = await api.chat(text);
