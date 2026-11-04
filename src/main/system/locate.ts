@@ -236,7 +236,7 @@ function Window($q) {
 # ИИ выбирает из них номер, и кот показывает точно в кнопку, а не туда, где ИИ «на глаз» её увидел.
 # Обходим дерево вширь с ограничением по времени, чтобы помощник никогда не ждал дольше бюджета.
 function ListAll($q) {
-  $budget = 1200
+  $budget = 900
   if ($q.budget) { $budget = [int]$q.budget }
   $sw = [System.Diagnostics.Stopwatch]::StartNew()
   $cr = New-Object System.Windows.Automation.CacheRequest
@@ -251,7 +251,13 @@ function ListAll($q) {
   foreach ($el in $AE::RootElement.FindAll($TS::Children, $cond)) {
     if (-not $el.Current.IsOffscreen) { $roots += ,@($el, 'popup') }
   }
-  foreach ($w in (Wins 1)) { $roots += ,@($w[0], 'window') }
+  # Браузеры и программы на Chromium/Electron от обхода включают у себя полную «доступность»
+  # и начинают тормозить вместе со всей системой. Их окна не обходим: там кот показывает по рамке ИИ.
+  $skipped = ''
+  foreach ($w in (Wins 1)) {
+    if ($q.skipProc -and $w[1] -match $q.skipProc) { $skipped = $w[1]; continue }
+    $roots += ,@($w[0], 'window')
+  }
   $pm = [PushTop]::Desktop()
   if ($pm -ne 0) { $roots += ,@($AE::FromHandle([IntPtr]$pm), 'desktop') }
   $items = @()
@@ -286,7 +292,7 @@ function ListAll($q) {
       }
     }
   }
-  return @{ items = $items; ms = $sw.ElapsedMilliseconds }
+  return @{ items = $items; ms = $sw.ElapsedMilliseconds; skipped = $skipped }
 }
 
 function Volume() {

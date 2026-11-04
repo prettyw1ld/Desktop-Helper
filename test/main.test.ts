@@ -8,7 +8,7 @@ import vm from 'node:vm';
 import { createFileActions } from '../src/main/system/files';
 import { MAC_ROLES, MAC_SCRIPT, WIN_SCRIPT } from '../src/main/system/locate';
 import { extraFor, fallbackModel, resolve } from '../src/main/ai/providers';
-import { cleanPlan, formatMarks, pickMark, showGoal, stepOf, usesNormalizedBoxes, type Mark } from '../src/main/ai/show';
+import { cleanPlan, formatMarks, pickMark, showGoal, stepOf, boxUnits, type Mark } from '../src/main/ai/show';
 import { fitToWorkArea } from '../src/main/geometry';
 import { aiKey } from '../src/shared/types';
 import { goalFromHowTo, isHowTo, vagueGoal } from '../src/shared/howto';
@@ -109,8 +109,10 @@ test('precise paw: the AI picks a system element by number; otherwise the named 
   const text = formatMarks([c]);
   assert.match(text, /\[3\] Button "Поиск" \(taskbar\) at 120,140 size 80x30/);
   assert.match(formatMarks([]), /target/);
-  assert.equal(usesNormalizedBoxes('qwen/qwen3.8-27b'), true);
-  assert.equal(usesNormalizedBoxes('claude-sonnet'), false);
+  // снимок 1024×576: рамка ниже 576 бывает только в долях 0..1000
+  assert.equal(boxUnits({ x: 100, y: 880, w: 120, h: 40 }, 1024, 576), 'k');
+  assert.equal(boxUnits({ x: 100, y: 500, w: 120, h: 40 }, 1024, 576), 'px');
+  assert.equal(boxUnits({ x: 1100, y: 500, w: 120, h: 40 }, 1024, 576), 'px');
 });
 
 test('buttons on the taskbar are shown at the edge of the cat window, other monitors are skipped', () => {
@@ -150,7 +152,7 @@ test('Windows locator lists screen elements within a time budget and its script 
   assert.match(ps, /elseif \(\$q\.op -eq 'list'\) \{ \$res = ListAll \$q \}/);
   const fn = ps.slice(ps.indexOf('function ListAll'), ps.indexOf('function Volume'));
   assert.match(fn, /Stopwatch/);
-  for (const [o, c] of [['{', '}'], ['(', ')'], ['[', ']']]) {
+  for (const [o, c] of [['{', '}'], ['(', ')'], ['[', ']']] as const) {
     assert.equal(fn.split(o).length, fn.split(c).length, `balanced ${o}${c}`);
   }
   assert.match(fn, /-replace 'ControlType\\\.'/, 'regex escape survives the template string');

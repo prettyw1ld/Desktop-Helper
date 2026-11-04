@@ -5,7 +5,8 @@ import type { LookMode, LookRequest, LookResult, LookStatus, Rect, Settings } fr
 import { aiError, fetchAI, fetchAIRetry, readError } from './http';
 import { CLAUDE_URL, cleanReply, extraFor, pickModel, resolve } from './llm';
 import { cropSelection, INSPECT_PROMPT, INSPECT_SYSTEM } from './screen-region';
-import { cleanPlan, formatMarks, pickMark, stepOf, usesNormalizedBoxes, type ElementHint, type Mark } from './show';
+import { boxUnits, cleanPlan, formatMarks, pickMark, stepOf, type ElementHint, type Mark } from './show';
+import { guideLog } from './guide-log';
 import { fitToWorkArea } from '../geometry';
 import * as locate from '../system/locate';
 import type { LocateItem } from '../../shared/types';
@@ -164,12 +165,13 @@ export async function capture(overlay: BrowserWindow | null, width = SHOT_W): Pr
 }
 
 // Перевод рамки из пикселей снимка в координаты окна кота (оно на всю рабочую область).
-function toOverlay(box: Partial<Rect> | undefined, shot: Shot, normalized = false): Rect | null {
+function toOverlay(box: Partial<Rect> | undefined, shot: Shot): Rect | null {
   if (!box) return null;
   const { x, y, w, h } = box;
   if (![x, y, w, h].every(Number.isFinite)) return null;
   const { display } = shot;
-  // Qwen обучен давать рамки в долях 0..1000 по каждой оси, а не в пикселях снимка
+  // некоторые модели (Qwen) дают рамку в долях 0..1000 вместо пикселей снимка
+  const normalized = boxUnits(box as Rect, shot.w, shot.h) === 'k';
   const kx = display.size.width / (normalized ? 1000 : shot.w);
   const ky = display.size.height / (normalized ? 1000 : shot.h);
   const r = { x: x! * kx + display.bounds.x, y: y! * ky + display.bounds.y, w: w! * kx, h: h! * ky };
@@ -179,15 +181,19 @@ function toOverlay(box: Partial<Rect> | undefined, shot: Shot, normalized = fals
 
 // ---------- Элементы экрана от системы (Windows UI Automation) ----------
 // Кнопки с точными прямоугольниками. ИИ выбирает номер, и кот показывает ровно в кнопку.
-const MARKS_BUDGET = 1200;
+const MARKS_BUDGET = 900;
+// Chromium и Electron: обход их окна через UI Automation включает у них тяжёлую «доступность»
+const HEAVY_A11Y = '^(chrome|msedge|browser|opera|brave|vivaldi|firefox|Code|Cursor|Discord|Slack|Teams|ms-teams|Spotify|Obsidian|Notion|Figma|electron)$';
 
 async function screenMarks(shot: Promise<Shot>): Promise<Mark[]> {
   if (process.platform !== 'win32') return [];
   const res = await Promise.race([
-    locate.ask({ op: 'list', budget: MARKS_BUDGET }),
+    locate.ask({ op: 'list', budget: MARKS_BUDGET, skipProc: HEAVY_A11Y }),
     new Promise<{ items?: LocateItem[] }>((r) => setTimeout(() => r({}), MARKS_BUDGET + 1500)),
   ]);
   const items = res.items ?? [];
+  const info = res as { error?: string; ms?: number; skipped?: string };
+  guideLog('marks', { items: items.length, psMs: info.ms ?? null, skipped: info.skipped || null, error: info.error ?? (res.items ? null : 'timeout') });
   if (!items.length) return [];
   const { display, w: sw, h: sh } = await shot;
   const marks: Mark[] = [];
@@ -314,18 +320,18 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
   const { mode, selection, settings, overlay } = req;
   const inspect = mode === 'inspect';
   // снимок и список кнопок от системы делаем одновременно: так быстрее и они совпадают
+  const t0 = Date.now();
   const shotP = capture(overlay, inspect ? 4096 : SHOT_W);
-  const marksP = inspect ? Promise.resolve([] as Mark[]) : screenMarks(shotP).catch(() => [] as Mark[]);
+  const marksP = inspect ? Promise.resolve([] as Mark[]) : screenMarks(shotP).catch((e: unknown) => { guideLog('marks-error', { error: String(e) }); return [] as Mark[]; });
   const shot = await shotP;
+  const tShot = Date.now() - t0;
   const marks = await marksP;
+  const tMarks = Date.now() - t0;
   const image = inspect ? cropSelection(shot, selection) : shot.image;
   const system = inspect ? INSPECT_SYSTEM : systemPrompt(settings.lang, process.platform);
   const size = image.getSize();
   const r = resolve(settings);
-  const normalized = !inspect && r.kind === 'openai' && usesNormalizedBoxes(r.vision);
-  const coords = normalized
-    ? 'Coordinates for "target": normalized 0..1000 on each axis (0,0 = top-left corner, 1000,1000 = bottom-right corner).'
-    : `Coordinates for "target": screenshot pixels. Image size: ${size.width}x${size.height} pixels.`;
+  const coords = `Coordinates for "target": screenshot pixels. Image size: ${size.width}x${size.height} pixels.`;
   const text = inspect
     ? `${INSPECT_PROMPT}\nImage size: ${size.width}x${size.height} pixels.`
     : `${userText(req)}\n${coords}\n${formatMarks(marks)}`;
@@ -339,14 +345,25 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
     jpeg: image.toJPEG(90).toString('base64'),
   };
   const fn = r.kind === 'ollama' ? askOllama : r.kind === 'openai' ? askOpenAI : askClaude;
+  const tAsk = Date.now();
   let out = await fn(input);
+  const tModel = Date.now() - tAsk;
   if (inspect && (!out.confidence || out.confidence === 'low')) out = unsureInspect(out);
   const plan = inspect ? [] : cleanPlan(out.plan);
-  const guess = inspect ? null : toOverlay(out.target, shot, normalized);
+  const guess = inspect ? null : toOverlay(out.target, shot);
   // точнее всего — номер элемента из списка системы; иначе ищем названную кнопку рядом с рамкой ИИ
   const mark = inspect || out.status === 'done' ? null : pickMark(marks, out.elementId, out.element?.name, guess);
   const target = mark ? mark.overlay : guess;
   const snapped = !!mark;
+  const d = shot.display;
+  guideLog('look', {
+    mode, ms: { shot: tShot, marks: tMarks, model: tModel },
+    display: { size: d.size, scale: d.scaleFactor, work: d.workArea, shot: [shot.w, shot.h] },
+    marks: marks.length, taskbarMarks: marks.filter((m) => m.area === 'taskbar').length,
+    status: out.status, say: String(out.say || '').slice(0, 80),
+    rawTarget: out.target, elementId: out.elementId ?? null, element: out.element ?? null,
+    picked: mark ? { id: mark.id, name: mark.name, type: mark.type } : null, target,
+  });
   return {
     status: STATUSES.includes(out.status as LookStatus) ? out.status as LookStatus : 'step',
     screenSummary: String(out.screenSummary || '').slice(0, 1000),
@@ -374,9 +391,11 @@ export function watch({ masks = [], onChange }: { masks?: Rect[]; onChange: () =
   let busy = false;
   const W = 160;
   const until = Date.now() + 90_000;
+  let slowUntil = 0;
   watchTimer = setInterval(async () => {
-    if (busy) return;
+    if (busy || Date.now() < slowUntil) return;
     if (Date.now() > until) { unwatch(); return; }
+    const started = Date.now();
     busy = true;
     try {
       const display = screen.getPrimaryDisplay();
@@ -394,6 +413,9 @@ export function watch({ masks = [], onChange }: { masks?: Rect[]; onChange: () =
         const my = (m.y + offY) * k;
         return x >= mx - 2 && x <= mx + m.w * k + 2 && y >= my - 2 && y <= my + m.h * k + 2;
       });
+      // снимок экрана дорогой на этом компьютере: смотрим реже, чтобы не тормозить систему
+      const took = Date.now() - started;
+      if (took > 300) { slowUntil = Date.now() + took * 8; guideLog('watch-slow', { ms: took }); }
       if (!base) { base = bmp; return; }
       let diff = 0;
       let n = 0;
