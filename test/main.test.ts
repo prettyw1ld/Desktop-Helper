@@ -102,7 +102,8 @@ test('precise paw: the AI picks a system element by number; otherwise the named 
   assert.equal(pickMark([a, b, c], 3), c, 'number wins');
   assert.equal(pickMark([a, b, c], '2'), b);
   assert.equal(pickMark([a, b, c], 99, 'Таймер', { x: 110, y: 95, w: 70, h: 40 }), a, 'bad number: nearest by name');
-  assert.equal(pickMark([b], undefined, 'Таймер', { x: 110, y: 95, w: 70, h: 40 }), null, 'too far from the AI box');
+  assert.equal(pickMark([b], undefined, 'Таймер', { x: 110, y: 95, w: 70, h: 40 }), b, 'far from the AI box but the only one');
+  assert.equal(pickMark([a, b], undefined, 'Таймер', { x: 500, y: 350, w: 20, h: 20 }), null, 'two far candidates: do not guess');
   assert.equal(pickMark([a, b], undefined, '«Таймер»'), null, 'two with that name and no box');
   assert.equal(pickMark([a, c], undefined, 'таймер'), a);
   assert.equal(pickMark([a], undefined, ''), null);
@@ -156,4 +157,12 @@ test('Windows locator lists screen elements within a time budget and its script 
     assert.equal(fn.split(o).length, fn.split(c).length, `balanced ${o}${c}`);
   }
   assert.match(fn, /-replace 'ControlType\\\.'/, 'regex escape survives the template string');
+});
+
+test('Windows locator runs from a script file, so its size never hits the command-line limit', async () => {
+  const src = await fsp.readFile(path.join(__dirname, '../../src/main/system/locate.ts'), 'utf8');
+  assert.doesNotMatch(src, /'-EncodedCommand'/, 'the locator script is too long for -EncodedCommand (32 767 chars on Windows)');
+  assert.match(src, /'-File', scriptFile\(\)/);
+  const ps = WIN_SCRIPT(1);
+  for (const op of ['shot', 'grid', 'list']) assert.match(ps, new RegExp(`\\$q\\.op -eq '${op}'`));
 });

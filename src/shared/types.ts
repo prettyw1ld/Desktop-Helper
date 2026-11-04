@@ -123,7 +123,7 @@ export interface LookResult {
 export interface ChatResult { reply: string; actions: string[]; show?: string }
 
 // ---------- Поиск кнопок через «доступность» ----------
-export type LocateOp = 'find' | 'top' | 'window' | 'drives' | 'volume' | 'list';
+export type LocateOp = 'find' | 'top' | 'window' | 'drives' | 'volume' | 'list' | 'shot' | 'grid';
 
 export interface LocateQuery {
   op: LocateOp;
@@ -134,6 +134,8 @@ export interface LocateQuery {
   firstWindow?: boolean;
   budget?: number;      // list: сколько миллисекунд можно искать
   skipProc?: string;    // list: регулярка программ, чьи окна не обходить
+  width?: number;       // shot, grid: ширина картинки
+  height?: number;      // grid: высота
 }
 
 export interface LocateItem extends Rect {
@@ -162,6 +164,12 @@ export interface LocateResult {
   volume?: number;
   muted?: boolean;
   error?: string;
+  jpeg?: string;        // shot: снимок экрана, base64
+  grid?: string;        // grid: маленький снимок BGRA, base64 (следим за изменениями экрана)
+  w?: number;           // shot, grid: размер картинки
+  h?: number;
+  sw?: number;          // shot: размер экрана в пикселях
+  sh?: number;
 }
 
 // ---------- Уроки про файлы ----------
