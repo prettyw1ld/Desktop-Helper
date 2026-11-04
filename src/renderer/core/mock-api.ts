@@ -45,7 +45,9 @@ export function mockApi(): PushikApi {
     getCursor: async () => null,
     getSettings: async () => s,
     saveSettings: async (next) => Object.assign(s, next),
-    chat: async (t) => ({ reply: `Мяу! (тестовый режим) Ты написал: ${t}`, actions: [] }),
+    chat: async (t) => (/^(как|покажи)/i.test(t)
+      ? { reply: `Сейчас покажу на экране: ${t}`, actions: [], show: t }
+      : { reply: `Мяу! (тестовый режим) Ты написал: ${t}`, actions: [] }),
     resetChat: async () => true,
     addReminder: async (minutes, text, kind) => {
       const r = { id: String(Math.random()), at: Date.now() + minutes * 60000, text, kind };
@@ -69,7 +71,10 @@ export function mockApi(): PushikApi {
         return { ...step('Нажми на стрелку влево вверху', { x: 20, y: 20, w: 40, h: 40 }, 'explain'), explain: 'Сейчас открыт браузер, страница новостей.' };
       }
       n = mode === 'start' ? 0 : n + 1;
-      return fake[Math.min(n, fake.length - 1)]!;
+      const res = fake[Math.min(n, fake.length - 1)]!;
+      // как настоящий ИИ: на первом шаге весь путь, дальше номер шага
+      const plan = fake.filter((f) => f.status === 'step').map((f) => f.say);
+      return res.status === 'step' ? { ...res, plan: mode === 'start' ? plan : [], stepIndex: Math.min(n + 1, plan.length) } : res;
     },
     guideWatch() {},
     guideUnwatch() {},

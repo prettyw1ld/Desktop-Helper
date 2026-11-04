@@ -86,6 +86,7 @@ button { font: inherit; cursor: pointer; }
 .bubble.below { bottom: auto; top: calc(140px + 14px); }
 .bubble.below::after { bottom: auto; top: -11px; transform: rotate(225deg); }
 .bubble .explain { font-weight: 500; font-size: 17px; margin-top: 6px; }
+.bubble .step-no { font-weight: 700; font-size: 14px; letter-spacing: .02em; opacity: .65; margin-bottom: 4px; }
 .bubble-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 .bubble-actions:empty { display: none; }
 .bubble-actions button {

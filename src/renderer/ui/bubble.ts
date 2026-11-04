@@ -14,6 +14,7 @@ export interface SayOptions {
   guide?: boolean;     // это подсказка: её не перебивают случайные фразы
   danger?: boolean;
   explain?: string;    // мелкий текст под репликой
+  step?: string;       // «Шаг 2 из 5» над репликой
 }
 
 const { bubble, bubbleText, bubbleActions } = dom;
@@ -27,6 +28,7 @@ export function say(text: string, ms = 4000, opts: SayOptions = {}): void {
   // пока кот ведёт по шагам, случайные фразы («Оп! Приземлился») не закрывают подсказку
   if (guide.active && !opts.guide && ms <= 4500) return;
   bubbleText.textContent = text;
+  if (opts.step) bubbleText.prepend(el('div', 'step-no', opts.step));
   if (opts.explain) bubbleText.append(el('div', 'explain', opts.explain));
   bubbleActions.replaceChildren();
   for (const [label, run, primary] of opts.actions ?? []) {

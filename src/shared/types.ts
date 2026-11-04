@@ -102,6 +102,7 @@ export interface LookRequest {
   history?: string[];
   selection?: Rect;
   previousSummary?: string;
+  plan?: string[];      // путь к цели, который ИИ продумал на первом шаге
 }
 
 export interface LookResult {
@@ -113,6 +114,9 @@ export interface LookResult {
   skill: string;
   practiceGoal: string;
   target: Rect | null;  // в координатах окна кота
+  snapped?: boolean;    // место уточнено через «доступность» системы, а не только догадка ИИ
+  plan?: string[];      // весь путь к цели (на первом шаге или если путь поменялся)
+  stepIndex?: number;   // какой это шаг плана, с 1; 0 — неизвестно
 }
 
 /** show: цель, которую кот покажет на экране по шагам вместо текстового ответа. */

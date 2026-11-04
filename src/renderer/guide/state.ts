@@ -12,6 +12,8 @@ export const guide = {
   kind: 'ai' as GuideKind,
   goal: '',
   history: [] as string[],        // подсказки, которые уже были (для ИИ)
+  plan: [] as string[],           // весь путь к цели, который ИИ продумал заранее
+  stepIndex: 0,                   // какой сейчас шаг плана, с 1
   last: null as LookResult | null,
   busy: false,                    // ждём ответ ИИ
   mode: '',                       // режим последнего запроса к ИИ

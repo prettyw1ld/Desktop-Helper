@@ -43,11 +43,18 @@ function showChange(text: string, back: () => void): void {
   speak(text);
 }
 
+/** «Шаг 2 из 5», если ИИ продумал путь заранее. */
+export function stepLabel(): string {
+  const n = guide.plan.length;
+  const i = guide.stepIndex;
+  return n >= 2 && i >= 1 && i <= n ? T('g.stepOf', { i, n }) : '';
+}
+
 function showStep(res: LookResult): void {
   guide.last = res;
   showRing(res.target);
   const sayIt = () => {
-    say(res.say, Infinity, { actions: aiStepActions(), guide: true });
+    say(res.say, Infinity, { actions: aiStepActions(), guide: true, step: stepLabel() });
     speak(res.say);
     watchScreen();
   };
@@ -57,7 +64,7 @@ function showStep(res: LookResult): void {
 
 /** Повторить текущую подсказку (после переноса кота). */
 export function repeatAiStep(): void {
-  if (guide.last?.say) say(guide.last.say, Infinity, { guide: true, actions: aiStepActions() });
+  if (guide.last?.say) say(guide.last.say, Infinity, { guide: true, actions: aiStepActions(), step: stepLabel() });
 }
 
 async function done(res: LookResult): Promise<void> {
@@ -101,7 +108,7 @@ export async function look(mode: LookMode): Promise<void> {
   dom.cat.classList.add('thinking');
   if (cat.state !== 'perch' && !['fall', 'jump'].includes(cat.state)) setState('busy');
   say(T(mode === 'check' ? 'g.checking' : 'g.looking'), Infinity, { guide: true });
-  const res = await api.guideLook({ mode, goal: guide.goal, history: guide.history, previousSummary: guide.screenSummary });
+  const res = await api.guideLook({ mode, goal: guide.goal, history: guide.history, previousSummary: guide.screenSummary, plan: guide.plan });
   dom.cat.classList.remove('thinking');
   guide.busy = false;
   if (!guide.active) return;
@@ -111,6 +118,8 @@ export async function look(mode: LookMode): Promise<void> {
     return;
   }
   if (res.screenSummary) guide.screenSummary = res.screenSummary;
+  if (res.plan?.length) guide.plan = res.plan;
+  if (res.stepIndex) guide.stepIndex = res.stepIndex;
   switch (res.status) {
     case 'step':
       if (res.say) guide.history.push(res.say);
@@ -139,7 +148,7 @@ export function startGuide(goal: string, mode: LookMode = 'start'): void {
   if (!goal) return;
   closePanels();
   endTrainer();
-  Object.assign(guide, { active: true, kind: 'ai', goal, history: [], screenSummary: '', last: null, busy: false });
+  Object.assign(guide, { active: true, kind: 'ai', goal, history: [], plan: [], stepIndex: 0, screenSummary: '', last: null, busy: false });
   look(mode);
 }
 
@@ -147,7 +156,7 @@ export function startGuide(goal: string, mode: LookMode = 'start'): void {
 export function imLostAI(): void {
   closePanels();
   endTrainer();
-  if (!guide.active) Object.assign(guide, { goal: '', history: [], kind: 'ai' });
+  if (!guide.active) Object.assign(guide, { goal: '', history: [], plan: [], stepIndex: 0, kind: 'ai' });
   guide.active = true;
   guide.busy = false;
   look('confused');

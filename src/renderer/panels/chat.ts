@@ -1,7 +1,7 @@
 // Чат с котом (если у команды есть ИИ).
 import { isError } from '../../shared/types';
 import { happy } from '../cat/poses';
-import { startGuide } from '../guide/ai-guide';
+import { routeGoal } from '../guide/router';
 import { api } from '../core/api';
 import { $, dom, el } from '../core/dom';
 import { T } from '../core/i18n';
@@ -33,8 +33,8 @@ export function initChat(): void {
     typing.remove();
     if (isError(res)) { addMsg('err', res.error); return; }
     addMsg('from-cat', res.reply);
-    // «Как сделать…»: не простыня текста, а показ лапкой на экране, шаг за шагом
-    if (res.show) { const goal = res.show; setTimeout(() => startGuide(goal), 700); return; }
+    // «Как сделать…»: не простыня текста, а показ лапкой на экране, шаг за шагом (готовый урок, если есть)
+    if (res.show) { const goal = res.show; setTimeout(() => routeGoal(goal), 700); return; }
     happy(800);
     if (res.actions.length) void refreshReminders();
   });

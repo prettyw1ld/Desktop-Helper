@@ -8,7 +8,7 @@ import vm from 'node:vm';
 import { createFileActions } from '../src/main/system/files';
 import { MAC_ROLES, MAC_SCRIPT } from '../src/main/system/locate';
 import { extraFor, fallbackModel, resolve } from '../src/main/ai/providers';
-import { showGoal } from '../src/main/ai/show';
+import { cleanPlan, nameRegex, pickNearest, scopesFor, showGoal, stepOf, uiaTypes } from '../src/main/ai/show';
 import { aiKey } from '../src/shared/types';
 
 test('practice files survive repeated setup; folder actions reject arbitrary paths; picker cancel does not open', async () => {
@@ -80,4 +80,31 @@ test('chat "how do I…" answers turn into an on-screen walkthrough goal', () =>
   assert.equal(showGoal('[SHOW] Поставить таймер на 5 минут в приложении Часы.'), 'Поставить таймер на 5 минут в приложении Часы.');
   assert.equal(showGoal('Мур! [ПОКАЖУ]: Сделать «звук» громче\nещё строка'), 'Сделать звук громче');
   assert.equal(showGoal('Привет! Как дела?'), '');
+});
+
+test('walkthrough plan: steps are cleaned and "step N of M" only shows for a valid step', () => {
+  const plan = cleanPlan(['1. Нажми «Пуск»', '', '2) Напиши «часы»', 'Открой «Часы»', 42]);
+  assert.deepEqual(plan, ['Нажми «Пуск»', 'Напиши «часы»', 'Открой «Часы»', '42']);
+  assert.deepEqual(cleanPlan('не список'), []);
+  assert.equal(stepOf(2, plan), 2);
+  assert.equal(stepOf('3', plan), 3);
+  assert.equal(stepOf(7, plan), 0);
+  assert.equal(stepOf(undefined, plan), 0);
+});
+
+test('precise paw: the system button nearest to the AI guess wins; far or ambiguous matches are ignored', () => {
+  const a = { name: 'Таймер', x: 100, y: 100, w: 80, h: 30 };
+  const b = { name: 'Таймер', x: 900, y: 600, w: 80, h: 30 };
+  const c = { name: 'Таймеры и будильники', x: 120, y: 140, w: 200, h: 30 };
+  assert.equal(pickNearest([a, b, c], { x: 110, y: 95, w: 70, h: 40 }, 'Таймер'), a);
+  assert.equal(pickNearest([b], { x: 110, y: 95, w: 70, h: 40 }, 'Таймер'), null, 'too far from the guess');
+  assert.equal(pickNearest([a, b], null, 'Таймер'), null, 'two candidates and no guess');
+  assert.equal(pickNearest([a], null, 'Таймер'), a);
+  assert.equal(nameRegex('«Старт (5)»'), '^\\s*Старт \\(5\\)');
+  assert.equal(nameRegex('x'), '');
+  assert.deepEqual(uiaTypes('Tab'), ['TabItem', 'Button', 'ListItem']);
+  assert.deepEqual(uiaTypes('other'), []);
+  assert.deepEqual(scopesFor('taskbar'), ['taskbar']);
+  assert.deepEqual(scopesFor('start menu'), ['start', 'popup']);
+  assert.deepEqual(scopesFor('window'), ['popup', '']);
 });
