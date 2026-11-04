@@ -196,6 +196,12 @@ npm test            # тесты (test/)
 ## Стек
 Electron 33, TypeScript без фреймворков (сборка esbuild), PowerShell и UI Automation (Windows), Swift и Accessibility API (macOS), Vosk (WebAssembly), Groq / DeepSeek / Qwen API (OpenAI-совместимые), Web Audio.
 
+## Благодарности
+
+Анимации кота сделаны на основе набора [**Animated Pixel Cats 64x64**](https://last-tick.itch.io/animated-pixel-cats-64x64) от автора **last-tick**. Оттуда взяты исходные спрайты и анимации; мы собрали их в свои листы для трёх окрасов (`assets/cats/`, исходники в `design/cats/`) и дорисовали недостающие кадры, например повороты головы. Спасибо автору!
+
+Права на исходную графику принадлежат last-tick, и под лицензию MIT этого проекта она не подпадает. Её использование регулируется условиями со [страницы набора](https://last-tick.itch.io/animated-pixel-cats-64x64).
+
 ## Автор
 Дамир Ходжиев ([@prettyw1ld](https://github.com/prettyw1ld)). Проект развиваю и поддерживаю один.
 
