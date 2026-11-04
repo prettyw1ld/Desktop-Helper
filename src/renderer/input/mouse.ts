@@ -1,6 +1,6 @@
-// Мышь: клики сквозь окно, перенос кота за шкирку, клики и двойные клики по коту.
+// Мышь: клики сквозь окно, перенос кота за шкирку, клики, двойные клики и поглаживание кота.
 import { cat, CAT_H, CAT_W, floorY, setState, size, startFall, SCRUFF_Y } from '../cat/cat';
-import { pet, happy, showPose } from '../cat/poses';
+import { pet, petMore, happy, showPose } from '../cat/poses';
 import { api } from '../core/api';
 import { dom } from '../core/dom';
 import { T } from '../core/i18n';
@@ -14,6 +14,7 @@ import { guide, trainer } from '../guide/state';
 import { endTrainer, trainerSay } from '../guide/trainer';
 import { hideBubble, placeBubble, say } from '../ui/bubble';
 import { closePanels, openPanel, showPanel } from '../ui/panels';
+import { strokes } from './stroke';
 
 // Окно кота пропускает клики насквозь везде, кроме кота и панелей (у них класс .hit).
 let ignoring = true;
@@ -53,6 +54,17 @@ function onMove(e: MouseEvent): void {
   }
   const target = document.elementFromPoint(e.clientX, e.clientY);
   setIgnore(!target?.closest('.hit'));
+  onStroke(e.clientX, e.clientY, !!target?.closest('.hitbox'));
+}
+
+// Водят мышкой по коту, не нажимая: гладят. Не во время урока и подсказки и не в полёте.
+const NO_PET = ['drag', 'fall', 'jump', 'intro', 'outro', 'perch'];
+function onStroke(x: number, y: number, over: boolean): void {
+  if (guide.active || trainer.step || NO_PET.includes(cat.state)) { strokes.reset(); return; }
+  const ev = strokes.feed(x, y, now(), over, size());
+  if (ev === 'pet') pet(true);
+  // гладят дальше: продолжаем, только если кот всё ещё жмурится, а не занят чем-то новым
+  else if (ev === 'more' && cat.state === 'act' && cat.act === 'heartsSitF') petMore();
 }
 
 // Кота отпустили.

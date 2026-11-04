@@ -4,6 +4,7 @@ import { api } from '../core/api';
 import { T } from '../core/i18n';
 import { now, rand } from '../core/util';
 import { busyWithPerson } from '../guide/state';
+import { strokes } from '../input/stroke';
 import { say } from '../ui/bubble';
 import { openPanel } from '../ui/panels';
 import { cat, CAT_H, cx, setState, size } from './cat';
@@ -53,7 +54,8 @@ export function watchPose(t: number): AnimName | HeadTurn {
   const dx = mouse.x - cx();
   const dy = mouse.y - (cat.y + CAT_H * 0.45);
   if (t < cat.swipeUntil) return cat.swipePose;
-  if (Math.hypot(dx, dy) < 90 && mouseMoving(300) && t > cat.swipeCool) {
+  // курсор у морды бьём лапкой, но не когда кота гладят
+  if (Math.hypot(dx, dy) < 90 && mouseMoving(300) && t > cat.swipeCool && !strokes.active(t)) {
     cat.swipePose = dirAnim('swipeSit', dx < 0 ? -1 : 1);
     cat.swipeUntil = t + 900;
     cat.swipeCool = t + 2500;
@@ -80,7 +82,7 @@ export function updateCursorWatch(t: number): void {
     || (cat.state === 'walk' && !cat.running && !cat.onArrive && !cat.climb && Math.abs(mouse.x - cx()) < 300);
   if (calm && !cat.watchUntil && t > nextCheck) {
     nextCheck = t + 1000;
-    if (mouse.dist > 150 && mouseMoving(400) && !busyWithPerson() && !openPanel() && Math.random() < 0.3) startCursorWatch();
+    if (mouse.dist > 150 && mouseMoving(400) && !busyWithPerson() && !openPanel() && !strokes.active(t) && Math.random() < 0.3) startCursorWatch();
   }
   if (!cat.watchUntil) return;
   const h = cat.head;

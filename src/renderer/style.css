@@ -64,6 +64,11 @@ button { font: inherit; cursor: pointer; }
   animation: float-up 1.6s steps(8) forwards;
 }
 .fx .z { color: var(--ink); font-size: 22px; font-family: Georgia, serif; }
+/* сердечко как в кадре heartsSitF: 7×6 пикселей спрайта, увеличенных в 3 раза, те же цвета */
+.fx .heart {
+  width: 21px; height: 18px; text-shadow: none; image-rendering: pixelated;
+  background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 6' shape-rendering='crispEdges'><path fill='%23120e14' d='M0 0h7v1H0zM0 1h1v1H0zM3 1h1v1H3zM6 1h1v1H6zM0 2h1v1H0zM6 2h1v1H6zM0 3h2v1H0zM5 3h2v1H5zM1 4h2v1H1zM4 4h2v1H4zM2 5h3v1H2z'/><path fill='%23ca719f' d='M1 1h2v1H1zM4 1h2v1H4zM1 2h5v1H1zM2 3h3v1H2zM3 4h1v1H3z'/></svg>") center / 100% 100% no-repeat;
+}
 @keyframes float-up {
   from { opacity: 0; transform: translate(0, 0) scale(.6); }
   20% { opacity: 1; }
