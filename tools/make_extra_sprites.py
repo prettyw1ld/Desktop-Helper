@@ -19,7 +19,7 @@ import struct
 import zlib
 from collections import deque
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 ROOT = Path(__file__).resolve().parent.parent
 SIZE = 64
@@ -156,6 +156,33 @@ def hang_frames(sitF, closed):
     px = sitF.load()
     col = {k: px[p] for k, p in LOOK_KEYS.items()}
     return [hang_frame(closed if i == 4 else sitF, col, sw) for i, sw in enumerate(HANG_SWING)]
+
+
+# ---------- Hunting the cursor: crouched low, hips wiggle before the pounce ----------
+LIFT = [0, 1, 2, 1, 0, 1, 2, 1]
+SWISH = [0, 1, 1, 0, 0, -1, -1, 0]
+
+def hunt_frames(lieL):
+    """Crouched, about to pounce: hips go up and down, the tail tip swishes. Facing left."""
+    src = lieL.load()
+    out = []
+    for lift, sw in zip(LIFT, SWISH):
+        img = Image.new('RGBA', (SIZE, SIZE))
+        o = img.load()
+        for y in range(SIZE):
+            for x in range(SIZE):
+                p = src[x, y]
+                if not p[3]:
+                    continue
+                nx, ny = x, y
+                # hips rise smoothly from the shoulders back: never more than 1px between columns
+                ny = y - min(lift, max(0, (x - 27) * lift // 12))
+                if x >= 44 and y <= 37:
+                    nx = x + sw
+                if 0 <= nx < SIZE and 0 <= ny < SIZE:
+                    o[nx, ny] = p
+        out.append(img)
+    return out
 
 
 # ---------- Head turn: the sitting cat follows the cursor with its head ----------
@@ -451,6 +478,11 @@ def build(sheet, ginger):
     gsit = frame(ginger, 0, 0)
     rows.append(('lookSitF', 'Head turn, looking around (sit, front)', 0, look_frames(sitF, gsit, up=False)))
     rows.append(('lookUpSitF', 'Head turn, looking up (sit, front)', 0, look_frames(sitF, gsit, up=True)))
+
+    # Hunting the cursor: crouched like lieL/lieR, hips going up and down, tail tip swishing.
+    hunt = hunt_frames(f(7, 1))
+    rows.append(('huntL', 'Hunt crouch, hips wiggle (left)', 7, hunt))
+    rows.append(('huntR', 'Hunt crouch, hips wiggle (right)', 7, [ImageOps.mirror(h) for h in hunt]))
     return rows
 
 

@@ -60,6 +60,10 @@ export const cat = {
   swipeUntil: 0,
   swipeCool: 0,
   swipePose: 'swipeSitL' as AnimName,
+  swipes: 0,                                         // сколько раз подряд ударил по курсору
+  // охота: до какого времени крадётся (0 — не охотится) и когда можно снова
+  huntUntil: 0,
+  huntCool: 0,
 };
 
 // ---------- Размеры ----------
@@ -98,6 +102,7 @@ export function setState(state: CatState, ms?: number): void {
   cat.since = now();
   if (state !== 'walk') { cat.running = false; cat.onArrive = null; }
   cat.watchUntil = 0;
+  cat.huntUntil = 0;
   if (state === 'idle') cat.idlePose = pick(IDLE_POSES());
   dom.cat.classList.toggle('dragging', state === 'drag');
 }

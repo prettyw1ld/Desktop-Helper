@@ -95,8 +95,8 @@ test('the cat turns its head after the cursor one drawn position at a time and s
   trackMouse(1250, 100);                      // курсор высоко: смотрит вверх
   updateCursorWatch(t0 + 1900);
   assert.equal(head().up, true);
-  trackMouse(575, 663);                       // шевелится у самой морды
-  assert.match(String(watchPose(now())), /^swipeSit[LR]$/);
+  trackMouse(575, 663);                       // шевелится прямо перед мордой: бьёт передней лапой
+  assert.equal(watchPose(now()), 'swipeSitF');
 });
 
 test('the head does not twitch while the cursor hovers near the border of two positions', () => {
