@@ -25,7 +25,7 @@ export function setIgnore(v: boolean): void {
   api.setIgnoreMouse(v);
 }
 
-interface Press { x: number; y: number; catX: number; catY: number; moved: boolean }
+interface Press { x: number; y: number; catX: number; catY: number; moved: boolean; lastX: number }
 let press: Press | null = null;
 
 // Кота взяли: он повисает так, чтобы курсор был у него на загривке.
@@ -51,6 +51,11 @@ function onMove(e: MouseEvent): void {
     if (press.moved) {
       cat.x = press.catX + dx;
       cat.y = press.catY + dy;
+      // смотрит туда, куда его несут
+      if (Math.abs(e.clientX - press.lastX) > 4) {
+        cat.dir = e.clientX > press.lastX ? 1 : -1;
+        press.lastX = e.clientX;
+      }
     }
     return;
   }
@@ -135,7 +140,7 @@ export function initMouse(): void {
   dom.cat.addEventListener('mousedown', (e) => {
     if (e.button !== 0 || (e.target as Element).closest('.bubble')) return;
     e.preventDefault();
-    press = { x: e.clientX, y: e.clientY, catX: cat.x, catY: cat.y, moved: false };
+    press = { x: e.clientX, y: e.clientY, catX: cat.x, catY: cat.y, moved: false, lastX: e.clientX };
   });
   document.addEventListener('mouseup', () => {
     if (!press) return;

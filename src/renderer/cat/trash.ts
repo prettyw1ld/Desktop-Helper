@@ -80,6 +80,7 @@ export function dropIntoTrash(): boolean {
   asked++;
   const r = bin;
   bin = null;
+  setScared(false);
   if (!r || !overBin(r)) { showGlow(null); return false; }
   throwIn(r);
   return true;
@@ -178,12 +179,25 @@ export function leaveTrash(): void {
   if (trashed) out();
 }
 
+// Кот над Корзиной: значок подсвечен, кот дрожит, вырывается от неё и просит не выбрасывать.
+let scared = false;
+function setScared(on: boolean, r: Rect | null = null): void {
+  if (on && r) cat.dir = cx() < r.x + r.w / 2 ? -1 : 1;
+  if (on === scared) return;
+  scared = on;
+  dom.cat.classList.toggle('scared', on);
+  if (on) { say(T('trash.nope'), 1800); Sound.meow(); }
+}
+
 // Каждый кадр: подсветка корзины, пока кота несут, и полёт в корзину и из неё.
 function frame(): void {
   if (cat.state === 'drag') {
-    showGlow(bin && overBin(bin) ? bin : null, 'hot');
+    const over = !!bin && overBin(bin);
+    showGlow(over ? bin : null, 'hot');
+    setScared(over, bin);
     return;
   }
+  setScared(false);
   const f = flight;
   if (!f) return;
   const p = clamp((now() - f.t0) / f.ms, 0, 1);

@@ -31,7 +31,7 @@ export function pickAnim(t: number): AnimName | Frame | HeadTurn {
       if (e < 2400) return d < 0 ? 'lieF_L' : 'lieF_R';
       return cat.sleepKind;
     }
-    case 'drag': return 'scruffF';
+    case 'drag': return dirAnim('run', d); // перебирает лапами в воздухе, мордой туда, куда несут
     case 'fall':
     case 'trash': return cat.vy < 0 ? { row: ANIM.jumpB.row, col: 1 } : { row: ANIM[dirAnim('jump', d)].row, col: 2 };
     case 'jump': {

@@ -147,6 +147,71 @@ public static class PushShot {
 }
 "@
 } catch { }
+# Значки рабочего стола (Корзина, ярлыки). UI Automation их часто не видит (пустой список),
+# а старая «доступность» MSAA отдаёт имя и место каждого значка. Значок под окном программы не берём.
+try {
+Add-Type -ReferencedAssemblies Accessibility -TypeDefinition @"
+using System; using System.Collections.Generic; using System.Runtime.InteropServices; using System.Text.RegularExpressions; using Accessibility;
+public static class PushDesk {
+  [DllImport("oleacc.dll")] static extern int AccessibleObjectFromWindow(IntPtr h, uint id, ref Guid iid, [MarshalAs(UnmanagedType.Interface)] out object o);
+  [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr h, uint flags);
+  [DllImport("user32.dll")] static extern IntPtr GetTopWindow(IntPtr h);
+  [DllImport("user32.dll")] static extern IntPtr GetWindow(IntPtr h, uint cmd);
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] static extern bool IsIconic(IntPtr h);
+  [DllImport("user32.dll")] static extern int GetWindowTextLength(IntPtr h);
+  [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr h, int i);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h, out RECT r);
+  [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr h, int a, out int v, int s);
+  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
+  // точку закрывает окно программы, которое лежит выше рабочего стола (кроме окна кота)
+  static bool Covered(IntPtr desk, int x, int y, uint skipPid) {
+    IntPtr root = GetAncestor(desk, 2);
+    for (IntPtr h = GetTopWindow(IntPtr.Zero); h != IntPtr.Zero && h != root; h = GetWindow(h, 2)) {
+      if (!IsWindowVisible(h) || IsIconic(h) || GetWindowTextLength(h) == 0 || (GetWindowLong(h, -20) & 0x80) != 0) continue;
+      int cloaked;
+      if (DwmGetWindowAttribute(h, 14, out cloaked, 4) == 0 && cloaked != 0) continue;
+      uint pid; GetWindowThreadProcessId(h, out pid);
+      if (pid == skipPid) continue;
+      RECT r;
+      if (GetWindowRect(h, out r) && x >= r.L && x < r.R && y >= r.T && y < r.B) return true;
+    }
+    return false;
+  }
+  // "x|y|w|h|имя" для видимых значков, чьё имя подходит под регулярку
+  public static string[] Find(long list, string pattern, uint skipPid) {
+    var res = new List<string>();
+    if (list == 0) return res.ToArray();
+    var iid = new Guid("618736E0-3C3D-11CF-810C-00AA00389B71");
+    object o;
+    if (AccessibleObjectFromWindow(new IntPtr(list), 0xFFFFFFFC, ref iid, out o) != 0) return res.ToArray();
+    var acc = (IAccessible)o;
+    var rx = new Regex(string.IsNullOrEmpty(pattern) ? "." : pattern, RegexOptions.IgnoreCase);
+    int n = acc.accChildCount;
+    for (int i = 1; i <= n && res.Count < 6; i++) {
+      string name;
+      try { name = acc.get_accName(i); } catch { continue; }
+      if (name == null || !rx.IsMatch(name)) continue;
+      int x, y, w, h;
+      try { acc.accLocation(out x, out y, out w, out h, i); } catch { continue; }
+      if (w < 2 || h < 2 || Covered(new IntPtr(list), x + w / 2, y + h / 2, skipPid)) continue;
+      res.Add(x + "|" + y + "|" + w + "|" + h + "|" + name);
+    }
+    return res.ToArray();
+  }
+}
+"@
+} catch { }
+
+function DesktopFind($q) {
+  $items = @()
+  foreach ($s in [PushDesk]::Find([PushTop]::Desktop(), [string]$q.name, ${skipPid})) {
+    $p = $s.Split('|', 5)
+    $items += @{ x = [int]$p[0]; y = [int]$p[1]; w = [int]$p[2]; h = [int]$p[3]; name = $p[4]; type = 'ListItem'; focused = $false; enabled = $true; proc = 'explorer' }
+  }
+  return @{ items = $items; win = @{ title = ''; proc = 'explorer' } }
+}
 
 function Shot($q) {
   $w = 0; $h = 0; $sw = 0; $sh = 0
@@ -206,10 +271,6 @@ function Roots($scope) {
     foreach ($ih in [PushTop]::Immersive()) { $roots += ,@($AE::FromHandle([IntPtr]$ih), 'popup') }
     $w = Wins 1
     if ($w.Count) { $roots += ,$w[0] }
-  } elseif ($scope -eq 'desktop') {
-    # значки рабочего стола (Корзина, ярлыки)
-    $pm = [PushTop]::Desktop()
-    if ($pm -ne 0) { $roots += ,@($AE::FromHandle([IntPtr]$pm), 'explorer') }
   } elseif ($scope -eq 'top') {
     $w = Wins 1
     if ($w.Count) { $roots += ,$w[0] }
@@ -381,7 +442,8 @@ while ($true) {
   $res = @{}
   try {
     $q = $line | ConvertFrom-Json
-    if ($q.op -eq 'find') { $res = Find $q }
+    if ($q.op -eq 'find' -and $q.scope -eq 'desktop') { $res = DesktopFind $q }
+    elseif ($q.op -eq 'find') { $res = Find $q }
     elseif ($q.op -eq 'top') { $res = Top }
     elseif ($q.op -eq 'window') { $res = Window $q }
     elseif ($q.op -eq 'drives') { $res = Drives }
