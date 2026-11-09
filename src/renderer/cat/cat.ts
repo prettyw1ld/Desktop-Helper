@@ -7,9 +7,10 @@ import { dirAnim, type AnimName, type Dir } from './sprites';
 /**
  * idle — сидит без дела; walk — идёт; sleep — спит; act — показывает позу (умывается, зевает…);
  * drag — его несут за шкирку; fall, jump — в воздухе; busy — занят человеком (открыта панель, подсказка);
- * perch — стоит у кнопки и показывает на неё; intro, outro — выходит из глубины экрана и уходит туда.
+ * perch — стоит у кнопки и показывает на неё; intro, outro — выходит из глубины экрана и уходит туда;
+ * trash — сидит в Корзине (или летит в неё и из неё), см. trash.ts.
  */
-export type CatState = 'idle' | 'walk' | 'sleep' | 'act' | 'drag' | 'fall' | 'jump' | 'busy' | 'perch' | 'intro' | 'outro';
+export type CatState = 'idle' | 'walk' | 'sleep' | 'act' | 'drag' | 'fall' | 'jump' | 'busy' | 'perch' | 'intro' | 'outro' | 'trash';
 
 export interface Jump {
   t0: number;

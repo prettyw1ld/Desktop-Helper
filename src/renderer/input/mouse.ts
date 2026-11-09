@@ -1,6 +1,7 @@
 // Мышь: клики сквозь окно, перенос кота за шкирку, клики, двойные клики и поглаживание кота.
 import { cat, CAT_H, CAT_W, floorY, setState, size, startFall, SCRUFF_Y } from '../cat/cat';
 import { pet, petMore, happy, showPose } from '../cat/poses';
+import { dropIntoTrash, trashDragStart } from '../cat/trash';
 import { api } from '../core/api';
 import { dom } from '../core/dom';
 import { T } from '../core/i18n';
@@ -39,6 +40,7 @@ function pickUp(p: Press): void {
   cat.climb = null;
   cat.jump = null;
   setState('drag');
+  trashDragStart();
 }
 
 function onMove(e: MouseEvent): void {
@@ -58,7 +60,7 @@ function onMove(e: MouseEvent): void {
 }
 
 // Водят мышкой по коту, не нажимая: гладят. Не во время урока и подсказки и не в полёте.
-const NO_PET = ['drag', 'fall', 'jump', 'intro', 'outro', 'perch'];
+const NO_PET = ['drag', 'fall', 'jump', 'intro', 'outro', 'perch', 'trash'];
 function onStroke(x: number, y: number, over: boolean): void {
   if (guide.active || trainer.step || NO_PET.includes(cat.state)) { strokes.reset(); return; }
   const ev = strokes.feed(x, y, now(), over, size());
@@ -69,6 +71,7 @@ function onStroke(x: number, y: number, over: boolean): void {
 
 // Кота отпустили.
 function drop(): void {
+  if (dropIntoTrash()) return;
   if (trainer.step === 'drag' || trainer.step === 'landing') { trainer.step = 'landing'; hideBubble(); startFall(); return; }
   if (guide.active) {
     // Перенос не завершает подсказку: perch удерживает кота, а текущий шаг сохраняется.

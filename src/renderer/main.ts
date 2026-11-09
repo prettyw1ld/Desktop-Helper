@@ -6,6 +6,7 @@ import { initTrayCommands } from './app/tray-commands';
 import { startLoop } from './cat/behaviour';
 import { cat, floorY, setState, setWorkArea, W } from './cat/cat';
 import { initCursorWatch } from './cat/cursor-watch';
+import { initTrash } from './cat/trash';
 import { refreshPlatforms, setWindows } from './cat/platforms';
 import { api } from './core/api';
 import { T } from './core/i18n';
@@ -30,6 +31,7 @@ async function start(): Promise<void> {
   initIcons();
   initBubble();
   initYarn();
+  initTrash();
   initPanels();
   initHelp();
   initChat();

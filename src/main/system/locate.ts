@@ -206,6 +206,10 @@ function Roots($scope) {
     foreach ($ih in [PushTop]::Immersive()) { $roots += ,@($AE::FromHandle([IntPtr]$ih), 'popup') }
     $w = Wins 1
     if ($w.Count) { $roots += ,$w[0] }
+  } elseif ($scope -eq 'desktop') {
+    # значки рабочего стола (Корзина, ярлыки)
+    $pm = [PushTop]::Desktop()
+    if ($pm -ne 0) { $roots += ,@($AE::FromHandle([IntPtr]$pm), 'explorer') }
   } elseif ($scope -eq 'top') {
     $w = Wins 1
     if ($w.Count) { $roots += ,$w[0] }

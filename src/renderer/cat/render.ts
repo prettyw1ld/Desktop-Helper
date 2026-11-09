@@ -32,7 +32,8 @@ export function pickAnim(t: number): AnimName | Frame | HeadTurn {
       return cat.sleepKind;
     }
     case 'drag': return 'scruffF';
-    case 'fall': return cat.vy < 0 ? { row: ANIM.jumpB.row, col: 1 } : { row: ANIM[dirAnim('jump', d)].row, col: 2 };
+    case 'fall':
+    case 'trash': return cat.vy < 0 ? { row: ANIM.jumpB.row, col: 1 } : { row: ANIM[dirAnim('jump', d)].row, col: 2 };
     case 'jump': {
       const j = cat.jump;
       if (!j) return 'sitF';

@@ -46,6 +46,11 @@ export function refreshPlatforms(): void {
   computePlatforms();
 }
 
+/** Точка закрыта окном программы. Окно на весь экран целиком (рабочий стол Windows) не считаем. */
+export const windowAt = (x: number, y: number): boolean => winList.some(([, wx, wy, ww, wh]) =>
+  !(wx <= 0 && wy <= 0 && wx + ww >= window.innerWidth && wy + wh >= window.innerHeight)
+  && x >= wx && x <= wx + ww && y >= wy && y <= wy + wh);
+
 export const allPlatforms =(): readonly Platform[] => platforms;
 export const platUnder = (id: number, x: number): Platform | undefined => platforms.find((p) => p.id === id && x >= p.x1 && x <= p.x2);
 export const currentPlat = (): Platform | null => (cat.plat ? platUnder(cat.plat, cx()) ?? null : null);

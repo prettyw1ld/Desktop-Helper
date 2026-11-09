@@ -1,5 +1,5 @@
 /* Звуки Пуша. Мяу и мурчание — настоящие записи (Kerzoven, CC0; см. assets/audio/CREDITS.txt),
-   шипение и колокольчик синтезируются на лету (Web Audio). Все тихие. */
+   шипение, колокольчик и шуршание синтезируются на лету (Web Audio). Все тихие. */
 
 const state = { on: true, volume: 0.4 };
 let lastMeow = -Infinity;
@@ -62,6 +62,27 @@ function synthBell(): void {
   }
 }
 
+// Шуршание мятой бумаги: кот падает в Корзину и вылезает из неё.
+function synthCrumple(): void {
+  const { c, out } = audio();
+  const t = c.currentTime;
+  for (let i = 0; i < 7; i++) {
+    const at = t + i * 0.045 + Math.random() * 0.03;
+    const src = c.createBufferSource();
+    src.buffer = noiseBuffer(c, 0.08);
+    const bp = c.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 1800 + Math.random() * 2500;
+    bp.Q.value = 1.2;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(0.35, at + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.07);
+    src.connect(bp).connect(g).connect(out);
+    src.start(at);
+  }
+}
+
 // Записи: плавно входят и выходят, мурчание длится столько, сколько попросили.
 type Clip = 'meow' | 'purr';
 const playing = new Map<Clip, () => void>();
@@ -110,4 +131,5 @@ export const Sound = {
   purr: (sec?: number): void => recorded('purr', sec),
   hiss: safe(synthHiss),
   bell: safe(synthBell),
+  crumple: safe(synthCrumple),
 };

@@ -1,5 +1,6 @@
 // Команды из меню в трее: позвать кота, открыть панель, спрятать и показать.
 import { cat, floorY, landThen, setState, startFall, W, walkTo } from '../cat/cat';
+import { climbOut, isTrashed, leaveTrash } from '../cat/trash';
 import { api } from '../core/api';
 import { T } from '../core/i18n';
 import { endGuide } from '../guide/control';
@@ -31,6 +32,11 @@ function show(): void {
 
 export function initTrayCommands(): void {
   api.on('open', (what) => {
+    // кот в Корзине: значок в трее достаёт его оттуда, остальное меню сначала выпускает его
+    if (isTrashed()) {
+      if (what === 'show' || what === 'hide') { void climbOut(); return; }
+      leaveTrash();
+    }
     if (what === 'call') call();
     else if (what === 'trainer') startTrainer();
     else if (what === 'hide') hide();

@@ -1,6 +1,7 @@
 // Защита от мошенников без ИИ: запустилась программа удалённого доступа (AnyDesk, TeamViewer…).
 // Кот не пугает, а спокойно спрашивает. «Это свои» — больше не спрашиваем про эту программу.
 import { surprised } from '../cat/poses';
+import { leaveTrash } from '../cat/trash';
 import { api } from '../core/api';
 import { T } from '../core/i18n';
 import { setSettings, settings } from '../core/settings';
@@ -31,6 +32,7 @@ async function trust(app: string): Promise<void> {
 }
 
 export function remoteAppStarted(app: string): void {
+  leaveTrash();
   if (guide.active) endGuide(false);
   guide.active = true;
   Sound.bell();

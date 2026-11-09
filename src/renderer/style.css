@@ -56,6 +56,19 @@ button { font: inherit; cursor: pointer; }
 @keyframes hop { 0%,100% { translate: 0 0; } 50% { translate: 0 -18px; } }
 @keyframes pop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
+/* Корзина: кот в ней не виден, значок Корзины подсвечен, пока кота несут к ней */
+.cat.trashed { visibility: hidden; }
+.trash-glow {
+  position: absolute; left: 0; top: 0; z-index: 5; pointer-events: none;
+  border: 3px dashed var(--ink); border-radius: 14px; background: #d5eaf855;
+  transition: transform .15s ease-out;
+}
+.trash-glow.hot { transform: scale(1.12); border-style: solid; }
+.trash-glow.wobble { animation: trash-wobble .45s ease-in-out 2; }
+@keyframes trash-wobble { 25% { rotate: -8deg; } 75% { rotate: 8deg; } }
+.bubble.trash-say { left: 0; top: 0; bottom: auto; transform: none; z-index: 8; pointer-events: none; }
+.bubble.trash-say::after { display: none; }
+
 /* эффекты: сердечки, Zzz, звёздочки */
 .fx { position: absolute; inset: 0; pointer-events: none; }
 .fx span {

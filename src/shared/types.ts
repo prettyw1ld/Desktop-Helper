@@ -128,7 +128,7 @@ export type LocateOp = 'find' | 'top' | 'window' | 'drives' | 'volume' | 'list' 
 
 export interface LocateQuery {
   op: LocateOp;
-  scope?: string;       // taskbar | top | start | popup | proc:<регулярка>
+  scope?: string;       // taskbar | top | start | popup | desktop (значки рабочего стола Windows) | proc:<регулярка>
   name?: string;        // регулярка
   types?: string[];     // Button, Edit, ListItem…
   enabled?: boolean;

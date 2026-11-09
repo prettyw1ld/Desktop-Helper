@@ -3,6 +3,7 @@ import type { Reminder } from '../../shared/types';
 import { onFrame } from '../cat/behaviour';
 import { cat, setState } from '../cat/cat';
 import { happy, showPose, surprised } from '../cat/poses';
+import { leaveTrash } from '../cat/trash';
 import { api } from '../core/api';
 import { $, $$, dom, el } from '../core/dom';
 import { locale, T } from '../core/i18n';
@@ -102,6 +103,7 @@ export async function initReminders(): Promise<void> {
   api.on('reminder', (r) => {
     void refreshReminders();
     Sound.bell();
+    leaveTrash();
     if (busyWithPerson()) return;
     wake();
     happy(1000);
@@ -114,6 +116,7 @@ export async function initReminders(): Promise<void> {
   });
   api.on('calendar-soon', (e) => {
     Sound.bell();
+    leaveTrash();
     if (busyWithPerson()) return;
     wake();
     surprised(() => showPose('wave', 5000));

@@ -15,7 +15,7 @@ export function resetBreakTimer(): void {
   clearInterval(breakTimer);
   if (!settings.breakEvery) return;
   breakTimer = setInterval(() => {
-    if (allReminders().some((r) => r.kind === 'focus') || busyWithPerson()) return;
+    if (allReminders().some((r) => r.kind === 'focus') || busyWithPerson() || cat.state === 'trash') return;
     if (cat.state === 'sleep') setState('idle', 8000);
     showPose('coffee', 9000, T('say.break', { min: settings.breakEvery }));
   }, settings.breakEvery * 60_000);
@@ -23,7 +23,7 @@ export function resetBreakTimer(): void {
 
 export function scheduleChatter(): void {
   setTimeout(() => {
-    if (settings.chatter && !openPanel() && !busyWithPerson() && !['sleep', 'drag', 'jump', 'fall'].includes(cat.state)) {
+    if (settings.chatter && !openPanel() && !busyWithPerson() && !['sleep', 'drag', 'jump', 'fall', 'trash'].includes(cat.state)) {
       if (Date.now() - cat.lastPet > 20 * 60_000 && Math.random() < 0.4) {
         cat.wantsAttention = true;
         setState('idle', 12_000);
