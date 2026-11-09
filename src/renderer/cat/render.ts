@@ -63,6 +63,10 @@ export function pickAnim(t: number): AnimName | Frame | HeadTurn {
 }
 
 export function renderCat(t: number): void {
+  // крадётся к курсору: поза целиком покачивается на передних лапах (style.css), кадры не рвутся
+  const stalking = !!cat.huntUntil && cat.state === 'idle';
+  dom.cat.classList.toggle('stalk-l', stalking && cat.dir < 0);
+  dom.cat.classList.toggle('stalk-r', stalking && cat.dir > 0);
   const a = pickAnim(t);
   if (typeof a !== 'string' && 'gaze' in a) {
     // смотрит на курсор: хвост виляет как в wagSitF, голова повёрнута к мышке

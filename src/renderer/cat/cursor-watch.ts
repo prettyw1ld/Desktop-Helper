@@ -1,7 +1,7 @@
 // Кот иногда следит за курсором: сидит лицом к нам и плавно поворачивает голову туда, где мышка,
 // по одному нарисованному положению за раз. Курсор шевелится у самой морды: бьёт по нему лапкой
 // (сбоку, спереди или встаёт на задние лапы, если мышка над головой), до трёх раз подряд.
-// Курсор бегает у пола неподалёку: кот прижимается, виляет попой и прыгает на него.
+// Курсор бегает у пола неподалёку: кот прижимается, покачивает попой и прыгает на него.
 import { api } from '../core/api';
 import { T } from '../core/i18n';
 import { Sound } from '../core/sound';
@@ -78,7 +78,7 @@ export function watchPose(t: number): AnimName | HeadTurn {
   const dx = mouse.x - cx();
   const dy = mouse.y - (cat.y + CAT_H * 0.45);
   if (t < cat.swipeUntil) return cat.swipePose;
-  if (cat.huntUntil) return dirAnim('hunt', cat.dir);
+  if (cat.huntUntil) return dirAnim('lie', cat.dir); // прижался к полу; покачивается целиком через CSS (.stalk-l/.stalk-r)
   // курсор у морды бьём лапкой, но не когда кота гладят
   // над головой кот дотягивается выше, встав на задние лапы
   const overHead = Math.abs(dx) < 60 && mouse.y < headY() - 30 && mouse.y > headY() - 110;

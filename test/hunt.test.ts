@@ -24,7 +24,7 @@ test('cursor running along the floor nearby: the cat crouches, wiggles and pounc
   const t = now();
   updateCursorWatch(t);
   assert.ok(cat.huntUntil > t, 'starts stalking');
-  assert.equal(watchPose(t), 'huntL', 'crouches facing the cursor');
+  assert.equal(watchPose(t), 'lieL', 'crouches facing the cursor');
 
   updateCursorWatch(cat.huntUntil + 1);
   assert.equal(cat.state, 'jump', 'pounces');
