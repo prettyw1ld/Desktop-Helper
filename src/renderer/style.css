@@ -43,7 +43,7 @@ button { font: inherit; cursor: pointer; }
   pointer-events: auto; cursor: grab;
 }
 .cat.dragging .hitbox { cursor: grabbing; }
-.cat.dragging .sprite { transform-origin: 50% 64%; animation: dangle 1.1s ease-in-out infinite; } /* качается, пока несут */
+.cat.dragging .sprite { transform-origin: 50% 23%; animation: dangle 1.1s ease-in-out infinite; } /* качается на загривке */
 .cat.dragging.scared .sprite { animation: scared .16s linear infinite; } /* над Корзиной: дрожит */
 .cat.happy .sprite { animation: hop .45s steps(4) 2; }
 .cat.thinking .fx::after {

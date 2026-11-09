@@ -68,9 +68,9 @@ const BASE = {
 // Строки 66+ собраны из нарисованных кадров скриптом tools/make_extra_sprites.py
 // (слой «Generated» в design/cats/*.aseprite): моргание, Zzz, сердечки и т.п.
 // XBASE: для каждой такой строки нарисованная строка, чьи лапы (FEET) она повторяет,
-// или { feet } — нижний край кадра, если поза своя (кот за шкирку нарисован в PixelLab).
+// или { feet } — нижний край кадра, если поза своя (кот висит за шкирку).
 const XROW = 66;
-const XBASE: (number | { feet: number })[] = [0, 19, 6, 6, 1, 0, 0, 0, 1, 20, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, { feet: 59 }, 0, 0];
+const XBASE: (number | { feet: number })[] = [0, 19, 6, 6, 1, 0, 0, 0, 1, 20, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, { feet: 56 }, 0, 0];
 XBASE.forEach((r, i) => { FEET[XROW + i] = typeof r === 'number' ? FEET[r] ?? 48 : r.feet; });
 const x = (row: number, frames: number[], fps?: number, extra: Partial<Anim> = {}): Anim => ({ row: XROW + row, frames, fps, ...extra });
 const blinkSeq = (open: number, closed: number, n = 18): number[] => [...Array(n).fill(open), closed, open, open, closed];
@@ -92,8 +92,8 @@ const EXTRA = {
   sleep3ZL: x(16, seq(8), 1.3), sleep3ZR: x(17, seq(8), 1.3),
   sleep4ZL: x(18, seq(8), 1.3), sleep4ZR: x(19, seq(8), 1.3),
   sleep5ZL: x(20, seq(8), 1.3), sleep5ZR: x(21, seq(8), 1.3),
-  // кота держат за шкирку (пока перетаскивают); качается он через CSS
-  scruffF: x(22, [0]),
+  // кота держат за шкирку (пока перетаскивают): болтает хвостом и задними лапами, моргает
+  scruffF: x(22, seq(8), 6),
   // поворот головы за курсором: кадры 0..6 — голова от «влево» до «вправо», 7..13 — то же с закрытыми глазами;
   // рисуются не как анимация, а по одному кадру через CatSprite.drawLook
   lookSitF: x(23, seq(14)), lookUpSitF: x(24, seq(14)),

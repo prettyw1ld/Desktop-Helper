@@ -8,9 +8,8 @@ Then exports assets/cats/<color>.png and design/cats/<color>_labeled.png, the sa
 exporting from Aseprite. Safe to run again: the "Generated" layer is replaced each time.
 
 Most new frames are made by copying, shifting and patching existing frames, plus a few
-tiny effects (Zzz, hearts, "!", "…"). The "held by the scruff" pose was drawn with PixelLab
-from the ginger sitting frame and is kept in design/cats/pixellab/scruff_ginger.png;
-the white and black versions are recoloured from it here.
+tiny effects (Zzz, hearts, "!", "…"). The "held by the scruff" body is drawn here
+under the sitting head, with the tail and hind paws swinging.
 The head turn (the cat follows the mouse cursor) is drawn by hand below as letter grids;
 it also writes src/renderer/cat/head-spans.ts, where the head is, so the app can turn the head
 while the tail keeps wagging.
@@ -88,53 +87,75 @@ def glyph(img, name, x, y, fill, thin=False, edge=OUTLINE):
     return img
 
 
-def color_map(src, dst):
-    """Which colour of `dst` sits where `src` has each colour (same hand-drawn rows, other cat)."""
-    counts = {}
-    for a, b in zip(src.getdata(), dst.getdata()):
-        if a[3] and b[3]:
-            counts.setdefault(a, {}).setdefault(b, 0)
-            counts[a][b] += 1
-    return {a: max(c, key=c.get) for a, c in counts.items()}
+# ---------- Held by the scruff: the cat hangs from the hand, tail and hind paws swing ----------
+# The head is the sitF head lifted by HANG_DY; the body below is drawn here in the letters of
+# the head-turn grids (A outline, B fur, C shade, D light), so every colour of cat gets it.
+HANG_DY = -10
+HANG_SWING = [0, 1, 2, 1, 0, -1, -2, -1]  # like a pendulum; frame 4 also blinks
 
 
-def to_palette(img, palette):
-    """Snap every opaque pixel to the nearest colour of `palette`."""
-    out = img.copy()
-    px = out.load()
-    for y in range(out.height):
-        for x in range(out.width):
-            p = px[x, y]
-            if p[3]:
-                px[x, y] = min(palette, key=lambda q: sum((p[i] - q[i]) ** 2 for i in range(3)))
-            else:
-                px[x, y] = (0, 0, 0, 0)
-    return out
+def body_cells(sw):
+    """Letters of the hanging body for one swing step `sw` (-2..2), as {(x, y): letter}."""
+    c = {}
+    def span(y, x0, x1, ch='B'):
+        for x in range(x0, x1 + 1): c[(x, y)] = ch
+    # torso: shoulders, belly, round hips
+    for y, (x0, x1) in {22: (26, 37), 23: (25, 38), 35: (25, 38), 36: (26, 37), 37: (28, 35)}.items(): span(y, x0, x1)
+    for y in range(24, 35): span(y, 25 if y < 30 else 24, 38 if y < 30 else 39)
+    # hind legs hang apart with the tail between them; the lower legs swing
+    hs = round(sw * 0.5)
+    for y in range(34, 42):
+        d = hs if y >= 38 else 0
+        span(y, 24 + d, 27 + d)
+        span(y, 36 + d, 39 + d)
+    for y in (42, 43):
+        span(y, 23 + hs, 27 + hs, 'D')
+        span(y, 36 + hs, 40 + hs, 'D')
+    # tail: swings more towards the tip
+    for y in range(36, 55):
+        t = (y - 36) / 18
+        cx = 31.5 + sw * 2 * t ** 1.3
+        span(y, round(cx - 1), round(cx))
+    # shade along the sides, like the hand-drawn frames
+    for (x, y), ch in list(c.items()):
+        if ch == 'B' and ((x - 1, y) not in c or (x + 1, y) not in c): c[(x, y)] = 'C'
+    # light chest and belly
+    for y in range(22, 27): span(y, 29, 34, 'D')
+    for y in range(27, 32): span(y, 30, 33, 'D')
+    # front paws dangle in front of the chest, light pads at the bottom
+    for x0 in (26, 35):
+        for y in range(25, 31): span(y, x0, x0 + 2)
+        for y in (31, 32): span(y, x0, x0 + 2, 'D')
+        span(33, x0, x0 + 2, 'A')
+    for y in range(26, 33):
+        c[(29, y)] = 'A'
+        c[(34, y)] = 'A'
+    return c
 
 
-def outline_only_outside(img, shade, face_h=15):
-    """Black lines stay only on the silhouette edge; inner ones below the face become dark fur,
-    like the hand-drawn frames (the PixelLab frame had doubled outlines and dark lines on the body)."""
-    out = img.copy()
-    px, q = img.load(), out.load()
-    top = img.getbbox()[1]
-    clear = lambda x, y: not (0 <= x < SIZE and 0 <= y < SIZE) or px[x, y][3] == 0
-    for y in range(top + face_h, SIZE):
-        for x in range(SIZE):
-            if px[x, y] == OUTLINE and not any(clear(x + dx, y + dy) for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
-                q[x, y] = shade
-    return out
+def hang_frame(face, col, sw):
+    """The sitF head (and neck) lifted by HANG_DY, the body under it, outline around the body."""
+    img = Image.new('RGBA', (SIZE, SIZE))
+    o, f = img.load(), face.load()
+    for y in range(16, 32):
+        for x in range(18, 42 if y < 29 else 39):
+            if f[x, y][3]:
+                o[x, y + HANG_DY] = f[x, y]
+    cells = body_cells(sw)
+    for p, ch in cells.items():
+        o[p] = col[ch]
+    for (x, y) in list(cells):
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            q = (x + dx, y + dy)
+            if 0 <= q[0] < SIZE and 0 <= q[1] < SIZE and q not in cells and o[q][3] == 0:
+                o[q] = col['A']
+    return img
 
-
-def scruff_frames(ginger, sheet):
-    """Held by the scruff: the PixelLab frame in this cat's colours. The swing comes from CSS."""
-    src = Image.open(ROOT / 'design' / 'cats' / 'pixellab' / 'scruff_ginger.png').convert('RGBA')
-    src = to_palette(src, sorted({p for p in ginger.getdata() if p[3]}))
-    src = outline_only_outside(src, (130, 73, 30, 255))  # darkest ginger fur
-    cmap = color_map(ginger, sheet)
-    hang = src.copy()
-    hang.putdata([cmap.get(p, p) if p[3] else p for p in src.getdata()])
-    return [hang]
+def hang_frames(sitF, closed):
+    """One swing back and forth; `closed` is sitF with closed eyes for the blink."""
+    px = sitF.load()
+    col = {k: px[p] for k, p in LOOK_KEYS.items()}
+    return [hang_frame(closed if i == 4 else sitF, col, sw) for i, sw in enumerate(HANG_SWING)]
 
 
 # ---------- Head turn: the sitting cat follows the cursor with its head ----------
@@ -423,8 +444,8 @@ def build(sheet, ginger):
             side_label = 'left' if side == 'L' else 'right'
             rows.append((f'{name}Z{side}', f'{label} + Zzz ({side_label})', rr, frames))
 
-    # Held by the scruff while being dragged (base None: feet come from the frame itself).
-    rows.append(('scruffF', 'Held by the scruff (front)', None, scruff_frames(ginger, sheet)))
+    # Held by the scruff while being dragged (base None: the frame sets its own bottom, see sprites.ts).
+    rows.append(('scruffF', 'Held by the scruff, swinging (front)', None, hang_frames(sitF, blink(sitF))))
 
     # Following the cursor: head turned L3..R3, then the same blinking (lookUpSitF: eyes raised).
     gsit = frame(ginger, 0, 0)

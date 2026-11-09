@@ -51,7 +51,7 @@ function onMove(e: MouseEvent): void {
     if (press.moved) {
       cat.x = press.catX + dx;
       cat.y = press.catY + dy;
-      // смотрит туда, куда его несут
+      // куда несут: в ту сторону он потом и приземлится
       if (Math.abs(e.clientX - press.lastX) > 4) {
         cat.dir = e.clientX > press.lastX ? 1 : -1;
         press.lastX = e.clientX;
