@@ -1,17 +1,16 @@
 // Кот иногда следит за курсором: сидит лицом к нам и плавно поворачивает голову туда, где мышка,
 // по одному нарисованному положению за раз. Курсор шевелится у самой морды: бьёт по нему лапкой
 // (сбоку, спереди или встаёт на задние лапы, если мышка над головой), до трёх раз подряд.
-// Курсор бегает у пола неподалёку: кот прижимается, покачивает попой и прыгает на него.
+// Курсор бегает у пола неподалёку: кот ложится мордой к нему, моргает, шевелит хвостом
+// и, когда мышка подходит к лапам, бьёт по ней.
 import { api } from '../core/api';
 import { T } from '../core/i18n';
-import { Sound } from '../core/sound';
-import { clamp, now, pick, rand } from '../core/util';
+import { now, rand } from '../core/util';
 import { busyWithPerson } from '../guide/state';
 import { strokes } from '../input/stroke';
 import { say } from '../ui/bubble';
 import { openPanel } from '../ui/panels';
-import { cat, CAT_H, CAT_W, cx, floorY, jumpTo, setState, size, W } from './cat';
-import { happy, showPose } from './poses';
+import { cat, CAT_H, cx, setState, size } from './cat';
 import { between, LIFE } from './pacing';
 import { dirAnim, GAZE_MAX, type AnimName, type HeadTurn } from './sprites';
 
@@ -55,8 +54,9 @@ export function startCursorWatch(ms = between(LIFE.watch)): void {
 
 export const watchingCursor = (t: number): boolean => !!cat.watchUntil && t < cat.watchUntil;
 
-// Охота: курсор у пола не ближе REACH и не дальше NEAR — крадётся; ушёл дальше FAR — бросает.
-const HUNT = { reach: 95, near: 380, far: 520 };
+// Сидя бьёт лапой по курсору ближе REACH. Курсор у пола дальше REACH, но ближе NEAR: ложится к нему;
+// ушёл дальше FAR — встаёт. Лёжа бьёт лапой, когда мышка ближе PAW перед мордой.
+const HUNT = { reach: 95, near: 380, far: 520, paw: 150 };
 
 // Удар лапой туда, где курсор: мышка над головой — встаёт на задние лапы и тянется,
 // прямо перед мордой — бьёт передними, сбоку — боковой удар. Варианты кадров чередуются.
@@ -78,7 +78,7 @@ export function watchPose(t: number): AnimName | HeadTurn {
   const dx = mouse.x - cx();
   const dy = mouse.y - (cat.y + CAT_H * 0.45);
   if (t < cat.swipeUntil) return cat.swipePose;
-  if (cat.huntUntil) return dirAnim('lie', cat.dir); // прижался к полу; покачивается целиком через CSS (.stalk-l/.stalk-r)
+  if (cat.huntUntil) return dirAnim('lieWatch', cat.dir); // лежит мордой к курсору: моргает, шевелит хвостом
   // курсор у морды бьём лапкой, но не когда кота гладят
   // над головой кот дотягивается выше, встав на задние лапы
   const overHead = Math.abs(dx) < 60 && mouse.y < headY() - 30 && mouse.y > headY() - 110;
@@ -126,51 +126,44 @@ export function updateCursorWatch(t: number): void {
 // Курсор у пола: выше головы кота мышку не ловят, а с окна кот не прыгает.
 const low = (): boolean => mouse.y > headY() - 40;
 
-// Охотится: true, пока крадётся (голову к курсору не поворачивает).
+// Лежит и караулит курсор: true, пока лежит (голову за курсором не поворачивает).
 function updateHunt(t: number): boolean {
   const dx = mouse.x - cx();
   const dist = Math.abs(dx);
   const distracted = busyWithPerson() || !!openPanel() || strokes.active(t) || cat.state !== 'idle';
   if (!cat.huntUntil) {
-    if (distracted || cat.plat || t < cat.huntCool || t < cat.swipeUntil || t < nextHunt) return false;
+    if (distracted || t < cat.huntCool || t < cat.swipeUntil || t < nextHunt) return false;
     nextHunt = t + 600;
     if (low() && dist > HUNT.reach + 30 && dist < HUNT.near && mouseMoving(800) && Math.random() < 0.35) {
-      cat.huntUntil = t + rand(1200, 2600);
+      cat.huntUntil = t + rand(6000, 12_000);
       cat.watchUntil = Math.max(cat.watchUntil, cat.huntUntil + 500);
       cat.until = Math.max(cat.until, cat.watchUntil);
       cat.dir = dx < 0 ? -1 : 1;
+      cat.swipeCool = t + 700; // сначала улёгся, потом уже бьёт
       return true;
     }
     return false;
   }
-  // мышка ушла далеко или наверх, кота отвлекли: охота кончилась; подбежала к морде: бьёт лапой
-  if (distracted || dist > HUNT.far || !low() || dist < HUNT.reach) {
+  // мышка ушла далеко или наверх, давно стоит, кота отвлекли, належался: садится и снова следит головой
+  if (distracted || dist > HUNT.far || !low() || !mouseMoving(2500) || t > cat.huntUntil) {
     cat.huntUntil = 0;
-    cat.huntCool = t + 5000;
+    cat.huntCool = t + rand(4000, 8000);
     return false;
   }
-  cat.dir = dx < 0 ? -1 : 1;
-  if (t < cat.huntUntil) return true;
-  pounce(t);
-  return true;
-}
-
-// Прыжок туда, где курсор. Приземлился, а мышка всё ещё под лапами: поймал.
-function pounce(t: number): void {
-  cat.huntUntil = 0;
-  cat.watchUntil = 0;
-  cat.huntCool = t + rand(15_000, 30_000);
-  const tx = clamp(mouse.x, CAT_W / 2, W() - CAT_W / 2);
-  jumpTo(tx, floorY(), null, () => {
-    const caught = Math.abs(mouse.x - cx()) < 70 && low();
-    if (caught) {
-      happy(1200);
-      Sound.meow();
-      showPose('heartsSitF', 2500, T('hunt.caught'));
+  if (t < cat.swipeUntil) return true;
+  // поворачивается к курсору, если тот перебежал на другую сторону
+  if (dist > 25) cat.dir = dx < 0 ? -1 : 1;
+  // мышка у лап и шевелится: иногда бьёт по ней
+  if (dist < HUNT.paw && mouseMoving(400) && t > cat.swipeCool) {
+    if (Math.random() < 0.6) {
+      cat.swipePose = dirAnim('lieSwipe', cat.dir);
+      cat.swipeUntil = t + 600;
+      cat.swipeCool = t + rand(1000, 2200);
     } else {
-      showPose(pick<AnimName>(['earTwitchF', 'blinkSitF']), 2500, T('hunt.missed'));
+      cat.swipeCool = t + 500;
     }
-  });
+  }
+  return true;
 }
 
 // Окно пропускает клики насквозь, и тогда Windows присылает движения мыши не всегда.

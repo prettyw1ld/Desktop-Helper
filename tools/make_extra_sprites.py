@@ -19,7 +19,7 @@ import struct
 import zlib
 from collections import deque
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 ROOT = Path(__file__).resolve().parent.parent
 SIZE = 64
@@ -156,6 +156,77 @@ def hang_frames(sitF, closed):
     px = sitF.load()
     col = {k: px[p] for k, p in LOOK_KEYS.items()}
     return [hang_frame(closed if i == 4 else sitF, col, sw) for i, sw in enumerate(HANG_SWING)]
+
+
+# ---------- Lying in wait for the cursor: the hand-drawn lieL with a blink, a moving tail and a paw swipe ----------
+# Patches on lieL: (first row, first column, rows). '.' keeps the pixel, '_' clears it,
+# A outline, B fur, C shade, D light (same letters as the head-turn grids).
+EYE_CLOSED = (28, 16, ['BB'])
+TAIL_UP = (26, 44, [
+    '____AAA__',
+    '___ADDDA_',
+    '___ADDDA_',
+    '___ADDDA_',
+    '___ADDDA_',
+    '___ADDDA_',
+    '___ADDDA_',
+    '___ADDDA_',
+])
+TAIL_RIGHT = (28, 44, [
+    '_______AA_',
+    '_____AADDA',
+    '____ADDDDA',
+    '____ADDDA_',
+    '___ADDDDA_',
+    '___ADDDA__',
+])
+PAW_UP = (35, 11, [
+    '..AAA.....',
+    '.ADDBA....',
+    '.ADBBBAA..',
+    '..AABBBBA.',
+    '....AAAA..',
+])
+PAW_OUT = (33, 8, [
+    '.AAA.......',
+    'ADDBAA.....',
+    'ADBBBBAA...',
+    '.AAABBBBBA.',
+    '....AAAAAA.',
+])
+
+def lie_patch(img, p, col):
+    y0, x0, rows = p
+    o = img.load()
+    for dy, row in enumerate(rows):
+        for dx, ch in enumerate(row):
+            if ch == '.':
+                continue
+            o[x0 + dx, y0 + dy] = (0, 0, 0, 0) if ch == '_' else col[ch]
+    return img
+
+def lie_variant(lie, col, *ps):
+    img = lie.copy()
+    for p in ps:
+        lie_patch(img, p, col)
+    return img
+
+
+# Tail: curled left (as drawn), straight up, curled right. One loop of 14 frames, one blink.
+LIE_TAIL = [None, None, None, 'up', 'right', 'right', 'up', None, None, None, 'up', 'right', 'up', None]
+LIE_BLINK = 8
+
+
+def lie_frames(lie, sitF):
+    """Rows lieWatch (tail and blink) and lieSwipe (front paw lifted and swiped forward), facing left."""
+    px = sitF.load()
+    col = {k: px[p] for k, p in LOOK_KEYS.items()}
+    tails = {None: (), 'up': (TAIL_UP,), 'right': (TAIL_RIGHT,)}
+    watch = [lie_variant(lie, col, *tails[t], *((EYE_CLOSED,) if i == LIE_BLINK else ()))
+             for i, t in enumerate(LIE_TAIL)]
+    swipe = [lie, lie_variant(lie, col, PAW_UP), lie_variant(lie, col, PAW_OUT),
+             lie_variant(lie, col, PAW_OUT), lie_variant(lie, col, PAW_UP), lie]
+    return watch, swipe
 
 
 # ---------- Head turn: the sitting cat follows the cursor with its head ----------
@@ -451,6 +522,14 @@ def build(sheet, ginger):
     gsit = frame(ginger, 0, 0)
     rows.append(('lookSitF', 'Head turn, looking around (sit, front)', 0, look_frames(sitF, gsit, up=False)))
     rows.append(('lookUpSitF', 'Head turn, looking up (sit, front)', 0, look_frames(sitF, gsit, up=True)))
+
+    # Lying in wait for the cursor, facing it: tail moves, blinks; sometimes swipes a front paw.
+    watch, swipe = lie_frames(f(7, 1), sitF)
+    mirror = lambda frames: [ImageOps.mirror(fr) for fr in frames]
+    rows.append(('lieWatchL', 'Lying in wait, tail and blink (left)', None, watch))
+    rows.append(('lieWatchR', 'Lying in wait, tail and blink (right)', None, mirror(watch)))
+    rows.append(('lieSwipeL', 'Lying, paw swipe (left)', None, swipe))
+    rows.append(('lieSwipeR', 'Lying, paw swipe (right)', None, mirror(swipe)))
     return rows
 
 

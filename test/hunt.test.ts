@@ -1,11 +1,11 @@
-// Кот охотится на курсор: крадётся и прыгает, бьёт лапой туда, где мышка.
+// Кот караулит курсор: у пола ложится мордой к нему и бьёт лапой; сидя бьёт лапой туда, где мышка.
 import './setup';
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, mock, test } from 'node:test';
-import { cat, CAT_H, CAT_W, cx, floorY } from '../src/renderer/cat/cat';
+import { cat, CAT_H, cx, floorY } from '../src/renderer/cat/cat';
 import { startCursorWatch, trackMouse, updateCursorWatch, watchPose } from '../src/renderer/cat/cursor-watch';
 import { now } from '../src/renderer/core/util';
-import { land, resetDesk } from './helpers';
+import { resetDesk } from './helpers';
 
 beforeEach(() => {
   resetDesk('win32');
@@ -18,21 +18,30 @@ afterEach(() => mock.restoreAll());
 // курсор пошевелился в точке (x, y)
 const wiggle = (x: number, y: number) => { trackMouse(x + 3, y); trackMouse(x, y); };
 
-test('cursor running along the floor nearby: the cat crouches, wiggles and pounces on it', () => {
+test('cursor running along the floor nearby: the cat lies down facing it and swipes when it comes close', () => {
   const floor = floorY() + CAT_H - 20;
   wiggle(cx() - 250, floor);
   const t = now();
   updateCursorWatch(t);
-  assert.ok(cat.huntUntil > t, 'starts stalking');
-  assert.equal(watchPose(t), 'lieL', 'crouches facing the cursor');
+  assert.ok(cat.huntUntil > t, 'lies down');
+  assert.equal(watchPose(t), 'lieWatchL', 'facing the cursor, tail moving');
 
-  updateCursorWatch(cat.huntUntil + 1);
-  assert.equal(cat.state, 'jump', 'pounces');
-  assert.equal(cat.jump!.tx + CAT_W / 2, 600 + CAT_W / 2 - 250, 'jumps to the cursor');
-  cat.x = cat.jump!.tx;
-  land();
-  assert.equal(cat.state, 'act');
-  assert.equal(cat.act, 'heartsSitF', 'caught the mouse');
+  // мышка подбежала к лапам: удар лапой
+  wiggle(cx() - 100, floor);
+  updateCursorWatch(t + 800);
+  assert.equal(watchPose(t + 800), 'lieSwipeL');
+
+  // перебежала на другую сторону: кот поворачивается к ней
+  wiggle(cx() + 200, floor);
+  updateCursorWatch(t + 1500);
+  assert.equal(watchPose(t + 1500), 'lieWatchR');
+
+  // ушла наверх: кот садится и снова следит головой
+  wiggle(cx() + 200, cat.y - 100);
+  updateCursorWatch(t + 1600);
+  assert.equal(cat.huntUntil, 0);
+  assert.equal(typeof watchPose(t + 1600), 'object');
+  assert.equal(cat.state, 'idle');
 });
 
 test('cursor above the head: the cat stands up and reaches for it', () => {

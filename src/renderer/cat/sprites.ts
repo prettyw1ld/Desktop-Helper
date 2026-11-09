@@ -70,7 +70,7 @@ const BASE = {
 // XBASE: для каждой такой строки нарисованная строка, чьи лапы (FEET) она повторяет,
 // или { feet } — нижний край кадра, если поза своя (кот висит за шкирку).
 const XROW = 66;
-const XBASE: (number | { feet: number })[] = [0, 19, 6, 6, 1, 0, 0, 0, 1, 20, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, { feet: 56 }, 0, 0];
+const XBASE: (number | { feet: number })[] = [0, 19, 6, 6, 1, 0, 0, 0, 1, 20, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, { feet: 56 }, 0, 0, { feet: 45 }, { feet: 45 }, { feet: 45 }, { feet: 45 }];
 XBASE.forEach((r, i) => { FEET[XROW + i] = typeof r === 'number' ? FEET[r] ?? 48 : r.feet; });
 const x = (row: number, frames: number[], fps?: number, extra: Partial<Anim> = {}): Anim => ({ row: XROW + row, frames, fps, ...extra });
 const blinkSeq = (open: number, closed: number, n = 18): number[] => [...Array(n).fill(open), closed, open, open, closed];
@@ -97,6 +97,9 @@ const EXTRA = {
   // поворот головы за курсором: кадры 0..6 — голова от «влево» до «вправо», 7..13 — то же с закрытыми глазами;
   // рисуются не как анимация, а по одному кадру через CatSprite.drawLook
   lookSitF: x(23, seq(14)), lookUpSitF: x(24, seq(14)),
+  // лежит мордой к курсору: хвост то налево, то вверх, то направо, раз моргает; удар передней лапой
+  lieWatchL: x(25, seq(14), 5), lieWatchR: x(26, seq(14), 5),
+  lieSwipeL: x(27, seq(6), 10), lieSwipeR: x(28, seq(6), 10),
 } satisfies Record<string, Anim>;
 
 export const ANIM = { ...BASE, ...EXTRA };

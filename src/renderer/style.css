@@ -46,12 +46,6 @@ button { font: inherit; cursor: pointer; }
 .cat.dragging .sprite { transform-origin: 50% 23%; animation: dangle 1.1s ease-in-out infinite; } /* качается на загривке */
 .cat.dragging.scared .sprite { animation: scared .16s linear infinite; } /* над Корзиной: дрожит */
 .cat.happy .sprite { animation: hop .45s steps(4) 2; }
-/* крадётся к курсору: кадр lieL/lieR опущен на пол и покачивается на передних лапах, попа то выше, то ниже */
-.cat.stalk-l .sprite, .cat.stalk-r .sprite { translate: 0 12px; animation: stalk-l .7s ease-in-out infinite; }
-.cat.stalk-l .sprite { transform-origin: 28% 89%; }
-.cat.stalk-r .sprite { transform-origin: 72% 89%; animation-name: stalk-r; }
-@keyframes stalk-l { 0%, 100% { rotate: 0deg; } 30% { rotate: -3deg; } 50% { rotate: -1.5deg; } 70% { rotate: -3deg; } }
-@keyframes stalk-r { 0%, 100% { rotate: 0deg; } 30% { rotate: 3deg; } 50% { rotate: 1.5deg; } 70% { rotate: 3deg; } }
 .cat.thinking .fx::after {
   content: "…"; position: absolute; left: 92px; top: 6px; font-size: 28px; font-weight: 900;
   text-shadow: 0 0 3px #fff, 0 0 3px #fff; animation: blink 1s steps(2) infinite;
