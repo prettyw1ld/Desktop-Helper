@@ -9,7 +9,7 @@ import { createFileActions } from '../src/main/system/files';
 import { parseProcessList, remoteApps } from '../src/main/system/remote-watch';
 import { MAC_ROLES, MAC_SCRIPT, WIN_SCRIPT } from '../src/main/system/locate';
 import { extraFor, fallbackModel, resolve } from '../src/main/ai/providers';
-import { cleanPlan, formatMarks, pickMark, refineCrop, showGoal, stepOf, boxUnits, withTaskbar, type Mark } from '../src/main/ai/show';
+import { cleanPlan, formatMarks, pickMark, pickNamed, refineCrop, showGoal, stepOf, boxUnits, withTaskbar, type Mark } from '../src/main/ai/show';
 import { overlayBounds, toFrame, workInFrame } from '../src/main/geometry';
 import { aiKey } from '../src/shared/types';
 import { goalFromHowTo, isHowTo, vagueGoal } from '../src/shared/howto';
@@ -287,4 +287,21 @@ test('a dark menu closing by the hinted button counts as a screen change; a cloc
   for (let y = 84; y < 89; y++) for (let x = 150; x < 158; x++) clock.fill(220, (y * w + x) * 4, (y * w + x) * 4 + 3);
   assert.equal(screenMoved(dark, clock, w, h, undefined, { x: 130, y: 70, w: 30, h: 20 }), false, 'only the clock changed');
   assert.equal(screenMoved(menu, dark, w, h, (x, y) => x >= 20 && x < 56 && y >= 4 && y < 57, near), false, 'the change is where the cat is drawn');
+});
+
+test('the AI names the hint under a text field: the paw goes to the field itself', () => {
+  const mk = (name: string, type: string, x: number, y: number, w: number, h: number, partial = false): Mark =>
+    ({ id: 0, name, type, area: 'window', shot: { x, y, w, h }, overlay: { x, y, w, h }, partial });
+  // VS Code «Go to Line/Column»: поле ввода сверху, строка-подсказка под ним (координаты с компьютера Дамира)
+  const hint = mk('Type a line number to go to (from 1 to 215).', 'ListItem', 690, 179, 601, 23);
+  const field = mk('Go to line. Type a line number, optionally followed by colon and column number.', 'Edit', 691, 147, 599, 26);
+  const terminal = mk('Terminal input', 'Edit', 982, 619, 8, 19);
+  const guess = { x: 694, y: 150, w: 600, h: 40 };
+  assert.equal(pickNamed([hint], [field, terminal], 'text field', guess), field);
+  assert.equal(pickNamed([hint], [field, terminal], 'list item', guess), hint, 'a list item stays a list item');
+  // пункт меню нашёлся целиком и как часть другого названия: берём целиком
+  const item = mk('Go to Line/Column... Ctrl+G', 'MenuItem', 579, 529, 323, 26);
+  const group = mk('Recent: Go to Line/Column history', 'Group', 579, 900, 300, 20, true);
+  assert.equal(pickNamed([group, item], [], 'menu item', { x: 600, y: 520, w: 100, h: 30 }), item);
+  assert.equal(pickNamed([item], [], 'menu item', { x: 1500, y: 100, w: 20, h: 20 }), null, 'too far from where the AI looks');
 });

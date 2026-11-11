@@ -7,7 +7,7 @@ import { CLAUDE_URL, cleanReply, extraFor, pickModel, resolve } from './llm';
 import { cropSelection, formatContext, inspectPrompt, INSPECT_SYSTEM, scrub, windowView } from './screen-region';
 import { clickFact } from './inspect-text';
 import { changedBox, screenMoved } from './changed-box';
-import { boxUnits, cleanPlan, formatMarks, pickMark, refineCrop, stepOf, withTaskbar, type ElementHint, type Mark } from './show';
+import { boxUnits, cleanPlan, formatMarks, pickMark, pickNamed, refineCrop, stepOf, withTaskbar, type ElementHint, type Mark } from './show';
 import { guideLog } from './guide-log';
 import { toFrame } from '../geometry';
 import * as locate from '../system/locate';
@@ -275,7 +275,7 @@ function toMarks(items: LocateItem[], { display, w: sw, h: sh }: Shot): Mark[] {
     if (inShot.x + inShot.w / 2 < 0 || inShot.y + inShot.h / 2 < 0 || inShot.x + inShot.w / 2 > sw || inShot.y + inShot.h / 2 > sh) continue;
     const overlay = toFrame({ x: d.x, y: d.y, w: d.width, h: d.height }, display.bounds);
     if (!overlay) continue;
-    marks.push({ id: marks.length + 1, name: it.name, type: it.type, area: it.area || '', shot: inShot, overlay });
+    marks.push({ id: marks.length + 1, name: it.name, type: it.type, area: it.area || '', shot: inShot, overlay, partial: it.partial });
   }
   return marks;
 }
@@ -284,16 +284,17 @@ function toMarks(items: LocateItem[], { display, w: sw, h: sh }: Shot): Mark[] {
  * ИИ назвал кнопку («Go»), но её нет в списке (окна браузеров и Electron в список не входят, или до неё не дошли):
  * спрашиваем систему именно про неё и берём ту, что ближе к рамке ИИ. Так кот идёт по точным координатам.
  */
-async function namedMark(name: string, shot: Shot, guess: Rect | null): Promise<Mark | null> {
+async function namedMark(name: string, type: string, shot: Shot, guess: Rect | null): Promise<Mark | null> {
   if (process.platform !== 'win32' || name.trim().length < 2) return null;
   const budget = 1500;
   const res = await Promise.race([
     locate.ask({ op: 'named', name: name.trim().slice(0, 80), budget }),
-    new Promise<{ items?: LocateItem[] }>((r) => setTimeout(() => r({}), budget + 1500)),
-  ]);
+    new Promise<{ items?: LocateItem[]; edits?: LocateItem[] }>((r) => setTimeout(() => r({}), budget + 1500)),
+  ]) as { items?: LocateItem[]; edits?: LocateItem[]; ms?: number };
   const found = toMarks(res.items ?? [], shot);
-  const mark = pickMark(found, undefined, name, guess, 700);
-  guideLog('named', { name, found: found.length, ms: (res as { ms?: number }).ms ?? null, picked: mark ? { name: mark.name, type: mark.type, area: mark.area } : null });
+  const fields = toMarks(res.edits ?? [], shot);
+  const mark = pickNamed(found, fields, type, guess);
+  guideLog('named', { name, type, found: found.length, fields: fields.length, ms: res.ms ?? null, picked: mark ? { name: mark.name.slice(0, 60), type: mark.type, area: mark.area } : null });
   return mark;
 }
 
@@ -641,7 +642,7 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
   let tNamed = 0;
   if (!mark && named && !inspect && !more && out.status !== 'done') {
     const tn = Date.now();
-    mark = await namedMark(named, shot, guess).catch((e: unknown) => { guideLog('named-error', { error: String(e) }); return null; });
+    mark = await namedMark(named, String(out.element?.type ?? ''), shot, guess).catch((e: unknown) => { guideLog('named-error', { error: String(e) }); return null; });
     tNamed = Date.now() - tn;
   }
   // кнопки нет в списке системы: уточняем рамку ИИ по увеличенному кусочку экрана

@@ -20,7 +20,7 @@ export interface ElementHint { name?: string; type?: string; area?: string }
 interface Box { x: number; y: number; w: number; h: number }
 
 /** Кнопка от системы: где она на снимке (для ИИ) и в окне кота (для лапки). */
-export interface Mark { id: number; name: string; type: string; area: string; shot: Box; overlay: Box }
+export interface Mark { id: number; name: string; type: string; area: string; shot: Box; overlay: Box; partial?: boolean }
 
 const AREA: Record<string, string> = { taskbar: 'taskbar', popup: 'start menu / popup', window: 'window', desktop: 'desktop icon, may be hidden under windows' };
 
@@ -75,6 +75,38 @@ export function pickMark(marks: Mark[], id: unknown, name = '', guess: Box | nul
   if (bestD <= maxDist) return best;
   // ИИ промахнулся рамкой сильнее, но кнопка с таким именем на экране одна: показываем её
   return pool.length === 1 ? pool[0]! : null;
+}
+
+function nearest(pool: Mark[], p: { x: number; y: number } | null, max: number): Mark | null {
+  if (!pool.length) return null;
+  if (!p) return pool.length === 1 ? pool[0]! : null;
+  let best: Mark | null = null;
+  let bestD = Infinity;
+  for (const m of pool) {
+    const c = center(m.overlay);
+    const d = Math.hypot(c.x - p.x, c.y - p.y);
+    if (d < bestD) { best = m; bestD = d; }
+  }
+  return bestD <= max ? best : null;
+}
+
+const FIELD = /text|field|edit|search|input|box|поле|поиск|строк/i;
+const isField = (m: Mark) => /^(Edit|ComboBox|Document)$/.test(m.type);
+
+/**
+ * Кнопка, которую система нашла по названию от ИИ (found; partial — название лишь содержит слова ИИ),
+ * и поля ввода рядом (fields). ИИ просит «поле ввода», а назвал подсказку под ним — показываем само поле.
+ */
+export function pickNamed(found: Mark[], fields: Mark[], type: string, guess: Box | null): Mark | null {
+  const g = guess && center(guess);
+  const whole = found.filter((m) => !m.partial);
+  const part = found.filter((m) => m.partial);
+  let hit = nearest(whole, g, 700) ?? nearest(part, g, 700);
+  if (FIELD.test(type) && !(hit && isField(hit))) {
+    const field = (hit && nearest(fields, center(hit.overlay), 160)) ?? nearest(fields, g, 300);
+    if (field) hit = field;
+  }
+  return hit;
 }
 
 /**

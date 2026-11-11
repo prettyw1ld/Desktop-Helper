@@ -442,6 +442,7 @@ function Named($q) {
   $h = [PushTop]::Tray()
   if ($h -ne 0) { $roots += ,@($AE::FromHandle([IntPtr]$h), 'taskbar') }
   $items = @()
+  $edits = @()
   foreach ($root in $roots) {
     $queue = New-Object System.Collections.Queue
     $queue.Enqueue(@($root[0], 0))
@@ -452,24 +453,34 @@ function Named($q) {
       while ($child -and $sw.ElapsedMilliseconds -lt $budget) {
         try {
           $c = $child.Cached
-          if (-not $c.IsOffscreen) {
-            $name = ([string]$c.Name).Trim()
-            $low = $name.ToLowerInvariant() -replace '&', ''
-            $r = $c.BoundingRectangle
-            # «Go», «&Go», «Go (Alt+G)»: совпадает целиком или с начала до пробела/скобки
-            $hit = $low -eq $want -or $low.StartsWith("$want ") -or $low.StartsWith($want + [char]40) -or $low.StartsWith("$want…") -or $low.StartsWith("$want...")
-            if ($hit -and -not $r.IsEmpty -and $r.Width -ge 4 -and $r.Height -ge 4) {
-              $type = $c.ControlType.ProgrammaticName -replace 'ControlType\\.', ''
-              $items += @{ name = $name; type = $type; area = $root[1]; x = [int]$r.X; y = [int]$r.Y; w = [int]$r.Width; h = [int]$r.Height; enabled = $true; focused = $false; proc = '' }
-            }
-            if ($pair[1] -lt 40) { $queue.Enqueue(@($child, ($pair[1] + 1))) }
+          $r = $c.BoundingRectangle
+          # Chromium/Electron помечает пункты открытого меню как «за экраном», хотя они видны:
+          # верим не флагу, а прямоугольнику (спрятанные элементы у них лежат далеко за краем, x = -12897)
+          $onScreen = -not $r.IsEmpty -and $r.Width -ge 4 -and $r.Height -ge 4 -and $r.X -gt -4000 -and $r.Y -gt -4000
+          $name = ([string]$c.Name).Trim()
+          $low = $name.ToLowerInvariant() -replace '&', ''
+          # «Go», «&Go», «Go (Alt+G)», «Go to Line/Column... Ctrl+G»: целиком или с начала до пробела/скобки
+          $hit = $low -eq $want -or $low.StartsWith("$want ") -or $low.StartsWith($want + [char]40) -or $low.StartsWith("$want…") -or $low.StartsWith("$want...")
+          # поле ввода часто называется своей подсказкой целиком («Go to line. Type a line number…»): ищем и внутри названия
+          $part = -not $hit -and $want.Length -ge 6 -and $low.Contains($want)
+          if (($hit -or $part) -and $onScreen) {
+            $type = $c.ControlType.ProgrammaticName -replace 'ControlType\\.', ''
+            $items += @{ name = $name; type = $type; area = $root[1]; x = [int]$r.X; y = [int]$r.Y; w = [int]$r.Width; h = [int]$r.Height; enabled = $true; focused = $false; proc = ''; partial = [bool]$part }
           }
+          # поля ввода рядом: ИИ часто называет подсказку под полем («Type a line number…»), а показать надо само поле
+          if ($onScreen -and $edits.Count -lt 15) {
+            $ct = $c.ControlType.ProgrammaticName
+            if ($ct -eq 'ControlType.Edit' -or $ct -eq 'ControlType.ComboBox') {
+              $edits += @{ name = $name; type = 'Edit'; area = $root[1]; x = [int]$r.X; y = [int]$r.Y; w = [int]$r.Width; h = [int]$r.Height; enabled = $true; focused = $false; proc = '' }
+            }
+          }
+          if ($pair[1] -lt 40 -and ($onScreen -or -not $c.IsOffscreen)) { $queue.Enqueue(@($child, ($pair[1] + 1))) }
         } catch { }
         try { $child = $walker.GetNextSibling($child, $cr) } catch { $child = $null }
       }
     }
   }
-  return @{ items = $items; ms = $sw.ElapsedMilliseconds }
+  return @{ items = $items; edits = $edits; ms = $sw.ElapsedMilliseconds }
 }
 
 # «Объясни, что это»: какая программа и какой элемент под выделением. Только названия и типы,

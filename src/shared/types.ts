@@ -171,6 +171,7 @@ export interface LocateItem extends Rect {
   enabled: boolean;
   proc: string;
   area?: string;        // list: taskbar | popup | window | desktop
+  partial?: boolean;  // named: название лишь содержит искомое
 }
 
 export interface LocateWindow {
