@@ -77,6 +77,8 @@ function start(): void {
   child.on('exit', () => { if (proc === child) proc = null; });
 }
 
+export const watching = (key: string): boolean => users.has(key);
+
 /** Перестать ждать нажатий для key (без key — для всех). Процесс гасим, когда ждать больше некому. */
 export function stop(key?: string): void {
   for (const [k, t] of users) {

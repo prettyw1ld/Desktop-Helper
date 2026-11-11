@@ -75,6 +75,7 @@ test('a click anywhere outside the cat checks the step by itself', async () => {
   await settle();
   assert.equal(calls.length, 2);
   assert.equal(calls[1]?.mode, 'check');
+  assert.deepEqual(calls[1]?.click, { onTarget: true }, 'the model is told the press hit the highlighted button');
   endGuide(false);
   assert.deepEqual(clicks.at(-1), [false, 'guide']);
   assert.deepEqual(focus, [false, true]);

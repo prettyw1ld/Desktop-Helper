@@ -13,7 +13,7 @@ import { cleanPlan, formatMarks, pickMark, refineCrop, showGoal, stepOf, boxUnit
 import { overlayBounds, toFrame, workInFrame } from '../src/main/geometry';
 import { aiKey } from '../src/shared/types';
 import { goalFromHowTo, isHowTo, vagueGoal } from '../src/shared/howto';
-import { formatContext, inspectPrompt, scrub } from '../src/main/ai/inspect-text';
+import { clickFact, formatContext, inspectPrompt, scrub } from '../src/main/ai/inspect-text';
 
 test('practice files survive repeated setup; folder actions reject arbitrary paths; picker cancel does not open', async () => {
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'pushik-files-test-'));
@@ -233,4 +233,16 @@ test('system facts for the model: program, window, element and its place, withou
   assert.equal(formatContext(null), '');
   assert.equal(scrub('звони +7 (912) 345-67-89'), 'звони [номер]');
   assert.match(inspectPrompt('', true), /Do not name a program unless its name is visible/);
+});
+
+test('after a press on the highlighted button the model is told the step was done, with the element from the system', () => {
+  const ctx = { app: 'Visual Studio Code', proc: 'Code', title: 'README.md', element: { name: 'Go', type: 'menu item' }, path: [], nearby: [] };
+  const on = clickFact(ctx, true);
+  assert.match(on, /menu item «Go»/);
+  assert.match(on, /Visual Studio Code/);
+  assert.match(on, /DID the last hint/);
+  assert.match(on, /Never ask to press the same thing again/);
+  const off = clickFact(null, false);
+  assert.match(off, /not on the highlighted thing/);
+  assert.doesNotMatch(off, /DID the last hint/);
 });

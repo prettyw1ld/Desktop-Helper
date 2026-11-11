@@ -5,6 +5,7 @@ import type { LookMode, LookRequest, LookResult, LookStatus, Rect, Settings } fr
 import { aiError, fetchAI, fetchAIRetry, readError } from './http';
 import { CLAUDE_URL, cleanReply, extraFor, pickModel, resolve } from './llm';
 import { cropSelection, formatContext, inspectPrompt, INSPECT_SYSTEM, scrub, windowView } from './screen-region';
+import { clickFact } from './inspect-text';
 import { boxUnits, cleanPlan, formatMarks, pickMark, refineCrop, stepOf, withTaskbar, type ElementHint, type Mark } from './show';
 import { guideLog } from './guide-log';
 import { toFrame } from '../geometry';
@@ -344,6 +345,31 @@ async function askOllama({ ollamaUrl, visionModel, ollamaModel, system, text, jp
 
 // ---------- «Объясни, что это»: контекст окна ----------
 /** Что говорит система о программе и элементе под выделением. Только Windows; не дольше 2.5 с. */
+// ---------- Нажатие мышью во время подсказки ----------
+// Что человек нажал, узнаём у системы сразу в момент нажатия: через секунду на этом месте может быть уже другое окно.
+let lastClick: { at: number; ctx: Promise<InspectContext | null> } | null = null;
+
+/** p — точка нажатия в координатах окна кота (оно начинается в углу основного экрана). */
+export function noteClick(p: { x: number; y: number } | null): void {
+  if (!p || process.platform !== 'win32') { lastClick = null; return; }
+  const b = screen.getPrimaryDisplay().bounds;
+  const px = screen.dipToScreenRect(null, { x: p.x + b.x - 4, y: p.y + b.y - 4, width: 8, height: 8 });
+  const ctx = withTimeout(locate.ask({ op: 'context', x: px.x, y: px.y, w: px.width, h: px.height }), 2500, { error: 'timeout' })
+    .then((res) => res.ctx ?? null)
+    .catch(() => null);
+  lastClick = { at: Date.now(), ctx };
+}
+
+async function clickText(click: LookRequest['click']): Promise<string> {
+  if (!click) return '';
+  const fresh = lastClick && Date.now() - lastClick.at < 6000 ? lastClick : null;
+  lastClick = null;
+  const ctx = fresh ? await withTimeout(fresh.ctx, 1500, null) : null;
+  const text = clickFact(ctx, !!click.onTarget);
+  guideLog('click', { onTarget: !!click.onTarget, element: ctx?.element ?? null, app: ctx?.app ?? '' });
+  return text;
+}
+
 async function inspectContext(shot: Shot, selection: Rect | undefined): Promise<InspectContext | null> {
   if (process.platform !== 'win32' || !selection) return null;
   const b = shot.display.bounds;
@@ -456,9 +482,10 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
   const size = image.getSize();
   const r = resolve(settings);
   const coords = `Coordinates for "target": screenshot pixels. Image size: ${size.width}x${size.height} pixels.`;
+  const clicked = mode === 'check' ? await clickText(req.click) : '';
   const text = inspect
     ? inspectPrompt(facts, !!view)
-    : `${userText(req)}\n${coords}\n${formatMarks(marks)}`;
+    : `${userText(req)}\n${clicked ? `${clicked}\n` : ''}${coords}\n${formatMarks(marks)}`;
 
   const input: ModelInput = {
     ...settings,

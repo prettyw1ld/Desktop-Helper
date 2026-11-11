@@ -22,6 +22,22 @@ const node = (n: UiNode): string => {
 };
 
 /** Текст для модели: программа, окно, элемент под выделением, где он находится. Пусто, если системе нечего сказать. */
+/**
+ * check после нажатия мышью: что именно нажал человек, по данным системы.
+ * Без этого модель часто не верит, что шаг сделан, и просит нажать ещё раз (а повторное нажатие закрывает меню).
+ */
+export function clickFact(ctx: InspectContext | null | undefined, onTarget: boolean): string {
+  const el = ctx?.element;
+  const what = el && (el.name || el.type) ? ` on ${node(el)}` : '';
+  const app = scrub(ctx?.app || ctx?.proc || '', 60);
+  const where = onTarget ? ', exactly on the thing the last hint highlighted' : ', not on the highlighted thing';
+  return `System fact (reliable): about 1 second before this screenshot the person pressed the mouse${what}${app ? ` in ${app}` : ''}${where}. `
+    + (onTarget
+      ? 'So they DID the last hint. Look for its result on the screenshot (an opened menu, list, panel or window) and give the NEXT step, or "done" if the goal is reached. '
+        + 'Never ask to press the same thing again just because it looks highlighted: pressing it again would close what it opened.'
+      : 'Check whether this press still moved them towards the goal; if not, kindly show the needed thing again.');
+}
+
 export function formatContext(ctx: InspectContext | null | undefined): string {
   if (!ctx) return '';
   const lines: string[] = [];

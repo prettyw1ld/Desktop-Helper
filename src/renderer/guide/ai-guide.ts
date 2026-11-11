@@ -52,6 +52,14 @@ function stopWatching(): void {
 
 onGuideEnd(stopWatching);
 
+/** Нажатие пришлось на кнопку из подсказки (место угадано примерно — рамка шире). */
+function hitsTarget(p: { x: number; y: number }): boolean {
+  const t = guide.last?.target;
+  if (!t) return false;
+  const pad = guide.last && approxOf(guide.last) ? 36 : 14;
+  return p.x >= t.x - pad && p.x <= t.x + t.w + pad && p.y >= t.y - pad && p.y <= t.y + t.h + pad;
+}
+
 /** Нажали мышью где-то на экране (x, y — в координатах окна кота). */
 export function onScreenClick(p: { x: number; y: number } | null): void {
   if (!guide.active || guide.busy || guide.kind !== 'ai' || !stepShown) return;
@@ -61,9 +69,10 @@ export function onScreenClick(p: { x: number; y: number } | null): void {
   stepShown = false;
   guide.autoChecked = true;
   api.guideUnwatch();
+  const onTarget = !!p && hitsTarget(p);
   // даём меню или окну открыться, потом смотрим
   if (clickTimer) clearTimeout(clickTimer);
-  clickTimer = setTimeout(() => { clickTimer = null; if (guide.active && !guide.busy) look('check'); }, 900);
+  clickTimer = setTimeout(() => { clickTimer = null; if (guide.active && !guide.busy) look('check', { onTarget }); }, 900);
 }
 
 const WHAT_HAPPENED = 'Что сейчас произошло?';
@@ -145,7 +154,7 @@ function explain(res: LookResult): void {
   if (danger) setTimeout(() => { if (cat.state !== 'perch') showPose('angry', 1600); }, 50);
 }
 
-export async function look(mode: LookMode): Promise<void> {
+export async function look(mode: LookMode, click?: { onTarget: boolean }): Promise<void> {
   if (guide.busy) return;
   guide.busy = true;
   guide.mode = mode;
@@ -158,7 +167,7 @@ export async function look(mode: LookMode): Promise<void> {
   dom.cat.classList.add('thinking');
   if (cat.state !== 'perch' && !['fall', 'jump'].includes(cat.state)) setState('busy');
   say(T(mode === 'check' ? 'g.checking' : 'g.looking'), Infinity, { guide: true });
-  const res = await api.guideLook({ mode, goal: guide.goal, history: guide.history, previousSummary: guide.screenSummary, plan: guide.plan });
+  const res = await api.guideLook({ mode, goal: guide.goal, history: guide.history, previousSummary: guide.screenSummary, plan: guide.plan, click });
   dom.cat.classList.remove('thinking');
   guide.busy = false;
   if (!guide.active) return;

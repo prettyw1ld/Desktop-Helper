@@ -40,7 +40,14 @@ function registerBasics(): void {
     if (ignore) win.setIgnoreMouseEvents(true, { forward: true });
     else win.setIgnoreMouseEvents(false);
   });
-  // Где курсор, в координатах окна кота. Пока окно пропускает клики насквозь,
+  function onGlobalClick(): void {
+  const p = cursorInWin();
+  // кот ведёт по шагам: сразу спрашиваем систему, что нажали (для проверки шага)
+  if (clicks.watching('guide')) guide.noteClick(p);
+  ui.send('global-click', p);
+}
+
+// Где курсор, в координатах окна кота. Пока окно пропускает клики насквозь,
   // Windows присылает движения мыши не всегда, поэтому кот спрашивает сам.
   ipcMain.handle('cursor:get', cursorInWin);
   ipcMain.handle('settings:get', () => settings.publicView());
@@ -58,7 +65,7 @@ function registerBasics(): void {
   // нажатие мышью где угодно: сообщаем окну кота, где оно было (кот сам отличит нажатия по себе и облачку)
   ipcMain.on('clicks:watch', (_e, on: boolean, key: unknown) => {
     const who = key === 'guide' ? 'guide' : 'trash';
-    if (on) clicks.watch(who, () => ui.send('global-click', cursorInWin()), who === 'guide' ? 15 * 60_000 : 15_000);
+    if (on) clicks.watch(who, onGlobalClick, who === 'guide' ? 15 * 60_000 : 15_000);
     else clicks.stop(who);
   });
   // Пока кот ведёт по шагам, нажатие на облачко не должно забирать фокус у программы человека:

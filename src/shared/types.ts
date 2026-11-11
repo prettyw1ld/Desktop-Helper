@@ -105,6 +105,7 @@ export interface LookRequest {
   selection?: Rect;
   previousSummary?: string;
   plan?: string[];      // путь к цели, который ИИ продумал на первом шаге
+  click?: { onTarget: boolean }; // check: проверяем, потому что человек нажал мышью (onTarget — по выделенной кнопке)
 }
 
 export interface LookResult {
