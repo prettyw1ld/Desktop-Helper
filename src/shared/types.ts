@@ -217,7 +217,7 @@ export interface PushikEvents {
   'ai-wait': number;
   'work-area': Rect;   // где пол и стены для кота внутри окна (без панели задач)
   'remote-app': string; // запустилась программа удалённого доступа (защита от мошенников)
-  'global-click': undefined; // нажали мышью где угодно на экране (только пока включено watchClicks)
+  'global-click': { x: number; y: number } | null; // нажали мышью где угодно на экране, в координатах окна кота (пока включено watchClicks)
 }
 export type PushikEvent = keyof PushikEvents;
 export const PUSHIK_EVENTS: PushikEvent[] = [
@@ -239,7 +239,8 @@ export interface PushikApi {
   listCalendar(days: number): Promise<CalendarList>;
   quit(): void;
   hide(): void;
-  watchClicks(on: boolean): void;
+  watchClicks(on: boolean, key?: 'trash' | 'guide'): void;
+  setFocusable(on: boolean): void;
   simplifyExplanation(text: string): Promise<{ text: string } | ErrorReply>;
   guideLook(req: LookRequest): Promise<LookResult | ErrorReply>;
   guideWatch(masks: Rect[]): void;

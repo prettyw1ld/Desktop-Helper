@@ -42,13 +42,7 @@ function registerBasics(): void {
   });
   // Где курсор, в координатах окна кота. Пока окно пропускает клики насквозь,
   // Windows присылает движения мыши не всегда, поэтому кот спрашивает сам.
-  ipcMain.handle('cursor:get', () => {
-    const win = ui.win();
-    if (!win) return null;
-    const p = screen.getCursorScreenPoint();
-    const b = win.getBounds();
-    return { x: p.x - b.x, y: p.y - b.y };
-  });
+  ipcMain.handle('cursor:get', cursorInWin);
   ipcMain.handle('settings:get', () => settings.publicView());
   ipcMain.handle('settings:save', (_e, s: Partial<Settings>) => {
     const res = settings.save(s);
@@ -61,7 +55,27 @@ function registerBasics(): void {
   ipcMain.handle('calendar:list', (_e, days: number) => watchers.calendarList(days || 2));
   ipcMain.on('app:quit', () => app.quit());
   ipcMain.on('app:hide', () => ui.win()?.hide());
-  ipcMain.on('clicks:watch', (_e, on: boolean) => { if (on) clicks.watch(() => ui.send('global-click')); else clicks.stop(); });
+  // нажатие мышью где угодно: сообщаем окну кота, где оно было (кот сам отличит нажатия по себе и облачку)
+  ipcMain.on('clicks:watch', (_e, on: boolean, key: unknown) => {
+    const who = key === 'guide' ? 'guide' : 'trash';
+    if (on) clicks.watch(who, () => ui.send('global-click', cursorInWin()), who === 'guide' ? 15 * 60_000 : 15_000);
+    else clicks.stop(who);
+  });
+  // Пока кот ведёт по шагам, нажатие на облачко не должно забирать фокус у программы человека:
+  // иначе её открытое меню закрывается, и кот думает, что ничего не произошло.
+  ipcMain.on('win:focusable', (_e, on: boolean) => {
+    const win = ui.win();
+    if (win && process.platform === 'win32') win.setFocusable(!!on);
+  });
+}
+
+// Где курсор, в координатах окна кота.
+function cursorInWin(): { x: number; y: number } | null {
+  const win = ui.win();
+  if (!win) return null;
+  const p = screen.getCursorScreenPoint();
+  const b = win.getBounds();
+  return { x: p.x - b.x, y: p.y - b.y };
 }
 
 // ---------- Поиск кнопок без ИИ, файлы, «Открой за меня» ----------

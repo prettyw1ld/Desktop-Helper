@@ -11,18 +11,59 @@ import { hideBubble, say, type Action } from '../ui/bubble';
 import { closePanels, showPanel } from '../ui/panels';
 import { hideRing, showRing } from '../ui/ring';
 import { speak, stopSpeaking } from '../ui/speech';
-import { endGuide } from './control';
+import { endGuide, onGuideEnd } from './control';
 import { goPoint, guideMasks } from './pointing';
 import { guide } from './state';
 import { endTrainer } from './trainer';
 
 // Следим за экраном после подсказки: если он заметно поменялся, сами проверяем шаг.
+// Главное — нажатия мышью: нажал человек куда-то мимо кота и облачка — значит, что-то сделал, проверяем.
+// Сравнение снимков остаётся для того, что делают клавиатурой (меню на светлом фоне оно часто не замечает).
+let stepShown = false;
+let clickTimer: ReturnType<typeof setTimeout> | null = null;
+
 function watchScreen(): void {
   api.guideUnwatch();
   // ждём, пока кот допрыгнет и облачко встанет на место
   setTimeout(() => { if (guide.active && !guide.busy) api.guideWatch(guideMasks()); }, 900);
   guide.stepAt = Date.now();
   guide.autoChecked = false;
+  stepShown = true;
+  holdScreen(true);
+}
+
+// Пока кот ведёт по шагам: ждём нажатий мышью, а нажатия по облачку не забирают фокус у программы человека
+// (иначе её открытое меню закрывается от нажатия на «Сделал(а)»).
+let holding = false;
+function holdScreen(on: boolean): void {
+  if (on) api.watchClicks(true, 'guide');  // продлевает слежку на каждом шаге
+  if (on === holding) return;
+  holding = on;
+  if (!on) api.watchClicks(false, 'guide');
+  api.setFocusable(!on);
+}
+
+function stopWatching(): void {
+  stepShown = false;
+  if (clickTimer) clearTimeout(clickTimer);
+  clickTimer = null;
+  holdScreen(false);
+}
+
+onGuideEnd(stopWatching);
+
+/** Нажали мышью где-то на экране (x, y — в координатах окна кота). */
+export function onScreenClick(p: { x: number; y: number } | null): void {
+  if (!guide.active || guide.busy || guide.kind !== 'ai' || !stepShown) return;
+  // нажали по коту, облачку или окну Пушика: это не действие в программе
+  if (p && document.elementFromPoint(p.x, p.y)?.closest('.hit')) return;
+  if (Date.now() - guide.stepAt < 600) return;
+  stepShown = false;
+  guide.autoChecked = true;
+  api.guideUnwatch();
+  // даём меню или окну открыться, потом смотрим
+  if (clickTimer) clearTimeout(clickTimer);
+  clickTimer = setTimeout(() => { clickTimer = null; if (guide.active && !guide.busy) look('check'); }, 900);
 }
 
 const WHAT_HAPPENED = 'Что сейчас произошло?';
@@ -85,6 +126,7 @@ async function done(res: LookResult): Promise<void> {
   speak(res.say || T('g.success'));
   celebrate();
   guide.active = false;
+  stopWatching();
   setTimeout(() => { if (cat.state === 'perch') startFall(); }, 2500);
   if (skill) setSkills(await api.addSkill(skill));
 }
@@ -107,6 +149,9 @@ export async function look(mode: LookMode): Promise<void> {
   if (guide.busy) return;
   guide.busy = true;
   guide.mode = mode;
+  stepShown = false;
+  if (clickTimer) clearTimeout(clickTimer);
+  clickTimer = null;
   api.guideUnwatch();
   stopSpeaking();
   hideRing();
@@ -190,6 +235,7 @@ export function imLostAI(): void {
 }
 
 export function initAiGuide(): void {
+  api.on('global-click', onScreenClick);
   // бесплатный ИИ попросил подождать: кот говорит, что думает, вместо тишины
   api.on('ai-wait', (sec) => say(T('ai.wait', { sec }), (sec + 1) * 1000, { guide: true }));
   // Экран заметно поменялся после подсказки: сами проверяем, получилось ли.

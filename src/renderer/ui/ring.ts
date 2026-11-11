@@ -6,6 +6,11 @@ const { ring } = dom;
 
 // клубок: куда катится, когда начал и когда начал сматываться обратно
 let destination: Rect | null = null;
+// кнопка, вокруг которой сейчас рамка (облачко её не закрывает)
+let shown: Rect | null = null;
+
+/** Кнопка, вокруг которой сейчас рамка, в координатах окна кота. */
+export const ringBox = (): Rect | null => shown;
 let started = 0;
 let retract: number | null = null;
 // клубок рисуется по кадрам только пока виден: в покое цикл стоит и не грузит компьютер
@@ -25,6 +30,7 @@ export function showRing(t: Rect | null | undefined, approx = false): void {
   if (x2 - x1 < 8 || y2 - y1 < 8) { hideRing(); return; }
   Object.assign(ring.style, { left: `${x1}px`, top: `${y1}px`, width: `${x2 - x1}px`, height: `${y2 - y1}px` });
   ring.classList.remove('hidden');
+  shown = { ...t };
   destination = { ...t };
   started = performance.now();
   retract = null;
@@ -33,6 +39,7 @@ export function showRing(t: Rect | null | undefined, approx = false): void {
 
 export function hideRing(): void {
   ring.classList.add('hidden');
+  shown = null;
   if (destination) retract = performance.now();
 }
 

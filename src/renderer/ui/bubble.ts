@@ -4,7 +4,9 @@ import { cat, CAT_H, CAT_W, H, size, W } from '../cat/cat';
 import { dom, el, isHidden } from '../core/dom';
 import { clamp, now, timer } from '../core/util';
 import { guide } from '../guide/state';
+import { pickSpot } from './bubble-spot';
 import { icon } from './icons';
+import { ringBox } from './ring';
 
 /** Кнопка в облачке: [надпись, действие, главная?]. */
 export type Action = [label: string, run: () => void, primary?: boolean];
@@ -70,11 +72,20 @@ export function placeBubble(): void {
   bubble.classList.toggle('below', below);
   const top = below ? belowTop : above;
   const left = cat.x + CAT_W / 2 - width / 2;
-  const dx = clamp(left, 8, Math.max(8, W() - width - 8)) - left;
-  const dy = clamp(top, 8, Math.max(8, H() - height - 8)) - top;
+  let dx = clamp(left, 8, Math.max(8, W() - width - 8)) - left;
+  let dy = clamp(top, 8, Math.max(8, H() - height - 8)) - top;
+  // подсказка с рамкой вокруг кнопки: облачко не должно закрывать кнопку и меню, которое из неё откроется
+  const target = bubble.classList.contains('guide') ? ringBox() : null;
+  if (target) {
+    const s = dom.sprite.getBoundingClientRect();
+    const body = { x: s.left, y: s.top, w: s.width, h: s.height };
+    const spot = pickSpot({ box: { w: width, h: height }, preferred: { x: left + dx, y: top + dy }, body, target, screen: { w: W(), h: H() } });
+    dx = spot.x - left;
+    dy = spot.y - top;
+  }
   bubble.style.marginLeft = '0px';
   bubble.style.translate = `${Math.round(dx)}px ${Math.round(dy)}px`;
-  bubble.classList.toggle('detached', Math.abs(dy) > 1);
+  bubble.classList.toggle('detached', Math.abs(dy) > 1 || Math.abs(dx) > width / 2);
 }
 
 // ---------- Свернуть в лапку ----------

@@ -104,6 +104,7 @@ export function mockApi(): PushikApi {
     },
     hide() {},
     watchClicks() {},
+    setFocusable() {},
     quit() {},
     on(ch, cb) { handlers[ch] = cb as (data: never) => void; },
   };
