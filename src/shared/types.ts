@@ -248,7 +248,8 @@ export interface PushikApi {
   setFocusable(on: boolean): void;
   simplifyExplanation(text: string): Promise<{ text: string } | ErrorReply>;
   guideLook(req: LookRequest): Promise<LookResult | ErrorReply>;
-  guideWatch(masks: Rect[]): void;
+  /** focus — место у кнопки из подсказки: там замечаем и небольшие перемены (закрылось меню). */
+  guideWatch(masks: Rect[], focus?: Rect | null): void;
   guideUnwatch(): void;
   transcribe(audio: ArrayBuffer, mime: string): Promise<{ text: string } | ErrorReply>;
   askMic(): Promise<boolean>;

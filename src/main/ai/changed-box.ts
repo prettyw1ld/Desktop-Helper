@@ -85,10 +85,15 @@ export function changedBox(a: Buffer, b: Buffer, w: number, h: number, near?: { 
 /**
  * Заметно ли поменялся экран между снимками a и b (BGRA w×h): открылось или закрылось окно, меню, список.
  * skip(x, y) — места, где нарисован сам кот: их не сравниваем.
- * Сильно поменялось больше 3% экрана — или есть одно сплошное место от 2% экрана
- * (тёмное меню на тёмном окне меняет мало пикселей сильно, но целым куском).
+ * Сильно поменялось больше 3% экрана — или (если задано focus — место у кнопки из подсказки) там есть
+ * одно сплошное изменившееся место от 2% экрана: тёмное меню на тёмном окне меняет мало пикселей сильно, но целым куском.
+ * Без focus мелкие куски не считаем: чат или видео в другом углу не должны сбивать подсказку.
  */
-export function screenMoved(a: Buffer, b: Buffer, w: number, h: number, skip: (x: number, y: number) => boolean = () => false): boolean {
+export function screenMoved(
+  a: Buffer, b: Buffer, w: number, h: number,
+  skip: (x: number, y: number) => boolean = () => false,
+  focus?: Box | null,
+): boolean {
   if (a.length !== b.length || a.length < w * h * 4) return false;
   const cur = Buffer.from(b);
   let diff = 0;
@@ -104,6 +109,8 @@ export function screenMoved(a: Buffer, b: Buffer, w: number, h: number, skip: (x
     }
   }
   if (n && diff / n > 0.03) return true;
-  const box = changedBox(a, cur, w, h);
-  return !!box && box.w * box.h >= w * h * 0.02;
+  if (!focus) return false;
+  const box = changedBox(a, cur, w, h, { x: focus.x + focus.w / 2, y: focus.y + focus.h / 2 });
+  if (!box || box.w * box.h < w * h * 0.02) return false;
+  return box.x < focus.x + focus.w && box.x + box.w > focus.x && box.y < focus.y + focus.h && box.y + box.h > focus.y;
 }

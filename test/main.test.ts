@@ -264,7 +264,7 @@ test('the opened menu is found as the place where two screenshots differ, neares
   assert.equal(changedBox(before, before, w, h), null);
 });
 
-test('a dark menu closing on a dark window counts as a screen change, a clock tick or the cat do not', () => {
+test('a dark menu closing by the hinted button counts as a screen change; a clock, the cat or a far change do not', () => {
   const w = 160, h = 90;
   const dark = Buffer.alloc(w * h * 4, 30);
   const menu = Buffer.from(dark);
@@ -273,9 +273,12 @@ test('a dark menu closing on a dark window counts as a screen change, a clock ti
     const i = (y * w + x) * 4;
     menu.fill(y % 6 === 0 ? 200 : 45, i, i + 3);
   }
-  assert.equal(screenMoved(menu, dark, w, h), true, 'the menu closed');
+  const near = { x: 20, y: 0, w: 40, h: 60 };
+  assert.equal(screenMoved(menu, dark, w, h, undefined, near), true, 'the menu by the hinted button closed');
+  assert.equal(screenMoved(menu, dark, w, h), false, 'without a hinted place a small change elsewhere (a chat, a video) does not count');
+  assert.equal(screenMoved(menu, dark, w, h, undefined, { x: 110, y: 50, w: 40, h: 30 }), false, 'the change is far from the hinted button');
   const clock = Buffer.from(dark);
   for (let y = 84; y < 89; y++) for (let x = 150; x < 158; x++) clock.fill(220, (y * w + x) * 4, (y * w + x) * 4 + 3);
-  assert.equal(screenMoved(dark, clock, w, h), false, 'only the clock changed');
-  assert.equal(screenMoved(menu, dark, w, h, (x, y) => x >= 20 && x < 56 && y >= 4 && y < 57), false, 'the change is where the cat is drawn');
+  assert.equal(screenMoved(dark, clock, w, h, undefined, { x: 130, y: 70, w: 30, h: 20 }), false, 'only the clock changed');
+  assert.equal(screenMoved(menu, dark, w, h, (x, y) => x >= 20 && x < 56 && y >= 4 && y < 57, near), false, 'the change is where the cat is drawn');
 });

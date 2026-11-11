@@ -26,11 +26,21 @@ let clickTimer: ReturnType<typeof setTimeout> | null = null;
 function watchScreen(): void {
   api.guideUnwatch();
   // ждём, пока кот допрыгнет и облачко встанет на место
-  setTimeout(() => { if (guide.active && !guide.busy) api.guideWatch(guideMasks()); }, 900);
+  setTimeout(() => { if (guide.active && !guide.busy) api.guideWatch(guideMasks(), watchFocus()); }, 900);
   guide.stepAt = Date.now();
   guide.autoChecked = false;
   stepShown = true;
   holdScreen(true);
+}
+
+/** Где перемены точно касаются шага: у кнопки из подсказки (и под ней, где открывается меню) и на открытом меню. */
+function watchFocus(): Rect | null {
+  const t = guide.last?.target;
+  const parts = [t && { x: t.x - 60, y: t.y - 60, w: t.w + 120, h: t.h + 300 }, openedNow].filter((r): r is Rect => !!r);
+  if (!parts.length) return null;
+  const x = Math.min(...parts.map((r) => r.x));
+  const y = Math.min(...parts.map((r) => r.y));
+  return { x, y, w: Math.max(...parts.map((r) => r.x + r.w)) - x, h: Math.max(...parts.map((r) => r.y + r.h)) - y };
 }
 
 // Пока кот ведёт по шагам: ждём нажатий мышью, а нажатия по облачку не забирают фокус у программы человека

@@ -148,8 +148,8 @@ function registerGuide(): void {
       return { error: 'Не удалось упростить объяснение. Попробуй ещё раз.' };
     }
   });
-  ipcMain.on('guide:watch', (_e, masks: Rect[]) => {
-    guide.watch({ masks, onChange: () => ui.send('screen-changed') });
+  ipcMain.on('guide:watch', (_e, masks: Rect[], focus?: Rect | null) => {
+    guide.watch({ masks, focus, onChange: () => ui.send('screen-changed') });
   });
   ipcMain.on('guide:unwatch', () => guide.unwatch());
 }

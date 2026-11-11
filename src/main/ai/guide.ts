@@ -666,7 +666,7 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
 // (masks в координатах окна кота). Если экран заметно поменялся, зовём onChange.
 let watchTimer: NodeJS.Timeout | null = null;
 
-export function watch({ masks = [], onChange }: { masks?: Rect[]; onChange: () => void }): void {
+export function watch({ masks = [], focus = null, onChange }: { masks?: Rect[]; focus?: Rect | null; onChange: () => void }): void {
   unwatch();
   let base: Buffer | null = null;
   let busy = false;
@@ -696,8 +696,9 @@ export function watch({ masks = [], onChange }: { masks?: Rect[]; onChange: () =
       const took = Date.now() - started;
       if (took > 300) { slowUntil = Date.now() + took * 8; guideLog('watch-slow', { ms: took }); }
       if (!base) { base = bmp; return; }
-      // открылось или закрылось окно, страница, меню
-      if (screenMoved(base, bmp, size.width, size.height, masked)) { unwatch(); onChange(); }
+      // открылось или закрылось окно, страница, меню (у кнопки из подсказки — даже небольшое)
+      const near = focus && { x: (focus.x + offX) * k, y: (focus.y + offY) * k, w: focus.w * k, h: focus.h * k };
+      if (screenMoved(base, bmp, size.width, size.height, masked, near)) { unwatch(); onChange(); }
     } catch { /* нет доступа к экрану: просто ждём кнопку «Сделал» */ } finally { busy = false; }
   }, 2000);
 }
