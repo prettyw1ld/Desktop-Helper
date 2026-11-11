@@ -90,20 +90,25 @@ function throwIn(r: Rect): void {
   clearTimers();
   trashed = true;
   hideBubble();
+  // Кот остаётся в том же кадре «за шкирку» и уменьшается в значок: без смены позы он не «вырастает».
+  cat.trashIn = true;
   setState('trash');
   const [tx, ty] = mouth(r);
   flight = { kind: 'in', t0: now(), ms: 450, x0: cx(), y0: cat.y + CAT_H, tx, ty, vy: 0 };
   showGlow(r, 'hot');
   later(450, () => {
     flight = null;
+    cat.trashIn = false;
     dom.cat.classList.add('trashed');
     dom.cat.style.setProperty('--s', '1');
     Sound.crumple();
     showGlow(r, 'wobble');
   });
+  // корзина качнулась — подсветка уходит, на значке ничего не остаётся
+  later(1400, () => showGlow(null));
   // подсказка, как достать кота обратно, потом окно кота прячется, как по «Спрятать»
   later(1300, () => { Sound.meow(); showNote(r, T('trash.inside')); });
-  later(7500, () => { note.classList.add('hidden'); showGlow(null); api.hide(); });
+  later(6000, () => { note.classList.add('hidden'); showGlow(null); api.hide(); });
 }
 
 function showNote(r: Rect, text: string): void {
@@ -138,6 +143,7 @@ export async function climbOut(): Promise<void> {
 }
 
 function jumpOut(r: Rect): void {
+  cat.trashIn = false;
   dom.cat.classList.remove('trashed');
   Sound.crumple();
   showGlow(r);
@@ -165,6 +171,7 @@ function out(): void {
   clearTimers();
   flight = null;
   trashed = false;
+  cat.trashIn = false;
   showGlow(null);
   note.classList.add('hidden');
   dom.cat.classList.remove('trashed');
@@ -199,6 +206,8 @@ function frame(): void {
   }
   setScared(false);
   const f = flight;
+  // Кота не несут, он не в Корзине и не летит: никакой подсветки у значка не остаётся.
+  if (!f && !trashed && !glow.classList.contains('hidden')) showGlow(null);
   if (!f) return;
   const p = clamp((now() - f.t0) / f.ms, 0, 1);
   let x: number, y: number, s: number;
@@ -206,7 +215,7 @@ function frame(): void {
     const e = p * p;
     x = f.x0 + (f.tx - f.x0) * e;
     y = f.y0 + (f.ty - f.y0) * e;
-    s = 1 - 0.85 * p;
+    s = Math.max(0.05, 1 - p * (2 - p));   // сразу заметно уменьшается и пропадает в значке
     cat.vy = 1;
   } else {
     const t = (p * f.ms) / 1000;

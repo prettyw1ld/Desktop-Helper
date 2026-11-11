@@ -30,6 +30,7 @@ export const cat = {
   x: 0,
   y: 0,
   vy: 0,
+  trashIn: false,             // кота бросили в Корзину: он летит в неё, всё так же висящим за шкирку
   dir: -1 as Dir,
   state: 'idle' as CatState,
   prev: 'idle' as CatState,  // прошлое состояние: после ходьбы и прыжка кот сначала стоит
