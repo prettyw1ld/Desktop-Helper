@@ -7,7 +7,7 @@ import { CLAUDE_URL, cleanReply, extraFor, pickModel, resolve } from './llm';
 import { cropSelection, formatContext, inspectPrompt, INSPECT_SYSTEM, scrub, windowView } from './screen-region';
 import { clickFact } from './inspect-text';
 import { changedBox, screenMoved } from './changed-box';
-import { boxUnits, cleanPlan, formatMarks, pickMark, pickNamed, refineCrop, stepOf, withTaskbar, type ElementHint, type Mark } from './show';
+import { boxUnits, cleanPlan, formatMarks, itemLabel, itemsFromText, pickMark, pickNamed, refineCrop, stepOf, withTaskbar, type ElementHint, type Mark } from './show';
 import { guideLog } from './guide-log';
 import { toFrame } from '../geometry';
 import * as locate from '../system/locate';
@@ -119,7 +119,7 @@ function planText(plan: string[] = []): string {
   return plan.length ? `Planned route:\n${plan.map((p, i) => `${i + 1}. ${p}`).join('\n')}\n` : '';
 }
 
-function userText({ mode, goal = '', history = [], previousSummary, plan = [], level = 1 }: LookRequest): string {
+function userText({ mode, goal = '', history = [], previousSummary, plan = [], level = 1, item = '' }: LookRequest): string {
   if (mode === 'practice') {
     return `The user chose to practice this goal themselves: ${goal}. Give exactly ONE safe physical action to begin, with status step and its target. `
       + 'Do not claim success before they attempt it. Never perform the action yourself. If the goal is already achieved, ask them to choose another element using status not_found. '
@@ -139,6 +139,13 @@ function userText({ mode, goal = '', history = [], previousSummary, plan = [], l
       + 'If the last hint asked to close something (Escape, cross, press aside) and it is closed now, that step WORKED: '
       + 'give the next step or "done", never ask to open it again. One action per hint: never "look, then press Esc".\n'
       + `${planText(plan)}Follow the planned route and set stepIndex. If the screen shows the route must change (other window, step already done), send a new full plan.`;
+  }
+  if (mode === 'more' && item) {
+    return `The person is learning: "${goal}". On the screenshot a menu, list or panel is open. They asked about ONE item only: «${item.slice(0, 80)}». `
+      + 'Fill "opened" in Russian with 2-4 short lines about this item only: what it does, when a beginner would use it, the shortcut if shown. '
+      + 'Do not describe other items, do not give any action to do, do not tell them to close anything. '
+      + 'Answer status "explain", "say" = the item name, hasMore false, '
+      + `and practiceGoal: one safe way to try «${item.slice(0, 80)}» (no delete, send, install, settings), or empty if it is not safe.`;
   }
   if (mode === 'more') {
     const told = history.length
@@ -278,6 +285,25 @@ function toMarks(items: LocateItem[], { display, w: sw, h: sh }: Shot): Mark[] {
     marks.push({ id: marks.length + 1, name: it.name, type: it.type, area: it.area || '', shot: inShot, overlay, partial: it.partial });
   }
   return marks;
+}
+
+/** Пункты того, что открылось (f — доля экрана), по данным системы: названия по порядку. */
+async function openedItems(display: Display, f: { x: number; y: number; w: number; h: number }): Promise<string[]> {
+  if (process.platform !== 'win32') return [];
+  const b = display.bounds;
+  const r = screen.dipToScreenRect(null, { x: b.x + f.x * display.size.width, y: b.y + f.y * display.size.height, width: f.w * display.size.width, height: f.h * display.size.height });
+  const budget = 1200;
+  const res = await Promise.race([
+    locate.ask({ op: 'inside', x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height), budget }),
+    new Promise<{ items?: LocateItem[] }>((ok) => setTimeout(() => ok({}), budget + 1500)),
+  ]) as { items?: LocateItem[]; ms?: number };
+  const names: string[] = [];
+  for (const it of res.items ?? []) {
+    const n = itemLabel(it.name);
+    if (n.length >= 2 && !names.includes(n)) names.push(n);
+  }
+  guideLog('opened-items', { count: names.length, ms: res.ms ?? null });
+  return names.slice(0, 24);
 }
 
 /**
@@ -572,6 +598,7 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
   // что появилось на экране с прошлого снимка (после нажатия): меню, список, окно
   let openedBox: Rect | null = null;
   let openedNote = '';
+  let itemsP: Promise<string[]> = Promise.resolve([]);
   if (!inspect && !more) {
     const cur = small(shot);
     if (mode === 'check') {
@@ -579,6 +606,7 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
       // почти весь экран поменялся — это уже другое окно целиком, а не меню поверх
       if (f) {
         openedFrac = f;
+        itemsP = openedItems(shot.display, f).catch(() => [] as string[]);
         const ds = shot.display.size;
         openedBox = { x: Math.round(f.x * ds.width), y: Math.round(f.y * ds.height), w: Math.round(f.w * ds.width), h: Math.round(f.h * ds.height) };
         openedNote = `System fact (reliable): since the previous screenshot the screen changed in the box x=${Math.round(f.x * shot.w)}, y=${Math.round(f.y * shot.h)}, `
@@ -592,6 +620,8 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
     if (cur) prevSmall = cur;
   }
   const zoom = more && openedFrac ? cropOpened(shot, openedFrac) : null;
+  // первый рассказ о том, что открылось: пункты от системы, чтобы кот вынес их отдельными кнопками
+  if (more && openedFrac && !req.history?.length && !req.item) itemsP = openedItems(shot.display, openedFrac).catch(() => [] as string[]);
   const image = inspect ? cropSelection(shot, selection) : zoom ?? shot.image;
   // «Объясни, что это»: ещё снимок всего окна с рамкой вокруг выделения и сведения от системы
   const tCtx = Date.now();
@@ -682,6 +712,7 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
     opened: (mode === 'check' || more) && typeof out.opened === 'string' ? out.opened.trim().slice(0, 1200) : '',
     hasMore: out.hasMore !== false,
     openedBox,
+    items: await itemsP.then((list) => (list.length >= 2 ? list : typeof out.opened === 'string' ? itemsFromText(out.opened) : [])),
     target,
     snapped,
     plan,

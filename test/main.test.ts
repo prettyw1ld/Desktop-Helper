@@ -9,7 +9,7 @@ import { createFileActions } from '../src/main/system/files';
 import { parseProcessList, remoteApps } from '../src/main/system/remote-watch';
 import { MAC_ROLES, MAC_SCRIPT, WIN_SCRIPT } from '../src/main/system/locate';
 import { extraFor, fallbackModel, resolve } from '../src/main/ai/providers';
-import { cleanPlan, formatMarks, pickMark, pickNamed, refineCrop, showGoal, stepOf, boxUnits, withTaskbar, type Mark } from '../src/main/ai/show';
+import { cleanPlan, formatMarks, itemLabel, itemsFromText, pickMark, pickNamed, refineCrop, showGoal, stepOf, boxUnits, withTaskbar, type Mark } from '../src/main/ai/show';
 import { overlayBounds, toFrame, workInFrame } from '../src/main/geometry';
 import { aiKey } from '../src/shared/types';
 import { goalFromHowTo, isHowTo, vagueGoal } from '../src/shared/howto';
@@ -304,4 +304,12 @@ test('the AI names the hint under a text field: the paw goes to the field itself
   const group = mk('Recent: Go to Line/Column history', 'Group', 579, 900, 300, 20, true);
   assert.equal(pickNamed([group, item], [], 'menu item', { x: 600, y: 520, w: 100, h: 30 }), item);
   assert.equal(pickNamed([item], [], 'menu item', { x: 1500, y: 100, w: 20, h: 20 }), null, 'too far from where the AI looks');
+});
+
+test('menu item labels lose their shortcut; items can be read from the AI text', () => {
+  assert.equal(itemLabel('Go to Line/Column... Ctrl+G'), 'Go to Line/Column...');
+  assert.equal(itemLabel('Go to Symbol in Editor... Ctrl+Shift+O'), 'Go to Symbol in Editor...');
+  assert.equal(itemLabel('Go to Definition F12'), 'Go to Definition');
+  assert.equal(itemLabel('Back'), 'Back');
+  assert.deepEqual(itemsFromText('Меню переходов.\n«Back» — назад.\n- «Go to File...» (Ctrl+P) — файл.\nтекст «внутри» строки'), ['Back', 'Go to File...']);
 });

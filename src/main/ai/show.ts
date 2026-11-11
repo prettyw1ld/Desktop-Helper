@@ -154,3 +154,20 @@ export function withTaskbar(items: LocateItem[], now = Date.now()): LocateItem[]
   if (!items.length || !lastTaskbar || now - lastTaskbar.at > 10 * 60_000) return items;
   return [...lastTaskbar.items, ...items];
 }
+
+/** Название пункта меню без сочетания клавиш в конце: «Go to Line/Column... Ctrl+G» → «Go to Line/Column...». */
+export function itemLabel(name: string): string {
+  return name.replace(/\s+/g, ' ').trim()
+    .replace(/\s+(?:(?:Ctrl|Alt|Shift|Win|Cmd|Option)\+[\w+\-]+|F\d{1,2})$/i, '')
+    .trim().slice(0, 60);
+}
+
+/** Пункты из рассказа ИИ, если система их не дала: строки вида «Название» — что делает. */
+export function itemsFromText(text: string): string[] {
+  const out: string[] = [];
+  for (const line of text.split('\n')) {
+    const m = /^\s*[-•]?\s*«([^»]{1,60})»/.exec(line);
+    if (m && !out.includes(m[1]!.trim())) out.push(m[1]!.trim());
+  }
+  return out;
+}

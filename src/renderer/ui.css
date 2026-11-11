@@ -244,6 +244,8 @@ details.more label { margin-top: calc(10px * var(--u)); }
 .bubble-actions:empty { display: none; }
 .bubble-actions button { flex: 1 1 auto; min-height: calc(48px * var(--u)); font-size: calc(17px * var(--u)); }
 .bubble-actions button.primary { flex-basis: 100%; min-height: calc(56px * var(--u)); font-size: calc(20px * var(--u)); }
+/* пункты открытого меню: по одному на строке, текстом слева, чтобы длинные названия читались */
+.bubble-actions button.item { flex-basis: 100%; justify-content: flex-start; text-align: left; min-height: calc(40px * var(--u)); padding: calc(6px * var(--u)) calc(14px * var(--u)); font-size: calc(16px * var(--u)); font-weight: 500; box-shadow: 0 2px 0 var(--line); }
 .bubble.danger { --line: var(--danger); }
 .bubble.danger .bubble-actions button.primary { background: var(--danger); color: #fff; }
 .bubble.trash-say { position: absolute; left: 0; top: 0; bottom: auto; transform: none; z-index: 8; pointer-events: none; }

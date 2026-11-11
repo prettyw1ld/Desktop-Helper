@@ -165,3 +165,45 @@ test('dragging the cat while it explains the opened menu keeps the explanation, 
   for (let i = 0; i < 4; i++) { mock.timers.tick(400); land(); await settle(); }
   assert.match(bubbleText(), /Нажми в стороне/);
 });
+
+test('an opened menu becomes item buttons: ask about one item, try it, or go back to the list', async () => {
+  const opened = 'Меню «Go» — переходы по коду.\n«Back» — вернуться назад.';
+  const items = ['Back', 'Forward', 'Go to File...', 'Go to Line/Column...'];
+  api.guideLook = async (req) => {
+    calls.push(req);
+    if (req.mode === 'check') return { ...step('Нажми «Go to File»'), opened, items };
+    if (req.mode === 'more' && req.item) {
+      return { ...step(''), status: 'explain', target: null, opened: `«${req.item}» — перейти к строке по номеру (Ctrl+G).`, practiceGoal: 'Перейти к строке 10' };
+    }
+    return step('Нажми «Go»');
+  };
+  await showFirstStep();
+  mock.timers.tick(1000);
+  onScreenClick({ x: 510, y: 305 });
+  mock.timers.tick(1000);
+  await settle();
+  const items$ = () => [...document.querySelectorAll<HTMLButtonElement>('#bubble-actions button.item')].map((b) => b.textContent);
+  const buttons = () => [...document.querySelectorAll<HTMLButtonElement>('#bubble-actions button')];
+  const press = (label: string) => buttons().find((b) => b.textContent === label)!.click();
+  assert.match(bubbleText(), /переходы по коду/);
+  assert.match(bubbleText(), /Про какой пункт рассказать/);
+  assert.doesNotMatch(bubbleText(), /вернуться назад/, 'not every item is described at once');
+  assert.deepEqual(items$(), items);
+  press('Go to Line/Column...');
+  await settle();
+  assert.equal(calls.at(-1)?.item, 'Go to Line/Column...');
+  assert.deepEqual(calls.at(-1)?.history, []);
+  assert.match(bubbleText(), /перейти к строке/);
+  assert.deepEqual(buttons().map((b) => b.textContent), ['Покажи, как', 'Другой пункт', 'Понятно']);
+  press('Другой пункт');
+  assert.deepEqual(items$(), items, 'back to the list without asking the AI again');
+  press('Про всё сразу');
+  assert.match(bubbleText(), /вернуться назад/);
+  assert.equal(buttons()[0]?.textContent, 'Подробнее');
+  press('Понятно');
+  await settle();
+  mock.timers.tick(400);
+  land();
+  await settle();
+  assert.match(bubbleText(), /Нажми «Go to File»/);
+});

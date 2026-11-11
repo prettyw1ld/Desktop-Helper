@@ -183,7 +183,8 @@ function explain(res: LookResult): void {
 // ---------- Что открылось: рассказ по уровням ----------
 // Нажал человек кнопку, и открылось меню или окно: кот рассказывает, что в нём главное,
 // а по «Подробнее» — следующие пункты, пока есть что рассказать. «Понятно» — дальше по шагам.
-const tour = { told: [] as string[], level: 0, after: null as LookResult | null };
+const tour = { told: [] as string[], level: 0, after: null as LookResult | null, items: [] as string[], first: null as { text: string; res: LookResult } | null };
+const PAGE = 8;
 
 /** Облачко и кот не закрывают то, что открылось (box), а если место неизвестно — кнопку и место под её меню. */
 function keepOpenedClear(box: Rect | null | undefined, pressed: Rect | null | undefined): void {
@@ -198,15 +199,59 @@ function keepOpenedClear(box: Rect | null | undefined, pressed: Rect | null | un
 }
 const MAX_LEVEL = 4;
 
-function showOpened(text: string, res: LookResult): void {
+function finishTour(): void {
   const after = tour.after;
+  if (after) carryOn(after); else endGuide(false);
+}
+
+/** Что открылось: на первом рассказе — пункты отдельными кнопками, если система их дала; иначе рассказ целиком. */
+function showOpened(text: string, res: LookResult): void {
+  if (tour.level <= 1 && tour.items.length >= 2) {
+    tour.first = { text, res };
+    showChooser(0);
+    return;
+  }
+  showAll(text, res);
+}
+
+/** Рассказ про всё открывшееся сразу, с «Подробнее» по уровням. */
+function showAll(text: string, res: LookResult): void {
   hideRing();
   const actions: Action[] = [];
   // на первом уровне «Подробнее» есть всегда: модель часто говорит «больше нечего», хотя рассказала про 3 пункта из 20
   if ((tour.level <= 1 || res.hasMore !== false) && tour.level < MAX_LEVEL) actions.push([tour.level <= 1 ? 'Подробнее' : 'Ещё подробнее', () => void look('more'), true]);
   const practice = res.practiceGoal;
   if (practice) actions.push(['Попробовать', () => startGuide(practice, 'practice')]);
-  actions.push(['Понятно', () => { if (after) carryOn(after); else endGuide(false); }, !actions.length]);
+  actions.push(['Понятно', finishTour, !actions.length]);
+  tell(text, { guide: true, actions });
+  speak(text);
+}
+
+/** Первая строка рассказа — что это за меню; дальше пункты кнопками: можно спросить про один. */
+function showChooser(page: number): void {
+  hideRing();
+  const first = tour.first;
+  const line = first?.text.split('\n').map((l) => l.trim()).find((l) => l && !l.startsWith('«')) ?? '';
+  const intro = `${line || 'Открылся список.'}\nПро какой пункт рассказать?`;
+  const items = tour.items.slice(page * PAGE, page * PAGE + PAGE)
+    .map((name): Action => [name, () => void look('more', undefined, name)]);
+  const actions: Action[] = [];
+  if (tour.items.length > (page + 1) * PAGE) actions.push(['Ещё пункты', () => showChooser(page + 1)]);
+  else if (page > 0) actions.push(['В начало списка', () => showChooser(0)]);
+  if (first) actions.push(['Про всё сразу', () => showAll(first.text, first.res)]);
+  actions.push(['Понятно', finishTour]);
+  tell(intro, { guide: true, items, actions });
+  speak(line);
+}
+
+/** Рассказ про один пункт: попробовать, вернуться к списку или идти дальше. */
+function showItem(text: string, res: LookResult): void {
+  hideRing();
+  const actions: Action[] = [];
+  const practice = res.practiceGoal;
+  if (practice) actions.push(['Покажи, как', () => startGuide(practice, 'practice'), true]);
+  actions.push(['Другой пункт', () => showChooser(0)]);
+  actions.push(['Понятно', finishTour, !practice]);
   tell(text, { guide: true, actions });
   speak(text);
 }
@@ -235,7 +280,7 @@ function carryOn(res: LookResult): void {
   }
 }
 
-export async function look(mode: LookMode, click?: { onTarget: boolean }): Promise<void> {
+export async function look(mode: LookMode, click?: { onTarget: boolean }, item?: string): Promise<void> {
   if (guide.busy) return;
   guide.busy = true;
   guide.mode = mode;
@@ -254,8 +299,9 @@ export async function look(mode: LookMode, click?: { onTarget: boolean }): Promi
   if (mode === 'check' && click && pressed) { setBubbleAvoid(targetZones(pressed, innerHeight)); placeBubble(); }
   const res = await api.guideLook({
     mode, goal: guide.goal, previousSummary: guide.screenSummary, plan: guide.plan, click,
-    history: more ? [...tour.told] : guide.history,
+    history: more ? (item ? [] : [...tour.told]) : guide.history,
     level: more ? tour.level + 1 : undefined,
+    item,
   });
   dom.cat.classList.remove('thinking');
   guide.busy = false;
@@ -265,7 +311,12 @@ export async function look(mode: LookMode, click?: { onTarget: boolean }): Promi
     speak(res.error);
     return;
   }
+  if (more && item) {
+    showItem(res.opened || res.explain || `Про «${item}» сейчас рассказать не получилось.`, res);
+    return;
+  }
   if (more) {
+    if (!tour.items.length && res.items?.length) tour.items = res.items;
     const text = res.opened || (tour.level ? res.explain : '') || '';
     // спросили, что открылось, а ничего не открылось: идём дальше по шагам
     if (!text && !tour.level && tour.after) { carryOn(tour.after); return; }
@@ -282,13 +333,13 @@ export async function look(mode: LookMode, click?: { onTarget: boolean }): Promi
   if (res.stepIndex) guide.stepIndex = res.stepIndex;
   // открылось меню или окно: сначала рассказываем, что в нём, потом — дальше по шагам
   if (res.opened && (res.status === 'step' || res.status === 'done')) {
-    Object.assign(tour, { told: [res.opened], level: 1, after: res });
+    Object.assign(tour, { told: [res.opened], level: 1, after: res, items: res.items ?? [], first: null });
     showOpened(res.opened, res);
     return;
   }
   // человек нажал выделенную кнопку, а модель не рассказала, что открылось: спрашиваем об этом отдельно
   if ((click?.onTarget || (click && res.openedBox)) && (res.status === 'step' || res.status === 'done')) {
-    Object.assign(tour, { told: [], level: 0, after: res });
+    Object.assign(tour, { told: [], level: 0, after: res, items: res.items ?? [], first: null });
     await look('more');
     return;
   }

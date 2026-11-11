@@ -13,6 +13,7 @@ export type Action = [label: string, run: () => void, primary?: boolean];
 
 export interface SayOptions {
   actions?: Action[];
+  items?: Action[];    // пункты списка (например, открытого меню): кнопки поменьше, каждая на своей строке
   guide?: boolean;     // это подсказка: её не перебивают случайные фразы
   danger?: boolean;
   explain?: string;    // мелкий текст под репликой
@@ -37,12 +38,17 @@ export function say(text: string, ms = 4000, opts: SayOptions = {}): void {
   if (opts.step) bubbleText.prepend(el('div', 'step-no', opts.step));
   if (opts.explain) bubbleText.append(el('div', 'explain', opts.explain));
   bubbleActions.replaceChildren();
+  for (const [label, run] of opts.items ?? []) {
+    const b = el('button', 'item', label);
+    b.addEventListener('click', (e) => { e.stopPropagation(); run(); });
+    bubbleActions.append(b);
+  }
   for (const [label, run, primary] of opts.actions ?? []) {
     const b = el('button', primary ? 'primary' : '', label);
     b.addEventListener('click', (e) => { e.stopPropagation(); run(); });
     bubbleActions.append(b);
   }
-  bubble.classList.toggle('guide', !!(opts.guide || opts.actions));
+  bubble.classList.toggle('guide', !!(opts.guide || opts.actions || opts.items));
   bubble.classList.toggle('danger', !!opts.danger);
   bubble.classList.remove('hidden', 'below');
   bubble.scrollTop = 0;

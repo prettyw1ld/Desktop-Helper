@@ -106,6 +106,7 @@ export interface LookRequest {
   previousSummary?: string;
   plan?: string[];      // путь к цели, который ИИ продумал на первом шаге
   click?: { onTarget: boolean }; // check: проверяем, потому что человек нажал мышью (onTarget — по выделенной кнопке)
+  item?: string;        // more: рассказать только про этот пункт открытого меню
   level?: number;       // more: какой по счёту рассказ «Подробнее» о том, что открылось
 }
 
@@ -121,6 +122,7 @@ export interface LookResult {
   opened?: string;      // check/more: что открылось (меню, список, окно) и что в нём главное
   hasMore?: boolean;    // more: есть ли что рассказать ещё подробнее
   openedBox?: Rect | null; // check: где на экране что-то появилось после нажатия (меню, окно), в координатах окна кота
+  items?: string[];     // check/more: пункты того, что открылось, по порядку (от системы)
   target: Rect | null;  // в координатах окна кота
   snapped?: boolean;    // место уточнено через «доступность» системы, а не только догадка ИИ
   plan?: string[];      // весь путь к цели (на первом шаге или если путь поменялся)
@@ -131,7 +133,7 @@ export interface LookResult {
 export interface ChatResult { reply: string; actions: string[]; show?: string }
 
 // ---------- Поиск кнопок через «доступность» ----------
-export type LocateOp = 'find' | 'top' | 'window' | 'drives' | 'volume' | 'list' | 'named' | 'shot' | 'grid' | 'context';
+export type LocateOp = 'find' | 'top' | 'window' | 'drives' | 'volume' | 'list' | 'named' | 'inside' | 'shot' | 'grid' | 'context';
 
 export interface LocateQuery {
   op: LocateOp;

@@ -483,6 +483,54 @@ function Named($q) {
   return @{ items = $items; edits = $edits; ms = $sw.ElapsedMilliseconds }
 }
 
+# Пункты того, что открылось после нажатия (меню, список, панель): названия по порядку сверху вниз.
+# region — место на экране в пикселях. Кот выносит их отдельными кнопками: можно спросить про один пункт.
+function Inside($q) {
+  $budget = 1200
+  if ($q.budget) { $budget = [int]$q.budget }
+  $x0 = [double]$q.x; $y0 = [double]$q.y; $x1 = $x0 + [double]$q.w; $y1 = $y0 + [double]$q.h
+  $sw = [System.Diagnostics.Stopwatch]::StartNew()
+  $cr = New-Object System.Windows.Automation.CacheRequest
+  foreach ($p in @($AE::NameProperty, $AE::ControlTypeProperty, $AE::BoundingRectangleProperty, $AE::IsOffscreenProperty, $AE::IsEnabledProperty)) { $cr.Add($p) }
+  $cr.TreeScope = $TS::Element
+  $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
+  $want = @('MenuItem','ListItem','TreeItem','DataItem','TabItem','Button','SplitButton','Hyperlink','CheckBox','RadioButton')
+  $roots = @()
+  foreach ($ih in [PushTop]::Immersive()) { $roots += ,$AE::FromHandle([IntPtr]$ih) }
+  foreach ($w in (Wins 3)) { $roots += ,$w[0] }
+  $items = @()
+  $seen = @{}
+  foreach ($root in $roots) {
+    $queue = New-Object System.Collections.Queue
+    $queue.Enqueue(@($root, 0))
+    while ($queue.Count -gt 0 -and $items.Count -lt 30 -and $sw.ElapsedMilliseconds -lt $budget) {
+      $pair = $queue.Dequeue()
+      $child = $null
+      try { $child = $walker.GetFirstChild($pair[0], $cr) } catch { }
+      while ($child -and $sw.ElapsedMilliseconds -lt $budget) {
+        try {
+          $c = $child.Cached
+          $r = $c.BoundingRectangle
+          $onScreen = -not $r.IsEmpty -and $r.Width -ge 4 -and $r.Height -ge 4 -and $r.X -gt -4000 -and $r.Y -gt -4000
+          # целиком снаружи: внутрь не заходим
+          $cross = $onScreen -and $r.X -lt $x1 -and ($r.X + $r.Width) -gt $x0 -and $r.Y -lt $y1 -and ($r.Y + $r.Height) -gt $y0
+          $type = $c.ControlType.ProgrammaticName -replace 'ControlType\\.', ''
+          $name = ([string]$c.Name).Trim()
+          $cx = $r.X + $r.Width / 2; $cy = $r.Y + $r.Height / 2
+          if ($cross -and $name -and ($want -contains $type) -and $cx -ge $x0 -and $cx -le $x1 -and $cy -ge $y0 -and $cy -le $y1 -and -not $seen.ContainsKey($name)) {
+            $seen[$name] = 1
+            $items += @{ name = $name; type = $type; area = 'opened'; x = [int]$r.X; y = [int]$r.Y; w = [int]$r.Width; h = [int]$r.Height; enabled = [bool]$c.IsEnabled; focused = $false; proc = '' }
+          }
+          if ($pair[1] -lt 40 -and ($cross -or ($r.IsEmpty -and -not $c.IsOffscreen) -or $pair[1] -lt 3)) { $queue.Enqueue(@($child, ($pair[1] + 1))) }
+        } catch { }
+        try { $child = $walker.GetNextSibling($child, $cr) } catch { $child = $null }
+      }
+    }
+    if ($items.Count -ge 2) { break }
+  }
+  return @{ items = @($items | Sort-Object { $_.y }, { $_.x }); ms = $sw.ElapsedMilliseconds }
+}
+
 # «Объясни, что это»: какая программа и какой элемент под выделением. Только названия и типы,
 # без содержимого полей и документов (их значения не читаем вовсе).
 function NodeInfo($e) {
@@ -609,6 +657,7 @@ while ($true) {
     elseif ($q.op -eq 'volume') { $res = Volume }
     elseif ($q.op -eq 'list') { $res = ListAll $q }
     elseif ($q.op -eq 'named') { $res = Named $q }
+    elseif ($q.op -eq 'inside') { $res = Inside $q }
     elseif ($q.op -eq 'shot') { $res = Shot $q }
     elseif ($q.op -eq 'grid') { $res = Grid $q }
     elseif ($q.op -eq 'context') { $res = Ctx $q }
