@@ -7,7 +7,7 @@ import { dom } from '../core/dom';
 import { T } from '../core/i18n';
 import { setSettings, setSkills, settings } from '../core/settings';
 import { Sound } from '../core/sound';
-import { hideBubble, say, setBubbleAvoid, type Action, type SayOptions } from '../ui/bubble';
+import { hideBubble, placeBubble, say, setBubbleAvoid, type Action, type SayOptions } from '../ui/bubble';
 import { openedZone, targetZones } from '../ui/bubble-spot';
 import { closePanels, showPanel } from '../ui/panels';
 import { hideRing, showRing } from '../ui/ring';
@@ -186,7 +186,8 @@ function showOpened(text: string, res: LookResult): void {
   const after = tour.after;
   hideRing();
   const actions: Action[] = [];
-  if (res.hasMore !== false && tour.level < MAX_LEVEL) actions.push([tour.level <= 1 ? 'Подробнее' : 'Ещё подробнее', () => void look('more'), true]);
+  // на первом уровне «Подробнее» есть всегда: модель часто говорит «больше нечего», хотя рассказала про 3 пункта из 20
+  if ((tour.level <= 1 || res.hasMore !== false) && tour.level < MAX_LEVEL) actions.push([tour.level <= 1 ? 'Подробнее' : 'Ещё подробнее', () => void look('more'), true]);
   const practice = res.practiceGoal;
   if (practice) actions.push(['Попробовать', () => startGuide(practice, 'practice')]);
   actions.push(['Понятно', () => { if (after) carryOn(after); else endGuide(false); }, !actions.length]);
@@ -233,6 +234,8 @@ export async function look(mode: LookMode, click?: { onTarget: boolean }): Promi
   say(T(mode === 'check' ? 'g.checking' : 'g.looking'), Infinity, { guide: true });
   const more = mode === 'more';
   const pressed = guide.last?.target;
+  // пока проверяем после нажатия, облачко «Проверяю…» не закрывает место, где открывается меню
+  if (mode === 'check' && click && pressed) { setBubbleAvoid(targetZones(pressed, innerHeight)); placeBubble(); }
   const res = await api.guideLook({
     mode, goal: guide.goal, previousSummary: guide.screenSummary, plan: guide.plan, click,
     history: more ? [...tour.told] : guide.history,
