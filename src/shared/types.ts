@@ -45,6 +45,7 @@ export interface Settings {
   voice: VoiceMode;          // offline = Vosk в самом приложении, whisper = сервис по ключу
   trustedRemote: string[];   // программы удалённого доступа, про которые человек сказал «это свои»
   shotConsent: boolean;      // человек разрешил отправлять снимок экрана ИИ
+  glass: boolean;            // полупрозрачная рамка у окон (текст всё равно на сплошном фоне)
 }
 
 export type SecretKey = 'apiKey' | 'calendarUrl' | 'sttKey' | 'groqKey' | 'deepseekKey' | 'qwenKey';
