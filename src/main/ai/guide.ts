@@ -4,12 +4,12 @@ import { desktopCapturer, nativeImage, screen, type BrowserWindow, type Display,
 import type { LookMode, LookRequest, LookResult, LookStatus, Rect, Settings } from '../../shared/types';
 import { aiError, fetchAI, fetchAIRetry, readError } from './http';
 import { CLAUDE_URL, cleanReply, extraFor, pickModel, resolve } from './llm';
-import { cropSelection, INSPECT_PROMPT, INSPECT_SYSTEM } from './screen-region';
+import { cropSelection, formatContext, inspectPrompt, INSPECT_SYSTEM, scrub, windowView } from './screen-region';
 import { boxUnits, cleanPlan, formatMarks, pickMark, refineCrop, stepOf, withTaskbar, type ElementHint, type Mark } from './show';
 import { guideLog } from './guide-log';
 import { toFrame } from '../geometry';
 import * as locate from '../system/locate';
-import type { LocateItem } from '../../shared/types';
+import type { InspectContext, LocateItem } from '../../shared/types';
 
 const SHOT_W = 1024; // ширина снимка для модели (меньше = быстрее ответ)
 const STATUSES: LookStatus[] = ['step', 'done', 'not_found', 'explain', 'danger'];
@@ -53,6 +53,8 @@ const STEP_SCHEMA = {
         area: { type: 'string', enum: ['taskbar', 'start menu', 'window', 'popup', 'desktop'] },
       },
     },
+    details: { type: 'string', description: 'For inspect only: 2-4 short sentences for the «Подробнее» button (how to use, shortcut if known, how to undo, warning if risky). Empty if nothing to add.' },
+    appName: { type: 'string', description: 'For inspect only: the program name, ONLY from System facts or clearly written on the screen; empty otherwise.' },
     practiceGoal: { type: 'string', description: 'For inspect explanations: one safe, specific, reversible beginner exercise with the selected element, phrased as a verifiable goal. No delete, payment, send, installation, credentials, or configuration changes. Empty if no safe exercise exists.' },
     skill: { type: 'string', description: 'Only for done: the learned skill in 2-5 words, e.g. "Позвонить по видео".' },
   },
@@ -62,6 +64,8 @@ const STEP_SCHEMA = {
 /** Сырой ответ модели (до проверки). */
 interface StepAnswer {
   status?: string;
+  details?: string;
+  appName?: string;
   observedText?: string;
   confidence?: string;
   screenSummary?: string;
@@ -256,9 +260,10 @@ interface ModelInput {
   system: string;
   text: string;
   jpeg: string;
+  before?: string[];  // картинки перед основной (inspect: снимок окна с рамкой)
 }
 
-async function askClaude({ apiKey, model, system, text, jpeg }: ModelInput): Promise<StepAnswer> {
+async function askClaude({ apiKey, model, system, text, jpeg, before = [] }: ModelInput): Promise<StepAnswer> {
   const res = await fetchAI(CLAUDE_URL, {
     method: 'POST',
     headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
@@ -271,7 +276,7 @@ async function askClaude({ apiKey, model, system, text, jpeg }: ModelInput): Pro
       messages: [{
         role: 'user',
         content: [
-          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: jpeg } },
+          ...[...before, jpeg].map((data) => ({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data } })),
           { type: 'text', text },
         ],
       }],
@@ -286,7 +291,7 @@ async function askClaude({ apiKey, model, system, text, jpeg }: ModelInput): Pro
 }
 
 // OpenAI-совместимые сервисы с зрением (Groq, DeepSeek, Qwen, OpenRouter …): ответ строго JSON
-async function askOpenAI({ apiKey, url, vision, system, text, jpeg }: ModelInput): Promise<StepAnswer> {
+async function askOpenAI({ apiKey, url, vision, system, text, jpeg, before = [] }: ModelInput): Promise<StepAnswer> {
   const schema = JSON.stringify(STEP_SCHEMA);
   const model = await pickModel({ url, apiKey, want: vision, vision: true });
   const send = (strict: boolean) => fetchAIRetry(`${url}/chat/completions`, {
@@ -299,7 +304,8 @@ async function askOpenAI({ apiKey, url, vision, system, text, jpeg }: ModelInput
       ...(strict ? { response_format: { type: 'json_object' } } : {}),
       messages: [
         { role: 'system', content: `${system}\nAnswer ONLY with a JSON object matching this JSON schema: ${schema}` },
-        { role: 'user', content: [{ type: 'text', text }, { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${jpeg}` } }] },
+        // картинки перед текстом: так модели лучше понимают, к чему относится вопрос
+        { role: 'user', content: [...[...before, jpeg].map((b64) => ({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${b64}` } })), { type: 'text', text }] },
       ],
     }),
     signal: AbortSignal.timeout(45_000),
@@ -315,7 +321,7 @@ async function askOpenAI({ apiKey, url, vision, system, text, jpeg }: ModelInput
 }
 
 // Ollama: нужна модель с зрением (qwen2.5vl, llava, gemma3).
-async function askOllama({ ollamaUrl, visionModel, ollamaModel, system, text, jpeg }: ModelInput): Promise<StepAnswer> {
+async function askOllama({ ollamaUrl, visionModel, ollamaModel, system, text, jpeg, before = [] }: ModelInput): Promise<StepAnswer> {
   let res: Response;
   try {
     res = await fetchAI(`${ollamaUrl.replace(/\/+$/, '')}/api/chat`, {
@@ -325,7 +331,7 @@ async function askOllama({ ollamaUrl, visionModel, ollamaModel, system, text, jp
         model: visionModel || ollamaModel,
         stream: false,
         format: STEP_SCHEMA,
-        messages: [{ role: 'system', content: system }, { role: 'user', content: text, images: [jpeg] }],
+        messages: [{ role: 'system', content: system }, { role: 'user', content: text, images: [...before, jpeg] }],
       }),
     });
   } catch {
@@ -336,13 +342,60 @@ async function askOllama({ ollamaUrl, visionModel, ollamaModel, system, text, jp
   return JSON.parse(String(msg.content || '{}').replace(/<think>[\s\S]*?<\/think>/g, '')) as StepAnswer;
 }
 
+// ---------- «Объясни, что это»: контекст окна ----------
+/** Что говорит система о программе и элементе под выделением. Только Windows; не дольше 2.5 с. */
+async function inspectContext(shot: Shot, selection: Rect | undefined): Promise<InspectContext | null> {
+  if (process.platform !== 'win32' || !selection) return null;
+  const b = shot.display.bounds;
+  // выделение в точках окна кота → настоящие пиксели экрана, как у UI Automation
+  const px = screen.dipToScreenRect(null, { x: selection.x + b.x, y: selection.y + b.y, width: selection.w, height: selection.h });
+  const res = await withTimeout(locate.ask({ op: 'context', x: px.x, y: px.y, w: px.width, h: px.height }), 2500, { error: 'timeout' });
+  if (!res.ctx) guideLog('inspect-context', { error: res.error ?? 'empty', ms: res.ms ?? null });
+  return res.ctx ?? null;
+}
+
+/** Снимок окна (или экрана) с рамкой вокруг выделения; null, если не получилось. */
+function contextView(shot: Shot, selection: Rect | undefined, ctx: InspectContext | null): NativeImage | null {
+  try {
+    let win: Electron.Rectangle | null = null;
+    if (ctx?.rect) {
+      const d = screen.screenToDipRect(null, { x: ctx.rect.x, y: ctx.rect.y, width: ctx.rect.w, height: ctx.rect.h });
+      const k = shot.w / shot.display.size.width;
+      win = { x: Math.round((d.x - shot.display.bounds.x) * k), y: Math.round((d.y - shot.display.bounds.y) * k), width: Math.round(d.width * k), height: Math.round(d.height * k) };
+    }
+    return windowView(shot, selection, win);
+  } catch (e) {
+    guideLog('inspect-view', { error: String(e) });
+    return null;
+  }
+}
+
+/** Названия программ, которые модель может назвать: от системы и из прочитанной подписи. */
+function checkInspect(out: StepAnswer, ctx: InspectContext | null): StepAnswer {
+  const sysApp = scrub(ctx?.app || '', 60);
+  const said = scrub(out.appName || '', 60);
+  // программу называет система; если системе неизвестно — только если название видно в подписи
+  const visible = said && [out.observedText, ctx?.title].some((t) => String(t ?? '').toLowerCase().includes(said.toLowerCase()));
+  const app = sysApp || (visible ? said : '');
+  const res = { ...out, appName: app };
+  if (said && !app) {
+    // модель назвала программу, которую не видно и о которой система не говорила: убираем название из ответа
+    const drop = (s?: string) => (s ? s.split(said).join('этой программе').trim() : s);
+    res.say = drop(res.say);
+    res.explain = drop(res.explain);
+    res.details = drop(res.details);
+  }
+  return res;
+}
+
 // «Объясни, что это» с низкой уверенностью: не гадаем, а просим выделить точнее
 function unsureInspect(out: StepAnswer): StepAnswer {
   return {
     ...out,
     status: 'explain',
     say: out.observedText ? `Элемент «${String(out.observedText).slice(0, 120)}»` : 'Не могу уверенно распознать элемент',
-    explain: 'Обведи значок вместе с названием чуть точнее. Не хочу подсказывать наугад.',
+    explain: 'Я не совсем уверен, что это. Обведи значок вместе с названием чуть точнее, чтобы я не подсказал наугад.',
+    details: '',
     practiceGoal: '',
   };
 }
@@ -393,12 +446,18 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
   const marks = await marksP;
   const tMarks = Date.now() - t0;
   const image = inspect ? cropSelection(shot, selection) : shot.image;
+  // «Объясни, что это»: ещё снимок всего окна с рамкой вокруг выделения и сведения от системы
+  const tCtx = Date.now();
+  const ctx = inspect ? await inspectContext(shot, selection) : null;
+  const view = inspect ? contextView(shot, selection, ctx) : null;
+  const facts = formatContext(ctx);
+  const msCtx = Date.now() - tCtx;
   const system = inspect ? INSPECT_SYSTEM : systemPrompt(settings.lang, process.platform);
   const size = image.getSize();
   const r = resolve(settings);
   const coords = `Coordinates for "target": screenshot pixels. Image size: ${size.width}x${size.height} pixels.`;
   const text = inspect
-    ? `${INSPECT_PROMPT}\nImage size: ${size.width}x${size.height} pixels.`
+    ? inspectPrompt(facts, !!view)
     : `${userText(req)}\n${coords}\n${formatMarks(marks)}`;
 
   const input: ModelInput = {
@@ -408,10 +467,21 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
     system,
     text,
     jpeg: image.toJPEG(90).toString('base64'),
+    before: view ? [view.toJPEG(82).toString('base64')] : [],
   };
   const fn = r.kind === 'ollama' ? askOllama : r.kind === 'openai' ? askOpenAI : askClaude;
   const tAsk = Date.now();
-  let out = await fn(input);
+  let out: StepAnswer;
+  try {
+    out = await fn(input);
+  } catch (e) {
+    // модель не принимает две картинки: спрашиваем как раньше, по одной вырезке и сведениям от системы
+    if (!input.before?.length) throw e;
+    guideLog('inspect-one-image', { error: String(e) });
+    out = await fn({ ...input, before: [], text: inspectPrompt(facts, false) });
+  }
+  if (inspect) out = checkInspect(out, ctx);
+  if (inspect) guideLog('inspect', { ms: msCtx, facts, app: out.appName ?? '', confidence: out.confidence ?? '', view: view?.getSize() ?? null });
   const tModel = Date.now() - tAsk;
   if (inspect && (!out.confidence || out.confidence === 'low')) out = unsureInspect(out);
   const plan = inspect ? [] : cleanPlan(out.plan);
@@ -451,6 +521,7 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
     explain: out.explain ? String(out.explain).trim() : '',
     skill: out.skill ? String(out.skill).trim() : '',
     practiceGoal: typeof out.practiceGoal === 'string' ? out.practiceGoal.trim().slice(0, 500) : '',
+    details: inspect && out.details ? String(out.details).trim().slice(0, 900) : '',
     target,
     snapped,
     plan,

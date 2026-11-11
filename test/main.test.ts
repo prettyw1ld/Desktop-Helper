@@ -13,6 +13,7 @@ import { cleanPlan, formatMarks, pickMark, refineCrop, showGoal, stepOf, boxUnit
 import { overlayBounds, toFrame, workInFrame } from '../src/main/geometry';
 import { aiKey } from '../src/shared/types';
 import { goalFromHowTo, isHowTo, vagueGoal } from '../src/shared/howto';
+import { formatContext, inspectPrompt, scrub } from '../src/main/ai/inspect-text';
 
 test('practice files survive repeated setup; folder actions reject arbitrary paths; picker cancel does not open', async () => {
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'pushik-files-test-'));
@@ -205,4 +206,31 @@ test('remote-watch: замечает программы удалённого д�
   assert.deepEqual(remoteApps(procs), ['AnyDesk']);
   assert.deepEqual(remoteApps(parseProcessList('launchd\nTeamViewer\nrustdesk\n', 'darwin')), ['TeamViewer', 'RustDesk']);
   assert.deepEqual(remoteApps(['chrome.exe', 'explorer.exe']), []);
+});
+
+test('«Объясни, что это» asks Windows which program and element are under the selection, names only', () => {
+  const ps = WIN_SCRIPT(7);
+  assert.match(ps, /elseif \(\$q\.op -eq 'context'\) \{ \$res = Ctx \$q \}/);
+  const fn = ps.slice(ps.indexOf('function NodeInfo'), ps.indexOf('function Volume'));
+  for (const [o, c] of [['{', '}'], ['(', ')'], ['[', ']']] as const) {
+    assert.equal(fn.split(o).length, fn.split(c).length, `balanced ${o}${c}`);
+  }
+  assert.match(fn, /ProcessId -eq 7\)/, 'the cat window itself is skipped');
+  assert.doesNotMatch(fn, /ValuePattern|TextPattern/, 'field and document contents are never read');
+});
+
+test('system facts for the model: program, window, element and its place, without personal data', () => {
+  const facts = formatContext({
+    app: 'Microsoft Word', proc: 'WINWORD', title: 'Письмо для ivan@mail.ru — Word',
+    element: { name: 'Полужирный', type: 'кнопка', keys: 'Ctrl+B', help: 'Сделать текст полужирным' },
+    path: [{ name: 'Шрифт', type: 'группа' }, { name: 'Главная', type: 'вкладка' }],
+    nearby: [{ name: 'Курсив', type: 'кнопка' }],
+  });
+  assert.match(facts, /Program: Microsoft Word \(WINWORD\.exe\)/);
+  assert.match(facts, /кнопка «Полужирный», shortcut Ctrl\+B/);
+  assert.match(facts, /группа «Шрифт» ← вкладка «Главная»/);
+  assert.doesNotMatch(facts, /ivan@mail\.ru/);
+  assert.equal(formatContext(null), '');
+  assert.equal(scrub('звони +7 (912) 345-67-89'), 'звони [номер]');
+  assert.match(inspectPrompt('', true), /Do not name a program unless its name is visible/);
 });
