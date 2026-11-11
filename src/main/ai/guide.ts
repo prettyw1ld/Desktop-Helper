@@ -7,7 +7,7 @@ import { CLAUDE_URL, cleanReply, extraFor, pickModel, resolve } from './llm';
 import { cropSelection, formatContext, inspectPrompt, INSPECT_SYSTEM, scrub, windowView } from './screen-region';
 import { clickFact } from './inspect-text';
 import { changedBox, screenMoved } from './changed-box';
-import { boxUnits, cleanPlan, formatMarks, itemLabel, itemsFromText, pickMark, pickNamed, refineCrop, stepOf, withTaskbar, type ElementHint, type Mark } from './show';
+import { boxUnits, cleanPlan, formatMarks, itemLabel, sameRowOut, itemsFromText, pickMark, pickNamed, refineCrop, stepOf, withTaskbar, type ElementHint, type Mark } from './show';
 import { guideLog } from './guide-log';
 import { toFrame } from '../geometry';
 import * as locate from '../system/locate';
@@ -297,8 +297,12 @@ async function openedItems(display: Display, f: { x: number; y: number; w: numbe
     locate.ask({ op: 'inside', x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height), budget }),
     new Promise<{ items?: LocateItem[] }>((ok) => setTimeout(() => ok({}), budget + 1500)),
   ]) as { items?: LocateItem[]; ms?: number };
+  // сама нажатая кнопка и её соседи в той же строке (строка меню, панель кнопок) — не пункты того, что открылось
+  const press = clickSpot && Date.now() - clickSpot.at < 20000
+    ? screen.dipToScreenPoint({ x: b.x + clickSpot.fx * display.size.width, y: b.y + clickSpot.fy * display.size.height })
+    : null;
   const names: string[] = [];
-  for (const it of res.items ?? []) {
+  for (const it of sameRowOut(res.items ?? [], press)) {
     const n = itemLabel(it.name);
     if (n.length >= 2 && !names.includes(n)) names.push(n);
   }

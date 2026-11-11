@@ -9,7 +9,7 @@ import { createFileActions } from '../src/main/system/files';
 import { parseProcessList, remoteApps } from '../src/main/system/remote-watch';
 import { MAC_ROLES, MAC_SCRIPT, WIN_SCRIPT } from '../src/main/system/locate';
 import { extraFor, fallbackModel, resolve } from '../src/main/ai/providers';
-import { cleanPlan, formatMarks, itemLabel, itemsFromText, pickMark, pickNamed, refineCrop, showGoal, stepOf, boxUnits, withTaskbar, type Mark } from '../src/main/ai/show';
+import { cleanPlan, formatMarks, itemLabel, sameRowOut, itemsFromText, pickMark, pickNamed, refineCrop, showGoal, stepOf, boxUnits, withTaskbar, type Mark } from '../src/main/ai/show';
 import { overlayBounds, toFrame, workInFrame } from '../src/main/geometry';
 import { aiKey } from '../src/shared/types';
 import { goalFromHowTo, isHowTo, vagueGoal } from '../src/shared/howto';
@@ -318,4 +318,15 @@ test('menu item labels lose their shortcut; items can be read from the AI text',
   assert.equal(itemLabel('Go to Definition F12'), 'Go to Definition');
   assert.equal(itemLabel('Back'), 'Back');
   assert.deepEqual(itemsFromText('Меню переходов.\n«Back» — назад.\n- «Go to File...» (Ctrl+P) — файл.\nтекст «внутри» строки'), ['Back', 'Go to File...']);
+});
+
+test('items of an opened menu skip the menu bar row that was pressed, but keep a submenu opened sideways', () => {
+  const it = (name: string, x: number, y: number) => ({ name, x, y, w: 40, h: 26 });
+  const bar = [it('File', 400, 137), it('Edit', 440, 137), it('Go', 578, 137), it('Run', 620, 137)];
+  const menu = [it('Back', 579, 170), it('Go to File...', 579, 320)];
+  assert.deepEqual(sameRowOut([...bar, ...menu], { x: 590, y: 150 }).map((i) => i.name), ['Back', 'Go to File...']);
+  // подменю справа от нажатого пункта: его первый пункт в той же строке остаётся
+  const sub = [it('Switch Editor', 579, 300), it('Next Editor', 905, 300), it('Previous Editor', 905, 330)];
+  assert.deepEqual(sameRowOut(sub, { x: 600, y: 310 }).map((i) => i.name), ['Next Editor', 'Previous Editor']);
+  assert.equal(sameRowOut(menu, null).length, 2);
 });

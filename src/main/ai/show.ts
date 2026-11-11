@@ -191,3 +191,15 @@ export function itemsFromText(text: string): string[] {
   }
   return out;
 }
+
+/** Убрать элементы в строке нажатия (p — точка нажатия в пикселях экрана). */
+export function sameRowOut<T extends { x: number; y: number; w: number; h: number }>(items: T[], p: { x: number; y: number } | null): T[] {
+  if (!p) return items;
+  const inRow = (it: T) => p.y >= it.y - 2 && p.y <= it.y + it.h + 2;
+  const pressed = (it: T) => inRow(it) && p.x >= it.x - 2 && p.x <= it.x + it.w + 2;
+  // в строке ещё две и больше кнопок — это строка меню или панель: убираем её целиком;
+  // одна — скорее первый пункт подменю, открывшегося вбок: оставляем, убираем только нажатую
+  const bar = items.filter((it) => inRow(it) && !pressed(it)).length >= 2;
+  return items.filter((it) => !pressed(it) && !(bar && inRow(it)));
+}
+
