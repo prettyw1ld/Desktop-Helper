@@ -489,21 +489,23 @@ function Inside($q) {
   $budget = 1200
   if ($q.budget) { $budget = [int]$q.budget }
   $x0 = [double]$q.x; $y0 = [double]$q.y; $x1 = $x0 + [double]$q.w; $y1 = $y0 + [double]$q.h
+  $area = [Math]::Max(1.0, ($x1 - $x0) * ($y1 - $y0))
   $sw = [System.Diagnostics.Stopwatch]::StartNew()
   $cr = New-Object System.Windows.Automation.CacheRequest
   foreach ($p in @($AE::NameProperty, $AE::ControlTypeProperty, $AE::BoundingRectangleProperty, $AE::IsOffscreenProperty, $AE::IsEnabledProperty)) { $cr.Add($p) }
   $cr.TreeScope = $TS::Element
   $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
   $want = @('MenuItem','ListItem','TreeItem','DataItem','TabItem','Button','SplitButton','Hyperlink','CheckBox','RadioButton')
+  $boxes = @('Menu','List','Tree','DataGrid','Table','Tab','Window')
   $roots = @()
   foreach ($ih in [PushTop]::Immersive()) { $roots += ,$AE::FromHandle([IntPtr]$ih) }
   foreach ($w in (Wins 3)) { $roots += ,$w[0] }
-  $items = @()
-  $seen = @{}
+  $loose = @()
+  $best = $null; $bestScore = 0.2
   foreach ($root in $roots) {
     $queue = New-Object System.Collections.Queue
     $queue.Enqueue(@($root, 0))
-    while ($queue.Count -gt 0 -and $items.Count -lt 30 -and $sw.ElapsedMilliseconds -lt $budget) {
+    while ($queue.Count -gt 0 -and $sw.ElapsedMilliseconds -lt $budget) {
       $pair = $queue.Dequeue()
       $child = $null
       try { $child = $walker.GetFirstChild($pair[0], $cr) } catch { }
@@ -512,23 +514,57 @@ function Inside($q) {
           $c = $child.Cached
           $r = $c.BoundingRectangle
           $onScreen = -not $r.IsEmpty -and $r.Width -ge 4 -and $r.Height -ge 4 -and $r.X -gt -4000 -and $r.Y -gt -4000
-          # целиком снаружи: внутрь не заходим
-          $cross = $onScreen -and $r.X -lt $x1 -and ($r.X + $r.Width) -gt $x0 -and $r.Y -lt $y1 -and ($r.Y + $r.Height) -gt $y0
+          $ow = [Math]::Min($x1, $r.X + $r.Width) - [Math]::Max($x0, $r.X)
+          $oh = [Math]::Min($y1, $r.Y + $r.Height) - [Math]::Max($y0, $r.Y)
+          $cross = $onScreen -and $ow -gt 0 -and $oh -gt 0
           $type = $c.ControlType.ProgrammaticName -replace 'ControlType\\.', ''
+          # контейнер (меню, список, дерево), который лучше всех совпадает с тем местом, где экран поменялся
+          if ($cross -and ($boxes -contains $type)) {
+            $ov = $ow * $oh
+            $own = [Math]::Max(1.0, $r.Width * $r.Height)
+            $score = ($ov / ($area + $own - $ov)) * ($ov / $own)
+            if ($type -eq 'Menu') { $score = $score * 1.3 }
+            if ($score -gt $bestScore) { $bestScore = $score; $best = $child }
+          }
           $name = ([string]$c.Name).Trim()
           $cx = $r.X + $r.Width / 2; $cy = $r.Y + $r.Height / 2
-          if ($cross -and $name -and ($want -contains $type) -and $cx -ge $x0 -and $cx -le $x1 -and $cy -ge $y0 -and $cy -le $y1 -and -not $seen.ContainsKey($name)) {
-            $seen[$name] = 1
-            $items += @{ name = $name; type = $type; area = 'opened'; x = [int]$r.X; y = [int]$r.Y; w = [int]$r.Width; h = [int]$r.Height; enabled = [bool]$c.IsEnabled; focused = $false; proc = '' }
+          if ($cross -and $name -and ($want -contains $type) -and $cx -ge $x0 -and $cx -le $x1 -and $cy -ge $y0 -and $cy -le $y1 -and $loose.Count -lt 40) {
+            $loose += @{ name = $name; type = $type; area = 'opened'; x = [int]$r.X; y = [int]$r.Y; w = [int]$r.Width; h = [int]$r.Height; enabled = [bool]$c.IsEnabled; focused = $false; proc = '' }
           }
           if ($pair[1] -lt 40 -and ($cross -or ($r.IsEmpty -and -not $c.IsOffscreen) -or $pair[1] -lt 3)) { $queue.Enqueue(@($child, ($pair[1] + 1))) }
         } catch { }
         try { $child = $walker.GetNextSibling($child, $cr) } catch { $child = $null }
       }
     }
-    if ($items.Count -ge 2) { break }
   }
-  return @{ items = @($items | Sort-Object { $_.y }, { $_.x }); ms = $sw.ElapsedMilliseconds }
+  $items = @()
+  $from = 'region'
+  if ($best) {
+    # пункты только из найденного меню или списка, а не всё, что попало в изменившееся место
+    $from = 'container'
+    $queue = New-Object System.Collections.Queue
+    $queue.Enqueue(@($best, 0))
+    while ($queue.Count -gt 0 -and $items.Count -lt 60 -and $sw.ElapsedMilliseconds -lt ($budget + 600)) {
+      $pair = $queue.Dequeue()
+      $child = $null
+      try { $child = $walker.GetFirstChild($pair[0], $cr) } catch { }
+      while ($child) {
+        try {
+          $c = $child.Cached
+          $r = $c.BoundingRectangle
+          $onScreen = -not $r.IsEmpty -and $r.Width -ge 4 -and $r.Height -ge 4 -and $r.X -gt -4000 -and $r.Y -gt -4000
+          $type = $c.ControlType.ProgrammaticName -replace 'ControlType\\.', ''
+          $name = ([string]$c.Name).Trim()
+          if ($onScreen -and $name -and ($want -contains $type)) {
+            $items += @{ name = $name; type = $type; area = 'opened'; x = [int]$r.X; y = [int]$r.Y; w = [int]$r.Width; h = [int]$r.Height; enabled = [bool]$c.IsEnabled; focused = $false; proc = '' }
+          } elseif ($pair[1] -lt 12) { $queue.Enqueue(@($child, ($pair[1] + 1))) }
+        } catch { }
+        try { $child = $walker.GetNextSibling($child, $cr) } catch { $child = $null }
+      }
+    }
+  }
+  if ($items.Count -lt 2) { $items = $loose; $from = 'region' }
+  return @{ items = @($items | Sort-Object { $_.y }, { $_.x }); from = $from; ms = $sw.ElapsedMilliseconds }
 }
 
 # «Объясни, что это»: какая программа и какой элемент под выделением. Только названия и типы,

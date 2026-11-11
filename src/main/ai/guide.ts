@@ -296,7 +296,7 @@ async function openedItems(display: Display, f: { x: number; y: number; w: numbe
   const res = await Promise.race([
     locate.ask({ op: 'inside', x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height), budget }),
     new Promise<{ items?: LocateItem[] }>((ok) => setTimeout(() => ok({}), budget + 1500)),
-  ]) as { items?: LocateItem[]; ms?: number };
+  ]) as { items?: LocateItem[]; ms?: number; from?: string };
   // сама нажатая кнопка и её соседи в той же строке (строка меню, панель кнопок) — не пункты того, что открылось
   const press = clickSpot && Date.now() - clickSpot.at < 20000
     ? screen.dipToScreenPoint({ x: b.x + clickSpot.fx * display.size.width, y: b.y + clickSpot.fy * display.size.height })
@@ -306,7 +306,7 @@ async function openedItems(display: Display, f: { x: number; y: number; w: numbe
     const n = itemLabel(it.name);
     if (n.length >= 2 && !names.includes(n)) names.push(n);
   }
-  guideLog('opened-items', { count: names.length, ms: res.ms ?? null });
+  guideLog('opened-items', { count: names.length, from: res.from ?? null, ms: res.ms ?? null });
   return names.slice(0, 24);
 }
 
