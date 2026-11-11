@@ -9,7 +9,7 @@ import { onScreenClick, startGuide } from '../src/renderer/guide/ai-guide';
 import { endGuide } from '../src/renderer/guide/control';
 import { guide } from '../src/renderer/guide/state';
 import { keepClear, pickSpot } from '../src/renderer/ui/bubble-spot';
-import { land, resetDesk, settle } from './helpers';
+import { bubbleText, land, resetDesk, settle } from './helpers';
 
 const overlap = (a: { x: number; y: number; w: number; h: number }, b: typeof a) =>
   Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
@@ -96,4 +96,36 @@ test('clicks on the cat or its bubble do not count as an action', async () => {
   await settle();
   assert.equal(calls.length, 1);
   assert.equal(guide.active, true);
+});
+
+test('when a menu opens the cat explains it, goes deeper on «Подробнее», then carries on', async () => {
+  const opened = '«Go» — меню переходов.\n«Back» — вернуться назад.';
+  api.guideLook = async (req) => {
+    calls.push(req);
+    if (req.mode === 'check') return { ...step('Нажми «Go to File»'), opened, hasMore: true };
+    if (req.mode === 'more') return { ...step(''), status: 'explain', target: null, opened: '«Go to File» — открыть файл по имени.', hasMore: false };
+    return step('Нажми «Go»');
+  };
+  await showFirstStep();
+  mock.timers.tick(1000);
+  onScreenClick({ x: 510, y: 305 });
+  mock.timers.tick(1000);
+  await settle();
+  assert.equal(bubbleText().includes('меню переходов'), true, 'explains what opened instead of the next step');
+  const buttons = () => [...document.querySelectorAll<HTMLButtonElement>('#bubble-actions button')];
+  assert.deepEqual(buttons().map((b) => b.textContent), ['Подробнее', 'Понятно']);
+  buttons()[0]!.click();
+  await settle();
+  const more = calls.at(-1)!;
+  assert.equal(more.mode, 'more');
+  assert.equal(more.level, 2);
+  assert.deepEqual(more.history, [opened], 'the model knows what was already told');
+  assert.match(bubbleText(), /Go to File/);
+  assert.deepEqual(buttons().map((b) => b.textContent), ['Понятно'], 'nothing more to tell');
+  buttons()[0]!.click();
+  await settle();
+  mock.timers.tick(400);
+  land();
+  await settle();
+  assert.match(bubbleText(), /Нажми «Go to File»/, '«Понятно» continues with the next step');
 });

@@ -54,6 +54,13 @@ const STEP_SCHEMA = {
         area: { type: 'string', enum: ['taskbar', 'start menu', 'window', 'popup', 'desktop'] },
       },
     },
+    opened: {
+      type: 'string',
+      description: 'For check: if the last action OPENED a menu, list, panel or window that is visible now, explain it to a beginner in 2-4 short lines: '
+        + 'first what this menu/window is for (one sentence), then the 3 most useful items as "«Name» — what it does" using the names exactly as written on the screen (add the shortcut if shown). '
+        + 'For more: the next portion of detail in the same "«Name» — what it does" format, 3-6 lines, only items not explained yet. Empty if nothing new opened.',
+    },
+    hasMore: { type: 'boolean', description: 'For check/more with "opened": true if there are still useful items or details to explain at the next level.' },
     details: { type: 'string', description: 'For inspect only: 2-4 short sentences for the «Подробнее» button (how to use, shortcut if known, how to undo, warning if risky). Empty if nothing to add.' },
     appName: { type: 'string', description: 'For inspect only: the program name, ONLY from System facts or clearly written on the screen; empty otherwise.' },
     practiceGoal: { type: 'string', description: 'For inspect explanations: one safe, specific, reversible beginner exercise with the selected element, phrased as a verifiable goal. No delete, payment, send, installation, credentials, or configuration changes. Empty if no safe exercise exists.' },
@@ -66,6 +73,8 @@ const STEP_SCHEMA = {
 interface StepAnswer {
   status?: string;
   details?: string;
+  opened?: unknown;
+  hasMore?: unknown;
   appName?: string;
   observedText?: string;
   confidence?: string;
@@ -109,7 +118,7 @@ function planText(plan: string[] = []): string {
   return plan.length ? `Planned route:\n${plan.map((p, i) => `${i + 1}. ${p}`).join('\n')}\n` : '';
 }
 
-function userText({ mode, goal = '', history = [], previousSummary, plan = [] }: LookRequest): string {
+function userText({ mode, goal = '', history = [], previousSummary, plan = [], level = 1 }: LookRequest): string {
   if (mode === 'practice') {
     return `The user chose to practice this goal themselves: ${goal}. Give exactly ONE safe physical action to begin, with status step and its target. `
       + 'Do not claim success before they attempt it. Never perform the action yourself. If the goal is already achieved, ask them to choose another element using status not_found. '
@@ -124,7 +133,16 @@ function userText({ mode, goal = '', history = [], previousSummary, plan = [] }:
     return `Goal: "${goal}".\n${done}\nThe person says they did the last hint (or the screen changed). Look at the new screenshot. `
       + `Previous visible state: ${previousSummary || 'unknown; do not invent a comparison'}. Fill whatChanged using visible evidence; acknowledge uncertainty. `
       + 'If the goal is reached, answer "done". If the last step worked, give the NEXT step. If it did not work, kindly show the same thing again in other words.\n'
+      + 'If the last step opened a menu, list, panel or window, fill "opened": the person wants to understand what is inside. '
+      + 'Never tell them to close what just opened (Escape, cross) unless the goal needs it.\n'
       + `${planText(plan)}Follow the planned route and set stepIndex. If the screen shows the route must change (other window, step already done), send a new full plan.`;
+  }
+  if (mode === 'more') {
+    return `The person opened something while learning: "${goal}". What was already explained to them (do not repeat it):\n${history.map((h) => `- ${h}`).join('\n')}\n`
+      + `They pressed «Подробнее» (level ${level}). Look at the menu, list or window that is open on the screenshot and continue in "opened": `
+      + 'the next 3-6 useful items not explained yet, as "«Name» — what it does, when a beginner would use it", names exactly as written, shortcuts if shown. '
+      + 'At level 3 and later you may add one tip how to use it faster. If it is no longer open, continue from what was explained. '
+      + 'Answer status "explain", "say" = a short title (max 6 words), set hasMore, and give practiceGoal: one safe thing to try with these items (no delete, send, install, settings).';
   }
   return `Goal: "${goal}".\n${done}\nFirst think through the whole route from this screen to the goal and put it in "plan". `
     + 'If the needed app is not visible, the route starts from what IS visible (for example the Start button or search). '
@@ -465,8 +483,10 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
   const inspect = mode === 'inspect';
   // снимок и список кнопок от системы делаем одновременно: так быстрее и они совпадают
   const t0 = Date.now();
-  const shotP = capture(overlay, inspect ? 4096 : SHOT_W);
-  const marksP = inspect ? Promise.resolve([] as Mark[]) : screenMarks(shotP).catch((e: unknown) => { guideLog('marks-error', { error: String(e) }); return [] as Mark[]; });
+  const more = mode === 'more';
+  // «Подробнее» про открытое меню: снимок покрупнее, чтобы прочесть мелкие пункты; лапкой не показываем
+  const shotP = capture(overlay, inspect ? 4096 : more ? 1920 : SHOT_W);
+  const marksP = inspect || more ? Promise.resolve([] as Mark[]) : screenMarks(shotP).catch((e: unknown) => { guideLog('marks-error', { error: String(e) }); return [] as Mark[]; });
   const shot = await shotP;
   const tShot = Date.now() - t0;
   const marks = await marksP;
@@ -512,13 +532,13 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
   const tModel = Date.now() - tAsk;
   if (inspect && (!out.confidence || out.confidence === 'low')) out = unsureInspect(out);
   const plan = inspect ? [] : cleanPlan(out.plan);
-  let guess = inspect ? null : toOverlay(out.target, shot);
+  let guess = inspect || more ? null : toOverlay(out.target, shot);
   // точнее всего — номер элемента из списка системы; иначе ищем названную кнопку рядом с рамкой ИИ
   const mark = inspect || out.status === 'done' ? null : pickMark(marks, out.elementId, out.element?.name, guess);
   // кнопки нет в списке системы: уточняем рамку ИИ по увеличенному кусочку экрана
   let refined: Rect | null = null;
   let tRefine = 0;
-  if (!mark && guess && out.target && out.status !== 'done' && !inspect) {
+  if (!mark && guess && out.target && out.status !== 'done' && !inspect && !more) {
     const tr = Date.now();
     const raw = out.target as Rect;
     const inShot = boxUnits(raw, shot.w, shot.h) === 'k'
@@ -536,7 +556,7 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
     mode, ms: { shot: tShot, marks: tMarks, model: tModel, refine: tRefine },
     display: { size: d.size, scale: d.scaleFactor, work: d.workArea, shot: [shot.w, shot.h] },
     marks: marks.length, taskbarMarks: marks.filter((m) => m.area === 'taskbar').length,
-    status: out.status, say: String(out.say || '').slice(0, 80),
+    status: out.status, say: String(out.say || '').slice(0, 80), opened: typeof out.opened === 'string' ? out.opened.length : 0,
     rawTarget: out.target, elementId: out.elementId ?? null, element: out.element ?? null,
     picked: mark ? { id: mark.id, name: mark.name, type: mark.type } : null, refined, target,
   });
@@ -549,6 +569,8 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
     skill: out.skill ? String(out.skill).trim() : '',
     practiceGoal: typeof out.practiceGoal === 'string' ? out.practiceGoal.trim().slice(0, 500) : '',
     details: inspect && out.details ? String(out.details).trim().slice(0, 900) : '',
+    opened: (mode === 'check' || more) && typeof out.opened === 'string' ? out.opened.trim().slice(0, 1200) : '',
+    hasMore: out.hasMore !== false,
     target,
     snapped,
     plan,

@@ -154,38 +154,33 @@ function explain(res: LookResult): void {
   if (danger) setTimeout(() => { if (cat.state !== 'perch') showPose('angry', 1600); }, 50);
 }
 
-export async function look(mode: LookMode, click?: { onTarget: boolean }): Promise<void> {
-  if (guide.busy) return;
-  guide.busy = true;
-  guide.mode = mode;
-  stepShown = false;
-  if (clickTimer) clearTimeout(clickTimer);
-  clickTimer = null;
-  api.guideUnwatch();
-  stopSpeaking();
+// ---------- Что открылось: рассказ по уровням ----------
+// Нажал человек кнопку, и открылось меню или окно: кот рассказывает, что в нём главное,
+// а по «Подробнее» — следующие пункты, пока есть что рассказать. «Понятно» — дальше по шагам.
+const tour = { told: [] as string[], level: 0, after: null as LookResult | null };
+const MAX_LEVEL = 4;
+
+function showOpened(text: string, res: LookResult): void {
+  const after = tour.after;
   hideRing();
-  dom.cat.classList.add('thinking');
-  if (cat.state !== 'perch' && !['fall', 'jump'].includes(cat.state)) setState('busy');
-  say(T(mode === 'check' ? 'g.checking' : 'g.looking'), Infinity, { guide: true });
-  const res = await api.guideLook({ mode, goal: guide.goal, history: guide.history, previousSummary: guide.screenSummary, plan: guide.plan, click });
-  dom.cat.classList.remove('thinking');
-  guide.busy = false;
-  if (!guide.active) return;
-  if (isError(res)) {
-    say(res.error, Infinity, { actions: [[T('g.retry'), () => look(mode), true], [T('g.stop'), () => endGuide(true)]], guide: true });
-    speak(res.error);
-    return;
-  }
-  if (res.screenSummary) guide.screenSummary = res.screenSummary;
-  if (res.plan?.length) guide.plan = res.plan;
-  if (res.stepIndex) guide.stepIndex = res.stepIndex;
+  const actions: Action[] = [];
+  if (res.hasMore !== false && tour.level < MAX_LEVEL) actions.push([tour.level <= 1 ? 'Подробнее' : 'Ещё подробнее', () => void look('more'), true]);
+  const practice = res.practiceGoal;
+  if (practice) actions.push(['Попробовать', () => startGuide(practice, 'practice')]);
+  actions.push(['Понятно', () => { if (after) carryOn(after); else endGuide(false); }, !actions.length]);
+  say(text, Infinity, { guide: true, actions });
+  speak(text);
+}
+
+/** Обычный ответ ИИ: следующий шаг, цель достигнута, объяснение или «не нашёл». */
+function carryOn(res: LookResult): void {
   switch (res.status) {
     case 'step':
       if (res.say) guide.history.push(res.say);
       showStep(res);
       break;
     case 'done':
-      await done(res);
+      void done(res);
       break;
     case 'explain':
     case 'danger':
@@ -199,6 +194,52 @@ export async function look(mode: LookMode, click?: { onTarget: boolean }): Promi
       });
       speak(res.say || T('g.notFound'));
   }
+}
+
+export async function look(mode: LookMode, click?: { onTarget: boolean }): Promise<void> {
+  if (guide.busy) return;
+  guide.busy = true;
+  guide.mode = mode;
+  stepShown = false;
+  if (clickTimer) clearTimeout(clickTimer);
+  clickTimer = null;
+  api.guideUnwatch();
+  stopSpeaking();
+  hideRing();
+  dom.cat.classList.add('thinking');
+  if (cat.state !== 'perch' && !['fall', 'jump'].includes(cat.state)) setState('busy');
+  say(T(mode === 'check' ? 'g.checking' : 'g.looking'), Infinity, { guide: true });
+  const more = mode === 'more';
+  const res = await api.guideLook({
+    mode, goal: guide.goal, previousSummary: guide.screenSummary, plan: guide.plan, click,
+    history: more ? [...tour.told] : guide.history,
+    level: more ? tour.level + 1 : undefined,
+  });
+  dom.cat.classList.remove('thinking');
+  guide.busy = false;
+  if (!guide.active) return;
+  if (isError(res)) {
+    say(res.error, Infinity, { actions: [[T('g.retry'), () => look(mode), true], [T('g.stop'), () => endGuide(true)]], guide: true });
+    speak(res.error);
+    return;
+  }
+  if (more) {
+    const text = res.opened || res.explain || '';
+    tour.level++;
+    if (text) tour.told.push(text);
+    showOpened(text || 'Больше тут рассказывать нечего.', text ? res : { ...res, hasMore: false, practiceGoal: '' });
+    return;
+  }
+  if (res.screenSummary) guide.screenSummary = res.screenSummary;
+  if (res.plan?.length) guide.plan = res.plan;
+  if (res.stepIndex) guide.stepIndex = res.stepIndex;
+  // открылось меню или окно: сначала рассказываем, что в нём, потом — дальше по шагам
+  if (res.opened && (res.status === 'step' || res.status === 'done')) {
+    Object.assign(tour, { told: [res.opened], level: 1, after: res });
+    showOpened(res.opened, res);
+    return;
+  }
+  carryOn(res);
 }
 
 /** Начать подсказки ИИ к цели. */

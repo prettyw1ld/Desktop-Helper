@@ -95,7 +95,7 @@ export interface CalendarList { connected: boolean; error: string; events: Calen
 export interface CalendarSoon extends CalendarEvent { min: number; text: string }
 
 // ---------- Помощник с ИИ ----------
-export type LookMode = 'start' | 'check' | 'confused' | 'inspect' | 'practice';
+export type LookMode = 'start' | 'check' | 'confused' | 'inspect' | 'practice' | 'more';
 export type LookStatus = 'step' | 'done' | 'not_found' | 'explain' | 'danger';
 
 export interface LookRequest {
@@ -106,6 +106,7 @@ export interface LookRequest {
   previousSummary?: string;
   plan?: string[];      // путь к цели, который ИИ продумал на первом шаге
   click?: { onTarget: boolean }; // check: проверяем, потому что человек нажал мышью (onTarget — по выделенной кнопке)
+  level?: number;       // more: какой по счёту рассказ «Подробнее» о том, что открылось
 }
 
 export interface LookResult {
@@ -117,6 +118,8 @@ export interface LookResult {
   skill: string;
   practiceGoal: string;
   details?: string;     // inspect: подробнее, по кнопке «Подробнее»
+  opened?: string;      // check/more: что открылось (меню, список, окно) и что в нём главное
+  hasMore?: boolean;    // more: есть ли что рассказать ещё подробнее
   target: Rect | null;  // в координатах окна кота
   snapped?: boolean;    // место уточнено через «доступность» системы, а не только догадка ИИ
   plan?: string[];      // весь путь к цели (на первом шаге или если путь поменялся)
