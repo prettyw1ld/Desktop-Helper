@@ -135,7 +135,9 @@ function userText({ mode, goal = '', history = [], previousSummary, plan = [], l
       + `Previous visible state: ${previousSummary || 'unknown; do not invent a comparison'}. Fill whatChanged using visible evidence; acknowledge uncertainty. `
       + 'If the goal is reached, answer "done". If the last step worked, give the NEXT step. If it did not work, kindly show the same thing again in other words.\n'
       + 'If the last step opened a menu, list, panel or window, fill "opened": the person wants to understand what is inside. '
-      + 'Never tell them to close what just opened (Escape, cross) unless the goal needs it.\n'
+      + 'Never tell them to close what just opened (Escape, cross) unless the goal needs it. '
+      + 'If the last hint asked to close something (Escape, cross, press aside) and it is closed now, that step WORKED: '
+      + 'give the next step or "done", never ask to open it again. One action per hint: never "look, then press Esc".\n'
       + `${planText(plan)}Follow the planned route and set stepIndex. If the screen shows the route must change (other window, step already done), send a new full plan.`;
   }
   if (mode === 'more') {

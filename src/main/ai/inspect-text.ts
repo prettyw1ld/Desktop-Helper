@@ -35,7 +35,8 @@ export function clickFact(ctx: InspectContext | null | undefined, onTarget: bool
     + (onTarget
       ? 'So they DID the last hint. Look for its result on the screenshot (an opened menu, list, panel or window) and give the NEXT step, or "done" if the goal is reached. '
         + 'Never ask to press the same thing again just because it looks highlighted: pressing it again would close what it opened.'
-      : 'Check whether this press still moved them towards the goal; if not, kindly show the needed thing again.');
+      : 'Check whether this press still moved them towards the goal; if not, kindly show the needed thing again. '
+        + 'A press outside an open menu closes it: if the last hint asked to close that menu, the hint is done.');
 }
 
 export function formatContext(ctx: InspectContext | null | undefined): string {
