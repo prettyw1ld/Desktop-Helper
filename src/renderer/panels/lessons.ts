@@ -41,13 +41,16 @@ function renderLessons(): void {
   ul.replaceChildren();
   for (const l of list) {
     const ok = isDone(l);
-    const li = el('li', ok ? 'done' : '');
-    li.insertAdjacentHTML('beforeend', `<span class="les-icon">${icon(ok ? 'check' : l.icon)}</span>`);
-    const text = el('div', 'les-text');
+    // вся строка — одна большая кнопка: попасть по ней проще, чем по маленькой «Начать»
+    const row = el('button', ok ? 'les-row done' : 'les-row');
+    row.type = 'button';
+    row.insertAdjacentHTML('beforeend', `<span class="les-icon">${icon(ok ? 'check' : l.icon)}</span>`);
+    const text = el('span', 'les-text');
     text.append(el('b', '', l.name), el('span', 'sub', T(ok ? 'les.done' : 'les.todo')));
-    const go = el('button', ok ? 'ghost' : 'primary', T(ok ? 'les.again' : 'les.start'));
-    go.addEventListener('click', () => { closePanels(); l.start(); });
-    li.append(text, go);
+    row.append(text, el('span', 'les-go', T(ok ? 'les.again' : 'les.start')));
+    row.addEventListener('click', () => { closePanels(); l.start(); });
+    const li = el('li');
+    li.append(row);
     ul.append(li);
   }
   // что ещё получилось с ИИ (свободные задачи)

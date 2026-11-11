@@ -5,6 +5,7 @@ import { $, $$, el, isHidden } from '../core/dom';
 import { T } from '../core/i18n';
 import { rand } from '../core/util';
 import { guide, trainer } from '../guide/state';
+import { hideBubble } from './bubble';
 import { icon } from './icons';
 
 export type PanelName = 'help' | 'lessons' | 'chat' | 'reminders' | 'settings';
@@ -52,6 +53,8 @@ export function showPanel(name: PanelName): void {
   addBackButtons();
   if (name !== open) cameFrom[name] = open && open !== name ? open : 'help';
   for (const p of $$('.panel')) p.classList.add('hidden');
+  // случайная фраза кота («Привет!») не должна лежать поверх окна
+  if (!guide.active && !trainer.step) hideBubble();
   const panel = panelEl(name);
   panel.classList.remove('hidden');
   open = name;
