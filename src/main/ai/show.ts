@@ -26,14 +26,16 @@ const AREA: Record<string, string> = { taskbar: 'taskbar', popup: 'start menu / 
 
 /** Список для ИИ: «[3] Button "Поиск" (taskbar) at 110,500 size 210x40». */
 export function formatMarks(marks: Mark[], max = 160): string {
-  if (!marks.length) return 'No list of screen elements this time: point with "target" only.';
+  const byName = 'If the thing to press is not in this list, fill "element" with its name exactly as written on the screen '
+    + '(the system will find it by that name) and give "target". Never give a number of a different element.';
+  if (!marks.length) return `No list of screen elements this time. ${byName}`;
   const lines = marks.slice(0, max).map((m) => {
     const name = m.name.replace(/\s+/g, ' ').trim().slice(0, 60);
     return `[${m.id}] ${m.type} "${name}" (${AREA[m.area] ?? m.area}) at ${m.shot.x},${m.shot.y} size ${m.shot.w}x${m.shot.h}`;
   });
   return 'Screen elements found by the system (number, type, name, where; coordinates in screenshot pixels):\n'
     + `${lines.join('\n')}\nIf the thing to press is one of these, put its number into "elementId". `
-    + 'Pick only what is really visible on the screenshot.';
+    + `Pick only what is really visible on the screenshot. ${byName}`;
 }
 
 const norm = (s = '') => s.replace(/[«»"“”]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -46,8 +48,17 @@ const center = (b: Box) => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 });
 export function pickMark(marks: Mark[], id: unknown, name = '', guess: Box | null = null, maxDist = 260): Mark | null {
   const n = Math.round(Number(id));
   const byId = Number.isFinite(n) ? marks.find((m) => m.id === n) : undefined;
-  if (byId) return byId;
   const want = norm(name);
+  // номер верен, если у кнопки то же название, что назвал ИИ, или она там, где ИИ её видит.
+  // Иначе ИИ взял первый попавшийся номер (так было: «Go» в VS Code → «Show Hidden Icons» на панели задач)
+  if (byId) {
+    const have = norm(byId.name);
+    const sameName = want.length < 2 || (have.length >= 2 && (have.includes(want) || want.includes(have)));
+    const g = guess && center(guess);
+    const c = center(byId.overlay);
+    const near = !!g && Math.hypot(c.x - g.x, c.y - g.y) <= maxDist;
+    if (sameName || near) return byId;
+  }
   if (want.length < 2) return null;
   const exact = marks.filter((m) => norm(m.name) === want);
   const pool = exact.length ? exact : marks.filter((m) => norm(m.name).startsWith(want));

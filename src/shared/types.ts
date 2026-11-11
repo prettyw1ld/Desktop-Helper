@@ -131,12 +131,12 @@ export interface LookResult {
 export interface ChatResult { reply: string; actions: string[]; show?: string }
 
 // ---------- Поиск кнопок через «доступность» ----------
-export type LocateOp = 'find' | 'top' | 'window' | 'drives' | 'volume' | 'list' | 'shot' | 'grid' | 'context';
+export type LocateOp = 'find' | 'top' | 'window' | 'drives' | 'volume' | 'list' | 'named' | 'shot' | 'grid' | 'context';
 
 export interface LocateQuery {
   op: LocateOp;
   scope?: string;       // taskbar | top | start | popup | desktop (значки рабочего стола Windows) | proc:<регулярка>
-  name?: string;        // регулярка
+  name?: string;        // регулярка (named: точное название кнопки)
   types?: string[];     // Button, Edit, ListItem…
   enabled?: boolean;
   firstWindow?: boolean;

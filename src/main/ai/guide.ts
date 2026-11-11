@@ -261,7 +261,11 @@ async function screenMarks(shot: Promise<Shot>): Promise<Mark[]> {
   const info = res as { error?: string; ms?: number; skipped?: string };
   guideLog('marks', { items: items.length, psMs: info.ms ?? null, skipped: info.skipped || null, error: info.error ?? (res.items ? null : 'timeout') });
   if (!items.length) return [];
-  const { display, w: sw, h: sh } = await shot;
+  return toMarks(items, await shot);
+}
+
+/** Кнопки от системы (пиксели экрана) — в пиксели снимка для ИИ и в точки окна кота для лапки. */
+function toMarks(items: LocateItem[], { display, w: sw, h: sh }: Shot): Mark[] {
   const marks: Mark[] = [];
   for (const it of items) {
     // UI Automation даёт настоящие пиксели экрана; переводим в точки (DIP), как у Electron
@@ -274,6 +278,23 @@ async function screenMarks(shot: Promise<Shot>): Promise<Mark[]> {
     marks.push({ id: marks.length + 1, name: it.name, type: it.type, area: it.area || '', shot: inShot, overlay });
   }
   return marks;
+}
+
+/**
+ * ИИ назвал кнопку («Go»), но её нет в списке (окна браузеров и Electron в список не входят, или до неё не дошли):
+ * спрашиваем систему именно про неё и берём ту, что ближе к рамке ИИ. Так кот идёт по точным координатам.
+ */
+async function namedMark(name: string, shot: Shot, guess: Rect | null): Promise<Mark | null> {
+  if (process.platform !== 'win32' || name.trim().length < 2) return null;
+  const budget = 1500;
+  const res = await Promise.race([
+    locate.ask({ op: 'named', name: name.trim().slice(0, 80), budget }),
+    new Promise<{ items?: LocateItem[] }>((r) => setTimeout(() => r({}), budget + 1500)),
+  ]);
+  const found = toMarks(res.items ?? [], shot);
+  const mark = pickMark(found, undefined, name, guess, 700);
+  guideLog('named', { name, found: found.length, ms: (res as { ms?: number }).ms ?? null, picked: mark ? { name: mark.name, type: mark.type, area: mark.area } : null });
+  return mark;
 }
 
 // ---------- Модели ----------
@@ -615,7 +636,14 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
   const plan = inspect ? [] : cleanPlan(out.plan);
   let guess = inspect || more ? null : toOverlay(out.target, shot);
   // точнее всего — номер элемента из списка системы; иначе ищем названную кнопку рядом с рамкой ИИ
-  const mark = inspect || out.status === 'done' ? null : pickMark(marks, out.elementId, out.element?.name, guess);
+  let mark = inspect || out.status === 'done' ? null : pickMark(marks, out.elementId, out.element?.name, guess);
+  const named = out.element?.name ? String(out.element.name) : '';
+  let tNamed = 0;
+  if (!mark && named && !inspect && !more && out.status !== 'done') {
+    const tn = Date.now();
+    mark = await namedMark(named, shot, guess).catch((e: unknown) => { guideLog('named-error', { error: String(e) }); return null; });
+    tNamed = Date.now() - tn;
+  }
   // кнопки нет в списке системы: уточняем рамку ИИ по увеличенному кусочку экрана
   let refined: Rect | null = null;
   let tRefine = 0;
@@ -634,7 +662,7 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
   const snapped = !!mark;
   const d = shot.display;
   guideLog('look', {
-    mode, ms: { shot: tShot, marks: tMarks, model: tModel, refine: tRefine },
+    mode, ms: { shot: tShot, marks: tMarks, model: tModel, named: tNamed, refine: tRefine },
     display: { size: d.size, scale: d.scaleFactor, work: d.workArea, shot: [shot.w, shot.h] },
     marks: marks.length, taskbarMarks: marks.filter((m) => m.area === 'taskbar').length,
     status: out.status, say: String(out.say || '').slice(0, 80), opened: typeof out.opened === 'string' ? out.opened.length : 0, openedBox, zoom: zoom?.getSize() ?? null,

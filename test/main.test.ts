@@ -109,6 +109,12 @@ test('precise paw: the AI picks a system element by number; otherwise the named 
   assert.equal(pickMark([a, b], undefined, 'Таймер', { x: 500, y: 350, w: 20, h: 20 }), null, 'two far candidates: do not guess');
   assert.equal(pickMark([a, b], undefined, '«Таймер»'), null, 'two with that name and no box');
   assert.equal(pickMark([a, c], undefined, 'таймер'), a);
+  // «Go» в окне VS Code: в списке только панель задач, ИИ дал номер чужой кнопки далеко от своей рамки
+  const tray = mk(1, 'Show Hidden Icons', 1570, 1011);
+  assert.equal(pickMark([tray], 1, 'Go', { x: 437, y: 159, w: 40, h: 26 }), null, 'a number of a different, far element is ignored');
+  assert.equal(pickMark([tray], 1, 'Show hidden icons', { x: 437, y: 159, w: 40, h: 26 }), tray, 'same name: the number is trusted');
+  const go = mk(2, 'Go', 580, 140);
+  assert.equal(pickMark([tray, go], 1, 'Go', { x: 437, y: 159, w: 40, h: 26 }), go, 'wrong number, but the named one is found');
   assert.equal(pickMark([a], undefined, ''), null);
   const text = formatMarks([c]);
   assert.match(text, /\[3\] Button "Поиск" \(taskbar\) at 120,140 size 80x30/);

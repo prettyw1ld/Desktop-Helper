@@ -424,6 +424,54 @@ function ListAll($q) {
   return @{ items = $items; ms = $sw.ElapsedMilliseconds; skipped = $skipped }
 }
 
+# Кнопка, которую назвал ИИ («Go», «Файл»), с точным местом от системы. Обходим вширь верхнее окно
+# (и браузеры с Electron тоже: идём только до первых совпадений и не дольше бюджета), всплывающие панели и панель задач.
+function Named($q) {
+  $budget = 1500
+  if ($q.budget) { $budget = [int]$q.budget }
+  $want = ([string]$q.name).Trim().ToLowerInvariant()
+  $sw = [System.Diagnostics.Stopwatch]::StartNew()
+  if ($want.Length -lt 1) { return @{ items = @(); ms = 0 } }
+  $cr = New-Object System.Windows.Automation.CacheRequest
+  foreach ($p in @($AE::NameProperty, $AE::ControlTypeProperty, $AE::BoundingRectangleProperty, $AE::IsOffscreenProperty)) { $cr.Add($p) }
+  $cr.TreeScope = $TS::Element
+  $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
+  $roots = @()
+  foreach ($w in (Wins 1)) { $roots += ,@($w[0], 'window') }
+  foreach ($ih in [PushTop]::Immersive()) { $roots += ,@($AE::FromHandle([IntPtr]$ih), 'popup') }
+  $h = [PushTop]::Tray()
+  if ($h -ne 0) { $roots += ,@($AE::FromHandle([IntPtr]$h), 'taskbar') }
+  $items = @()
+  foreach ($root in $roots) {
+    $queue = New-Object System.Collections.Queue
+    $queue.Enqueue(@($root[0], 0))
+    while ($queue.Count -gt 0 -and $items.Count -lt 12 -and $sw.ElapsedMilliseconds -lt $budget) {
+      $pair = $queue.Dequeue()
+      $child = $null
+      try { $child = $walker.GetFirstChild($pair[0], $cr) } catch { }
+      while ($child -and $sw.ElapsedMilliseconds -lt $budget) {
+        try {
+          $c = $child.Cached
+          if (-not $c.IsOffscreen) {
+            $name = ([string]$c.Name).Trim()
+            $low = $name.ToLowerInvariant() -replace '&', ''
+            $r = $c.BoundingRectangle
+            # «Go», «&Go», «Go (Alt+G)»: совпадает целиком или с начала до пробела/скобки
+            $hit = $low -eq $want -or $low.StartsWith("$want ") -or $low.StartsWith($want + [char]40) -or $low.StartsWith("$want…") -or $low.StartsWith("$want...")
+            if ($hit -and -not $r.IsEmpty -and $r.Width -ge 4 -and $r.Height -ge 4) {
+              $type = $c.ControlType.ProgrammaticName -replace 'ControlType\\.', ''
+              $items += @{ name = $name; type = $type; area = $root[1]; x = [int]$r.X; y = [int]$r.Y; w = [int]$r.Width; h = [int]$r.Height; enabled = $true; focused = $false; proc = '' }
+            }
+            if ($pair[1] -lt 40) { $queue.Enqueue(@($child, ($pair[1] + 1))) }
+          }
+        } catch { }
+        try { $child = $walker.GetNextSibling($child, $cr) } catch { $child = $null }
+      }
+    }
+  }
+  return @{ items = $items; ms = $sw.ElapsedMilliseconds }
+}
+
 # «Объясни, что это»: какая программа и какой элемент под выделением. Только названия и типы,
 # без содержимого полей и документов (их значения не читаем вовсе).
 function NodeInfo($e) {
@@ -549,6 +597,7 @@ while ($true) {
     elseif ($q.op -eq 'drives') { $res = Drives }
     elseif ($q.op -eq 'volume') { $res = Volume }
     elseif ($q.op -eq 'list') { $res = ListAll $q }
+    elseif ($q.op -eq 'named') { $res = Named $q }
     elseif ($q.op -eq 'shot') { $res = Shot $q }
     elseif ($q.op -eq 'grid') { $res = Grid $q }
     elseif ($q.op -eq 'context') { $res = Ctx $q }
