@@ -19,7 +19,13 @@
   --u: var(--ui-scale, 1);
   --paper: #fff7ea;        /* бумага, на ней весь текст */
   --paper-2: #fbebd3;      /* вторичные кнопки, строки списков */
-  --shell: #f6e3c6;        /* рамка вокруг бумаги */
+  --shell-solid: #f6e3c6;  /* рамка вокруг бумаги */
+  --shell-glass: rgba(246, 227, 198, .55);
+  --shell: var(--shell-solid);
+  --soft-line: #e2c7a5;    /* светлая обводка строк и чипов */
+  --field-line: #c9a888;
+  --field: #fffdf8;
+  --placeholder: #8a7060;
   --ink: #2b1d14;          /* текст: 15:1 к бумаге */
   --muted: #5c4636;        /* подписи: 8:1, не серый */
   --line: #6b3f1f;         /* обводка и твёрдая тень */
@@ -41,8 +47,8 @@
   --shadow: 0 0 0 var(--edge) var(--line), 0 calc(var(--edge) + 4px) 0 var(--edge) var(--line), 0 18px 40px rgba(43, 29, 20, .32);
   --font: "Golos Text", "Segoe UI Variable Text", "Segoe UI", "PT Sans", system-ui, sans-serif;
 }
-html.glass { --shell: rgba(246, 227, 198, .55); }
-@media (prefers-reduced-transparency: reduce) { html.glass { --shell: #f6e3c6; } }
+html.glass { --shell: var(--shell-glass); }
+@media (prefers-reduced-transparency: reduce) { html.glass { --shell: var(--shell-solid); } }
 html, body { font-family: var(--font); color: var(--ink); }
 
 /* ---------- Карточки: панели и подсказки ----------
@@ -118,11 +124,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 /* ---------- Поля ---------- */
 .panel input:not([type=range]):not([type=checkbox]), .panel select, .panel textarea, .teach-panel input {
   width: 100%; min-height: calc(50px * var(--u)); padding: calc(10px * var(--u)) calc(14px * var(--u));
-  border: 2px solid #c9a888; border-radius: calc(12px * var(--u)); background: #fffdf8;
+  border: 2px solid var(--field-line); border-radius: calc(12px * var(--u)); background: var(--field);
   font: calc(18px * var(--u))/1.3 var(--font); color: var(--ink); outline: none;
 }
 .panel input:focus, .panel select:focus, .panel textarea:focus { border-color: var(--line); box-shadow: 0 0 0 3px var(--accent-soft); }
-.panel input::placeholder { color: #8a7060; }
+.panel input::placeholder { color: var(--placeholder); }
 .panel input[type=range], .panel input[type=checkbox] { accent-color: var(--accent-edge); }
 .panel input[type=range] { width: 100%; }
 .panel input[type=number] { width: calc(90px * var(--u)); }
@@ -146,7 +152,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 #mic-state { font-size: calc(16px * var(--u)); color: var(--muted); text-align: center; }
 .extras {
   display: flex; gap: calc(6px * var(--u)); margin: calc(2px * var(--u)) calc(-8px * var(--u)) calc(-8px * var(--u));
-  padding-top: calc(10px * var(--u)); border-top: 2px dashed #e2c7a5;
+  padding-top: calc(10px * var(--u)); border-top: 2px dashed var(--soft-line);
 }
 .extras:empty { display: none; }
 .extras button {
@@ -154,7 +160,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
   min-height: calc(46px * var(--u)); padding: calc(6px * var(--u)); border: 2px solid transparent; border-radius: calc(12px * var(--u));
   background: none; color: var(--muted); font: 600 calc(17px * var(--u))/1.2 var(--font);
 }
-.extras button:hover { border-color: #e2c7a5; background: var(--paper-2); color: var(--ink); }
+.extras button:hover { border-color: var(--soft-line); background: var(--paper-2); color: var(--ink); }
 .extras button svg { width: calc(22px * var(--u)); height: calc(22px * var(--u)); flex-shrink: 0; }
 .extras button.pulse, #inspect-element.pulse { animation: soft-pulse 1.3s ease-in-out infinite; }
 .extras button.pulse { border-color: var(--line); background: var(--accent-soft); color: var(--ink); }
@@ -170,7 +176,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .les-row {
   display: flex; align-items: center; gap: calc(14px * var(--u)); width: 100%; text-align: left;
   min-height: calc(64px * var(--u)); padding: calc(8px * var(--u)) calc(12px * var(--u));
-  border: 2px solid #e2c7a5; border-radius: calc(16px * var(--u)); background: var(--paper-2); color: var(--ink);
+  border: 2px solid var(--soft-line); border-radius: calc(16px * var(--u)); background: var(--paper-2); color: var(--ink);
   font-family: var(--font); transition: border-color .12s, background .12s;
 }
 .les-row:hover { border-color: var(--line); background: var(--accent-soft); }
@@ -183,13 +189,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .les-text .sub { font-size: calc(15px * var(--u)); }
 .les-go { flex-shrink: 0; padding: calc(4px * var(--u)) calc(12px * var(--u)); border: 2px solid var(--line); border-radius: 99px; background: var(--accent-soft); font-size: calc(16px * var(--u)); font-weight: 600; }
 .les-row:hover .les-go { background: var(--accent); }
-.les-row.done .les-go { background: var(--paper); color: var(--muted); border-color: #c9a888; font-weight: 500; }
+.les-row.done .les-go { background: var(--paper); color: var(--muted); border-color: var(--field-line); font-weight: 500; }
 .les-more { padding: calc(8px * var(--u)) calc(10px * var(--u)); }
 
 /* ---------- Настройки ---------- */
 #panel-settings { width: calc(400px * var(--u)); }
 #ui-scale-value { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 500; }
-details.more { border-top: 2px dashed #e2c7a5; padding-top: calc(10px * var(--u)); }
+details.more { border-top: 2px dashed var(--soft-line); padding-top: calc(10px * var(--u)); }
 details.more summary { cursor: pointer; font-weight: 600; font-size: calc(16px * var(--u)); color: var(--muted); }
 details.more label { margin-top: calc(10px * var(--u)); }
 .ai-hint { display: block; margin-top: calc(6px * var(--u)); font-size: calc(15px * var(--u)); color: var(--muted); }
@@ -201,7 +207,7 @@ details.more label { margin-top: calc(10px * var(--u)); }
 /* ---------- Чат ---------- */
 #panel-chat { width: calc(420px * var(--u)); }
 .chat-log { flex: 1 1 auto; display: flex; flex-direction: column; gap: calc(10px * var(--u)); min-height: calc(140px * var(--u)); max-height: calc(380px * var(--u)); overflow-y: auto; overflow-wrap: anywhere; }
-.msg { flex-shrink: 0; max-width: 85%; padding: calc(10px * var(--u)) calc(14px * var(--u)); border: 2px solid #e2c7a5; border-radius: calc(18px * var(--u)); white-space: pre-wrap; word-break: break-word; }
+.msg { flex-shrink: 0; max-width: 85%; padding: calc(10px * var(--u)) calc(14px * var(--u)); border: 2px solid var(--soft-line); border-radius: calc(18px * var(--u)); white-space: pre-wrap; word-break: break-word; }
 .msg.me { align-self: flex-end; border-color: var(--accent-edge); background: var(--user); border-bottom-right-radius: calc(6px * var(--u)); }
 .msg.from-cat { align-self: flex-start; background: var(--paper-2); border-bottom-left-radius: calc(6px * var(--u)); }
 .msg.err { align-self: stretch; border-color: var(--danger); background: #fbe3d6; color: var(--danger); }
@@ -211,14 +217,14 @@ details.more label { margin-top: calc(10px * var(--u)); }
 
 /* ---------- Напоминания ---------- */
 .rem-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: calc(6px * var(--u)); }
-.rem-list li { display: flex; align-items: center; gap: calc(8px * var(--u)); padding: calc(8px * var(--u)) calc(12px * var(--u)); border: 2px solid #e2c7a5; border-radius: calc(12px * var(--u)); background: var(--paper-2); }
+.rem-list li { display: flex; align-items: center; gap: calc(8px * var(--u)); padding: calc(8px * var(--u)) calc(12px * var(--u)); border: 2px solid var(--soft-line); border-radius: calc(12px * var(--u)); background: var(--paper-2); }
 .rem-list li .t { font-variant-numeric: tabular-nums; font-weight: 700; }
 .rem-list li .x { margin-left: auto; }
 .rem-list .empty, .cal-list .day { border: 0; background: none; color: var(--muted); }
 .cal-list .day { padding: calc(6px * var(--u)) 0 0; font-weight: 700; font-size: calc(14px * var(--u)); text-transform: uppercase; }
 .cal-list li.now { background: var(--accent-soft); }
 .chips { display: flex; gap: calc(6px * var(--u)); flex-wrap: wrap; }
-.chips button { border: 2px solid #e2c7a5; border-radius: 99px; padding: calc(4px * var(--u)) calc(12px * var(--u)); background: var(--paper-2); font-family: var(--font); }
+.chips button { border: 2px solid var(--soft-line); border-radius: 99px; padding: calc(4px * var(--u)) calc(12px * var(--u)); background: var(--paper-2); font-family: var(--font); }
 
 /* ---------- Облачко кота ---------- */
 .bubble {
@@ -298,7 +304,7 @@ details.more label { margin-top: calc(10px * var(--u)); }
 .swatches legend { padding: 0; margin-bottom: calc(6px * var(--u)); font-weight: 600; font-size: calc(16px * var(--u)); }
 .panel label.swatch {
   flex: 1 1 0; flex-direction: column; align-items: center; gap: calc(6px * var(--u));
-  padding: calc(10px * var(--u)) calc(6px * var(--u)); border: 2px solid #e2c7a5; border-radius: calc(14px * var(--u));
+  padding: calc(10px * var(--u)) calc(6px * var(--u)); border: 2px solid var(--soft-line); border-radius: calc(14px * var(--u));
   background: var(--paper-2); font-weight: 600; font-size: calc(16px * var(--u)); cursor: pointer; text-align: center;
 }
 .panel label.swatch:hover { border-color: var(--line); }
@@ -309,3 +315,39 @@ details.more label { margin-top: calc(10px * var(--u)); }
 .swatch .dot.ginger { background: #d9822b; }
 .swatch .dot.white { background: #f4efe6; }
 .swatch .dot.black { background: #2d2622; }
+
+/* ---------- Цвет окон и облачков (настройка «Цвет окошек»); по умолчанию кремовый из :root ---------- */
+html[data-theme="mint"] {
+  --paper: #f1faf3; --paper-2: #dcf0e1; --shell-solid: #cfe8d6; --shell-glass: rgba(207, 232, 214, .55);
+  --ink: #17261c; --muted: #3e5446; --line: #2f5a3c;
+  --accent: #6cc487; --accent-hover: #82d09a; --accent-edge: #2f8a4e; --accent-soft: #cdeccf; --user: #d6f0dc;
+  --soft-line: #b5d8bf; --field-line: #9cc2a8; --field: #fbfffc; --placeholder: #5f7a68;
+}
+html[data-theme="sky"] {
+  --paper: #f2f8ff; --paper-2: #dcebfb; --shell-solid: #cfe2f6; --shell-glass: rgba(207, 226, 246, .55);
+  --ink: #15202e; --muted: #3b4b5e; --line: #2c4a6e;
+  --accent: #7db4ec; --accent-hover: #94c3f1; --accent-edge: #2f6fb3; --accent-soft: #d3e6fa; --user: #d9e9fb;
+  --soft-line: #b7cfe9; --field-line: #9bb6d4; --field: #fbfdff; --placeholder: #5d7089;
+}
+html[data-theme="pink"] {
+  --paper: #fff4f7; --paper-2: #fbe1ea; --shell-solid: #f6d3df; --shell-glass: rgba(246, 211, 223, .55);
+  --ink: #2d141d; --muted: #5e3a47; --line: #7a2f4c;
+  --accent: #f293b1; --accent-hover: #f6a9c1; --accent-edge: #c24d74; --accent-soft: #fbd6e2; --user: #fcdde7;
+  --soft-line: #e8bccb; --field-line: #d4a0b2; --field: #fffcfd; --placeholder: #8a6170;
+}
+html[data-theme="lilac"] {
+  --paper: #f8f5ff; --paper-2: #e9e1fb; --shell-solid: #ddd2f4; --shell-glass: rgba(221, 210, 244, .55);
+  --ink: #1e1630; --muted: #4a3f60; --line: #4b357a;
+  --accent: #b49aec; --accent-hover: #c3aef0; --accent-edge: #6e4fc0; --accent-soft: #e2d7fa; --user: #e6dcfb;
+  --soft-line: #cbbde9; --field-line: #b0a0d2; --field: #fdfcff; --placeholder: #6c6185;
+}
+/* кружки в настройках: какого цвета будут окошки */
+.swatch .dot.theme-cream { background: linear-gradient(135deg, #fff7ea 50%, #f5a04a 50%); }
+.swatch .dot.theme-mint { background: linear-gradient(135deg, #f1faf3 50%, #6cc487 50%); }
+.swatch .dot.theme-sky { background: linear-gradient(135deg, #f2f8ff 50%, #7db4ec 50%); }
+.swatch .dot.theme-pink { background: linear-gradient(135deg, #fff4f7 50%, #f293b1 50%); }
+.swatch .dot.theme-lilac { background: linear-gradient(135deg, #f8f5ff 50%, #b49aec 50%); }
+.swatches.themes { flex-wrap: wrap; }
+.swatches.themes label.swatch { flex: 1 1 calc(30% - 8px); font-size: calc(15px * var(--u)); }
+/* окрас кота: в кнопке сам кот этого окраса */
+.swatch canvas.cat-pic { width: calc(56px * var(--u)); height: calc(56px * var(--u)); image-rendering: pixelated; }

@@ -2,13 +2,13 @@
 // а сменить модель и вписать ключ можно в свёрнутом разделе «Помощник с ИИ».
 import { refreshPlatforms } from '../cat/platforms';
 import { happy } from '../cat/poses';
-import { setCatColor } from '../cat/render';
+import { drawCatPic, setCatColor } from '../cat/render';
 import { size } from '../cat/cat';
 import { api } from '../core/api';
 import { $, dom } from '../core/dom';
 import { applyI18n, I18N, T } from '../core/i18n';
 import { setSettings, settings } from '../core/settings';
-import { isKeyed, PROVIDER_KEY, type Provider, type Settings } from '../../shared/types';
+import { isKeyed, PROVIDER_KEY, UI_THEMES, type Provider, type Settings, type UiTheme } from '../../shared/types';
 import { Sound } from '../core/sound';
 import { bubbleShown, placeBubble, say } from '../ui/bubble';
 import { refreshIcons } from '../ui/icons';
@@ -33,6 +33,13 @@ function applyWindowScale(value: unknown): void {
 
 const setCatSize = (k: number | string) => dom.cat.style.setProperty('--k', String(k));
 
+/** Цвет окон и облачков: кремовый — без атрибута, остальные через html[data-theme]. */
+export function setTheme(theme: string): void {
+  const t = UI_THEMES.includes(theme as UiTheme) ? theme : 'cream';
+  if (t === 'cream') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = t;
+}
+
 /** Применить текущие настройки ко всему окну. */
 export function applySettings(): void {
   I18N.setLang(settings.lang);
@@ -41,6 +48,7 @@ export function applySettings(): void {
   applyWindowScale(settings.uiScale);
   setCatSize(size());
   setCatColor(settings.catColor);
+  setTheme(settings.theme);
   Sound.set(settings.sound, settings.volume);
   document.documentElement.classList.toggle('glass', settings.glass);
   refreshPlatforms();
@@ -48,6 +56,7 @@ export function applySettings(): void {
 
 const TEXT_FIELDS = ['userName', 'size', 'uiScale'] as const;
 const catColorField = () => form().elements.namedItem('catColor') as RadioNodeList;
+const themeField = () => form().elements.namedItem('theme') as RadioNodeList;
 const CHECK_FIELDS = ['speak', 'sound', 'autostart', 'glass'] as const;
 
 // ---------- Модель ИИ ----------
@@ -91,6 +100,7 @@ async function fillSettings(): Promise<void> {
   setSettings(await api.getSettings());
   for (const k of TEXT_FIELDS) field(k).value = String(settings[k] ?? '');
   catColorField().value = settings.catColor;
+  themeField().value = settings.theme || 'cream';
   field('uiScale').value = String(settings.uiScale || 1);
   for (const k of CHECK_FIELDS) field(k).checked = !!settings[k];
   fillProvider();
@@ -101,7 +111,14 @@ export function initSettings(): void {
   registerPanel('settings', {
     show: () => { void fillSettings(); },
     // закрыли без «Сохранить»: возвращаем, как было (размер кота и масштаб показываются сразу при выборе)
-    close: () => { setCatSize(settings.size || 1); applyWindowScale(settings.uiScale); },
+    // окрас и цвет окошек тоже показываются сразу, а без «Сохранить» возвращаются
+    close: () => { setCatSize(settings.size || 1); applyWindowScale(settings.uiScale); setCatColor(settings.catColor); setTheme(settings.theme); },
+  });
+  for (const pic of form().querySelectorAll<HTMLCanvasElement>('canvas.cat-pic')) drawCatPic(pic, pic.dataset.color ?? 'white');
+  form().addEventListener('change', (e) => {
+    const t = e.target as HTMLInputElement;
+    if (t.name === 'catColor') { setCatColor(t.value); happy(); }
+    if (t.name === 'theme') setTheme(t.value);
   });
   field('size').addEventListener('input', () => setCatSize(field('size').value));
   field('uiScale').addEventListener('input', () => applyWindowScale(field('uiScale').value));
@@ -112,6 +129,7 @@ export function initSettings(): void {
     setSettings(await api.saveSettings({
       userName: field('userName').value.trim(),
       catColor: (catColorField().value || settings.catColor) as typeof settings.catColor,
+      theme: (themeField().value || settings.theme || 'cream') as UiTheme,
       size: Number(field('size').value) || 1,
       uiScale: clampScale(field('uiScale').value),
       speak: field('speak').checked,

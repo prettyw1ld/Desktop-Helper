@@ -88,9 +88,17 @@
       <!-- кнопки, а не выпадающий список: список открывается вне окна кота, и щелчки по нему уходили «сквозь» -->
       <fieldset class="swatches">
         <legend data-i18n="set.color"></legend>
-        <label class="swatch"><input type="radio" name="catColor" value="ginger" /><span class="dot ginger"></span><span data-i18n="set.cGinger"></span></label>
-        <label class="swatch"><input type="radio" name="catColor" value="white" /><span class="dot white"></span><span data-i18n="set.cWhite"></span></label>
-        <label class="swatch"><input type="radio" name="catColor" value="black" /><span class="dot black"></span><span data-i18n="set.cBlack"></span></label>
+        <label class="swatch"><input type="radio" name="catColor" value="ginger" /><canvas class="cat-pic" data-color="ginger" width="64" height="64"></canvas><span data-i18n="set.cGinger"></span></label>
+        <label class="swatch"><input type="radio" name="catColor" value="white" /><canvas class="cat-pic" data-color="white" width="64" height="64"></canvas><span data-i18n="set.cWhite"></span></label>
+        <label class="swatch"><input type="radio" name="catColor" value="black" /><canvas class="cat-pic" data-color="black" width="64" height="64"></canvas><span data-i18n="set.cBlack"></span></label>
+      </fieldset>
+      <fieldset class="swatches themes">
+        <legend data-i18n="set.theme"></legend>
+        <label class="swatch"><input type="radio" name="theme" value="cream" /><span class="dot theme-cream"></span><span data-i18n="set.tCream"></span></label>
+        <label class="swatch"><input type="radio" name="theme" value="mint" /><span class="dot theme-mint"></span><span data-i18n="set.tMint"></span></label>
+        <label class="swatch"><input type="radio" name="theme" value="sky" /><span class="dot theme-sky"></span><span data-i18n="set.tSky"></span></label>
+        <label class="swatch"><input type="radio" name="theme" value="pink" /><span class="dot theme-pink"></span><span data-i18n="set.tPink"></span></label>
+        <label class="swatch"><input type="radio" name="theme" value="lilac" /><span class="dot theme-lilac"></span><span data-i18n="set.tLilac"></span></label>
       </fieldset>
       <label><span data-i18n="set.size"></span><input name="size" type="range" min="0.5" max="2" step="0.05" /></label>
       <label><span data-i18n="set.uiScale"></span> <output id="ui-scale-value">100%</output><input name="uiScale" type="range" min="0.7" max="1.4" step="0.05" value="1" /></label>

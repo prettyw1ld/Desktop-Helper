@@ -1,6 +1,9 @@
 // Данные, которые ходят между главным процессом и окном кота.
 
 export type CatColor = 'white' | 'ginger' | 'black';
+/** Цвет окон и облачков. */
+export type UiTheme = 'cream' | 'mint' | 'sky' | 'pink' | 'lilac';
+export const UI_THEMES: UiTheme[] = ['cream', 'mint', 'sky', 'pink', 'lilac'];
 export type Provider = 'claude' | 'groq' | 'deepseek' | 'qwen' | 'openrouter' | 'openai' | 'ollama';
 export type VoiceMode = 'offline' | 'whisper';
 
@@ -32,6 +35,7 @@ export interface Settings {
   autostart: boolean;        // запускаться вместе с компьютером
   autostartChosen: boolean;  // человек сам выбрал автозапуск (тогда не трогаем его выбор)
   catColor: CatColor;
+  theme: UiTheme;            // цвет окон и облачков
   speak: boolean;            // читать подсказки вслух
   voiceRate: number;
   visionModel: string;       // модель Ollama с зрением; пусто = ollamaModel

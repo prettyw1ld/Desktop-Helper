@@ -33,6 +33,7 @@ export const DEFAULTS: Settings = {
   autostart: true,           // новичок сам кота не найдёт
   autostartChosen: false,
   catColor: 'white',
+  theme: 'cream',
   speak: true,
   voiceRate: 0.95,
   visionModel: '',

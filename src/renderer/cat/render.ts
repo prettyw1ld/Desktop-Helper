@@ -13,6 +13,38 @@ let animStart = 0;
 
 export function setCatColor(color: string): void { sprite.setColor(color, SHEETS); }
 
+/** Кот нужного окраса в кнопке настроек: сидит лицом к нам, как на экране. */
+export function drawCatPic(canvas: HTMLCanvasElement, color: string): void {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  const img = new Image();
+  img.onload = () => {
+    // кот занимает малую часть клетки 64×64: берём только его и увеличиваем, чтобы окрас было видно
+    const tmp = document.createElement('canvas');
+    tmp.width = 64;
+    tmp.height = 64;
+    const t = tmp.getContext('2d');
+    if (!t) return;
+    t.drawImage(img, 0, 0, 64, 64, 0, 0, 64, 64);
+    const px = t.getImageData(0, 0, 64, 64).data;
+    let x0 = 64, y0 = 64, x1 = -1, y1 = -1;
+    for (let y = 0; y < 64; y++) {
+      for (let x = 0; x < 64; x++) {
+        if (px[(y * 64 + x) * 4 + 3]! < 20) continue;
+        x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+      }
+    }
+    if (x1 < 0) { x0 = 0; y0 = 0; x1 = 63; y1 = 63; }
+    const side = Math.max(x1 - x0, y1 - y0) + 3;
+    const cx = (x0 + x1 + 1) / 2;
+    const cy = (y0 + y1 + 1) / 2;
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(tmp, Math.round(cx - side / 2), Math.round(cy - side / 2), side, side, 0, 0, canvas.width, canvas.height);
+  };
+  img.src = `${SHEETS}${color}.png`;
+}
+
 const thinking = () => dom.cat.classList.contains('thinking');
 
 /** Имя анимации, конкретный кадр или поза спиной с повёрнутой головой. */
