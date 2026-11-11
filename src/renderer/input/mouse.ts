@@ -43,6 +43,14 @@ function pickUp(p: Press): void {
   trashDragStart();
 }
 
+// Где мышь была в последний раз. Облачко или окно может появиться или уйти из-под неподвижной мыши:
+// тогда пропуск кликов пересчитываем сами, не дожидаясь движения (иначе окно кота ловит чужие нажатия).
+let lastMove: { x: number; y: number } | null = null;
+function recheckIgnore(): void {
+  if (press || !lastMove) return;
+  setIgnore(!document.elementFromPoint(lastMove.x, lastMove.y)?.closest('.hit'));
+}
+
 function onMove(e: MouseEvent): void {
   if (press) {
     const dx = e.clientX - press.x;
@@ -59,6 +67,7 @@ function onMove(e: MouseEvent): void {
     }
     return;
   }
+  lastMove = { x: e.clientX, y: e.clientY };
   const target = document.elementFromPoint(e.clientX, e.clientY);
   setIgnore(!target?.closest('.hit'));
   onStroke(e.clientX, e.clientY, !!target?.closest('.hitbox'));
@@ -138,6 +147,9 @@ function onCatClick(): void {
 
 export function initMouse(): void {
   document.addEventListener('mousemove', onMove);
+  // в тестах (Node) таймер не должен держать процесс
+  const recheck = setInterval(recheckIgnore, 250) as unknown as { unref?: () => void };
+  recheck.unref?.();
   dom.cat.addEventListener('mousedown', (e) => {
     if (e.button !== 0 || (e.target as Element).closest('.bubble')) return;
     e.preventDefault();

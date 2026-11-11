@@ -35,12 +35,19 @@ function aiFailure(err: unknown, what: string, fallbackKey: string): ErrorReply 
 // ---------- Окно, настройки, напоминания ----------
 function registerBasics(): void {
   ipcMain.on('ignore-mouse', (_e, ignore: boolean) => {
-    const win = ui.win();
-    if (!win) return;
-    if (ignore) win.setIgnoreMouseEvents(true, { forward: true });
-    else win.setIgnoreMouseEvents(false);
+    ignoreMouse = ignore;
+    applyIgnoreMouse();
   });
-  function onGlobalClick(): void {
+  // Пропускает ли окно кота клики насквозь (так по умолчанию; не пропускает только над котом и его окнами).
+let ignoreMouse = true;
+function applyIgnoreMouse(): void {
+  const win = ui.win();
+  if (!win) return;
+  if (ignoreMouse) win.setIgnoreMouseEvents(true, { forward: true });
+  else win.setIgnoreMouseEvents(false);
+}
+
+function onGlobalClick(): void {
   const p = cursorInWin();
   // кот ведёт по шагам: сразу спрашиваем систему, что нажали (для проверки шага)
   if (clicks.watching('guide')) guide.noteClick(p);
@@ -72,7 +79,10 @@ function registerBasics(): void {
   // иначе её открытое меню закрывается, и кот думает, что ничего не произошло.
   ipcMain.on('win:focusable', (_e, on: boolean) => {
     const win = ui.win();
-    if (win && process.platform === 'win32') win.setFocusable(!!on);
+    if (!win || process.platform !== 'win32') return;
+    win.setFocusable(!!on);
+    // смена «фокусируемости» в Windows сбрасывает пропуск кликов насквозь: окно кота начинало ловить все нажатия
+    applyIgnoreMouse();
   });
 }
 
