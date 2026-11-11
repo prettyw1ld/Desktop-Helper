@@ -433,13 +433,15 @@ function NodeInfo($e) {
   return @{ name = [string]$c.Name; type = $type; help = [string]$c.HelpText; keys = [string]$c.AcceleratorKey; access = [string]$c.AccessKey; enabled = $c.IsEnabled }
 }
 
-# Самый глубокий элемент, внутри которого точка: спускаемся от верхнего окна под ней.
-function Descend($pt, $sw) {
+# Самый глубокий элемент, внутри которого точка: спускаемся от node (или от верхнего окна под точкой).
+# Панель задач Windows 11 и многие окна отдают по точке только общую «панель» без подписи.
+function Descend($pt, $sw, $node) {
   $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
-  $node = $null
-  foreach ($w in (Wins 15)) {
-    $r = $w[0].Current.BoundingRectangle
-    if (-not $r.IsEmpty -and $r.Contains($pt)) { $node = $w[0]; break }
+  if (-not $node) {
+    foreach ($w in (Wins 15)) {
+      $r = $w[0].Current.BoundingRectangle
+      if (-not $r.IsEmpty -and $r.Contains($pt)) { $node = $w[0]; break }
+    }
   }
   if (-not $node) { return $null }
   for ($depth = 0; $depth -lt 30 -and $sw.ElapsedMilliseconds -lt 1200; $depth++) {
@@ -470,7 +472,8 @@ function Ctx($q) {
   try { $el = $AE::FromPoint($pt) } catch { }
   # над всем экраном лежит окно кота: если система вернула его, ищем сами
   if ($el -and $el.Current.ProcessId -eq ${skipPid}) { $el = $null }
-  if (-not $el) { $el = Descend $pt $sw }
+  if (-not $el) { $el = Descend $pt $sw $null }
+  elseif (-not $el.Current.Name) { $el = Descend $pt $sw $el }
   if (-not $el) { return @{ ctx = $null; ms = $sw.ElapsedMilliseconds } }
   $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
   $root = $AE::RootElement
@@ -489,7 +492,8 @@ function Ctx($q) {
   $nearby = @()
   try {
     $parent = $walker.GetParent($el)
-    $child = if ($parent) { $walker.GetFirstChild($parent) } else { $null }
+    # у окон верхнего уровня соседи — другие программы, они не нужны
+    $child = if ($parent -and -not $parent.Equals($root)) { $walker.GetFirstChild($parent) } else { $null }
     $n = 0
     while ($child -and $n -lt 150 -and $nearby.Count -lt 12 -and $sw.ElapsedMilliseconds -lt 1800) {
       $n++
@@ -512,7 +516,12 @@ function Ctx($q) {
   } catch { }
   $element = NodeInfo $el
   if ($el.Current.IsPassword) { $element.password = $true }
-  return @{ ctx = @{ app = $app; proc = $procName; title = [string]$top.Current.Name; rect = (Rect $top); element = $element; path = $path; nearby = $nearby }; ms = $sw.ElapsedMilliseconds }
+  $title = [string]$top.Current.Name
+  $cls = [string]$top.Current.ClassName
+  if ($cls -eq 'Shell_TrayWnd' -or $cls -eq 'Shell_SecondaryTrayWnd') { $app = 'Windows'; $title = 'Панель задач' }
+  elseif ($cls -eq 'Progman' -or $cls -eq 'WorkerW') { $app = 'Windows'; $title = 'Рабочий стол' }
+  elseif ($cls -eq 'Windows.UI.Core.CoreWindow' -and $procName -match 'StartMenu|SearchHost|ShellExperience') { $app = 'Windows'; if (-not $title) { $title = 'Меню «Пуск»' } }
+  return @{ ctx = @{ app = $app; proc = $procName; title = $title; rect = (Rect $top); element = $element; path = $path; nearby = $nearby }; ms = $sw.ElapsedMilliseconds }
 }
 
 function Volume() {
