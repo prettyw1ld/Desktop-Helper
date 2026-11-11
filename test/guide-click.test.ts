@@ -230,3 +230,21 @@ test('«Покажи, как» about one item tells the model that item is open 
   assert.equal(req.goal, 'Перейти к строке 10');
   assert.equal(req.item, 'Go to Line/Column...');
 });
+
+test('a small window without a list (Go to line) opens: the cat goes straight to the next step inside it', async () => {
+  api.guideLook = async (req) => {
+    calls.push(req);
+    if (req.mode === 'check') {
+      return { ...step('Напиши «1» в окошке'), target: { x: 600, y: 140, w: 500, h: 26 }, openedBox: { x: 400, y: 120, w: 900, h: 500 }, items: ['Type a line number'] };
+    }
+    return step('Нажми «Go»');
+  };
+  await showFirstStep();
+  mock.timers.tick(1000);
+  onScreenClick({ x: 510, y: 305 });
+  mock.timers.tick(1000);
+  await settle();
+  assert.equal(calls.length, 2, 'no separate question about what opened');
+  for (let i = 0; i < 3; i++) { mock.timers.tick(400); land(); await settle(); }
+  assert.match(bubbleText(), /Напиши «1»/);
+});

@@ -563,7 +563,8 @@ function Inside($q) {
       }
     }
   }
-  if ($items.Count -lt 2) { $items = $loose; $from = 'region' }
+  # без меню или списка: всё подряд из изменившегося места годится, только если пунктов немного
+  if ($items.Count -lt 2) { $items = @(); $from = 'region'; if ($loose.Count -le 14) { $items = $loose } }
   return @{ items = @($items | Sort-Object { $_.y }, { $_.x }); from = $from; ms = $sw.ElapsedMilliseconds }
 }
 

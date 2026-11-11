@@ -244,6 +244,12 @@ function showChooser(page: number): void {
   speak(line);
 }
 
+const inside = (a: Rect, b: Rect) => {
+  const cx = a.x + a.w / 2;
+  const cy = a.y + a.h / 2;
+  return cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h;
+};
+
 /** Рассказ про один пункт: попробовать, вернуться к списку или идти дальше. */
 function showItem(text: string, res: LookResult, item: string): void {
   hideRing();
@@ -339,7 +345,9 @@ export async function look(mode: LookMode, click?: { onTarget: boolean }, item?:
     return;
   }
   // человек нажал выделенную кнопку, а модель не рассказала, что открылось: спрашиваем об этом отдельно
-  if ((click?.onTarget || (click && res.openedBox)) && (res.status === 'step' || res.status === 'done')) {
+  // Но если открылось окошко без списка пунктов и следующий шаг ведёт прямо в него (поле «Go to line»), не перебиваем
+  const into = !!res.openedBox && !!res.target && (res.items?.length ?? 0) < 2 && inside(res.target, res.openedBox);
+  if ((click?.onTarget || (click && res.openedBox)) && (res.status === 'step' || res.status === 'done') && !into) {
     Object.assign(tour, { told: [], level: 0, after: res, items: res.items ?? [], first: null });
     await look('more');
     return;
