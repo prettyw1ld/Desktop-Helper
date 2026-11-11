@@ -6,9 +6,7 @@
         content="default-src 'self'; img-src 'self' file: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src blob:; connect-src 'self' pushik: data: blob:" />
   <title>Пушик</title>
   <link rel="stylesheet" href="style.css" />
-  <link rel="stylesheet" href="inspect.css" />
-  <link rel="stylesheet" href="light-blue.css" />
-  <link rel="stylesheet" href="playful.css" />
+  <link rel="stylesheet" href="ui.css" />
 </head>
 <body>
   <div id="cat" class="cat hit">
@@ -44,17 +42,13 @@
   <!-- Уроки: все обучалки, что пройдено и прогресс -->
   <section id="panel-lessons" class="panel help lessons hit hidden">
     <header><b data-i18n="les.title"></b><button class="icon" data-close data-i18n-title="close">✕</button></header>
-    <div class="les-progress"><div id="les-bar" class="bar"></div></div>
-    <div id="les-count" class="sub big-sub"></div>
-    <details id="lesson-dropdown" class="lesson-dropdown">
-      <summary>Список уроков</summary>
-      <ul id="les-list" class="les-list"></ul>
-    </details>
+    <div class="les-head"><div class="les-progress"><div id="les-bar" class="bar"></div></div><span id="les-count"></span></div>
+    <ul id="les-list" class="les-list"></ul>
   </section>
 
   <!-- Чат -->
   <section id="panel-chat" class="panel hit hidden">
-    <header><b>Пуш</b><span class="sub" data-i18n="chat.sub"></span>
+    <header><b>Пуш</b>
       <button class="icon" data-reset data-i18n-title="chat.reset">↺</button>
       <button class="icon" data-close data-i18n-title="close">✕</button></header>
     <div id="chat-log" class="chat-log"></div>
@@ -103,6 +97,7 @@
       <label class="check"><input name="speak" type="checkbox" /> <span data-i18n="set.speak"></span></label>
       <label class="check"><input name="sound" type="checkbox" /> <span data-i18n="set.sound"></span></label>
       <label class="check"><input name="autostart" type="checkbox" /> <span data-i18n="set.autostart"></span></label>
+      <label class="check"><input name="glass" type="checkbox" /> <span data-i18n="set.glass"></span></label>
       <details class="more" id="ai-settings">
         <summary data-i18n="set.ai"></summary>
         <label><span data-i18n="set.aiModel"></span>

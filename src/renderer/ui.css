@@ -1,0 +1,292 @@
+/* Интерфейс Пушика: «тёплая бумага» — реплики кота на кремовой бумаге с коричневой обводкой.
+   Текст всегда лежит на сплошной бумаге. Полупрозрачной бывает только рамка вокруг неё
+   (класс .glass на <html>, включается в настройках). Если в Windows выключены эффекты прозрачности
+   или включена высокая контрастность, рамка становится сплошной сама.
+   Крупно: текст 18 px, главная кнопка 56 px, одна главная кнопка на окно.
+   --u — масштаб окон из настроек (70–140 %). */
+@font-face {
+  font-family: "Golos Text"; font-style: normal; font-display: swap; font-weight: 400 900;
+  src: url("../../assets/fonts/golos-text-cyrillic-wght-normal.woff2") format("woff2-variations");
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: "Golos Text"; font-style: normal; font-display: swap; font-weight: 400 900;
+  src: url("../../assets/fonts/golos-text-latin-wght-normal.woff2") format("woff2-variations");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  --u: var(--ui-scale, 1);
+  --paper: #fff7ea;        /* бумага, на ней весь текст */
+  --paper-2: #fbebd3;      /* вторичные кнопки, строки списков */
+  --shell: #f6e3c6;        /* рамка вокруг бумаги */
+  --ink: #2b1d14;          /* текст: 15:1 к бумаге */
+  --muted: #5c4636;        /* подписи: 8:1, не серый */
+  --line: #6b3f1f;         /* обводка и твёрдая тень */
+  --accent: #f5a04a;       /* главная кнопка, текст на ней тёмный (7.8:1) */
+  --accent-hover: #ffb25c;
+  --accent-edge: #c96a12;
+  --accent-ink: var(--ink);
+  --accent-soft: #fde3c4;
+  --user: #ffe2c2;
+  --ok: #2e6b30;
+  --ok-soft: #dcefd6;
+  --danger: #b4471b;
+  --target: #e8771a;       /* подсветка цели на экране */
+  --yellow: var(--accent-soft);   /* старые имена: ими ещё пользуются подсветки */
+  --soft: var(--paper-2);
+  --surface: var(--paper-2);
+  --rim: calc(9px * var(--u));
+  --edge: 2.5px;
+  --shadow: 0 0 0 var(--edge) var(--line), 0 calc(var(--edge) + 4px) 0 var(--edge) var(--line), 0 18px 40px rgba(43, 29, 20, .32);
+  --font: "Golos Text", "Segoe UI Variable Text", "Segoe UI", "PT Sans", system-ui, sans-serif;
+}
+html.glass { --shell: rgba(246, 227, 198, .55); }
+@media (prefers-reduced-transparency: reduce) { html.glass { --shell: #f6e3c6; } }
+html, body { font-family: var(--font); color: var(--ink); }
+
+/* ---------- Карточки: панели и подсказки ----------
+   border — это рамка (может просвечивать), фон рисуется только под содержимым (padding-box). */
+.panel, .bubble.guide, .teach-panel {
+  border: var(--rim) solid var(--shell);
+  background: var(--paper) padding-box;
+  box-shadow: var(--shadow);
+}
+html.glass .panel, html.glass .bubble.guide, html.glass .teach-panel {
+  /* блик по верхнему краю рамки: «стекло» без размытия, которое в прозрачном окне всё равно не работает */
+  box-shadow: var(--shadow), inset 0 0 0 1px rgba(255, 255, 255, .6);
+}
+.panel {
+  position: absolute; display: flex; flex-direction: column; gap: calc(14px * var(--u));
+  width: calc(400px * var(--u)); max-width: calc(100vw - 32px); max-height: calc(100dvh - 32px);
+  overflow-y: auto; overscroll-behavior: contain;
+  padding: calc(18px * var(--u)) calc(20px * var(--u)) calc(20px * var(--u));
+  border-radius: calc(26px * var(--u));
+  font-size: calc(18px * var(--u)); line-height: 1.45; user-select: text;
+  transform-origin: 50% 100%; animation: card-in .2s cubic-bezier(.2, .9, .3, 1.15);
+}
+.panel > * { flex-shrink: 0; }
+@keyframes card-in { from { opacity: 0; scale: .94; } to { opacity: 1; scale: 1; } }
+
+.panel > header {
+  position: sticky; top: calc(-18px * var(--u)); z-index: 5;
+  margin: calc(-18px * var(--u)) calc(-20px * var(--u)) 0;
+  padding: calc(14px * var(--u)) calc(14px * var(--u)) calc(6px * var(--u)) calc(20px * var(--u));
+  display: flex; align-items: center; gap: calc(10px * var(--u)); background: var(--paper);
+  border-radius: calc(17px * var(--u)) calc(17px * var(--u)) 0 0;
+}
+.panel > header b { flex: 1; font-size: calc(24px * var(--u)); font-weight: 700; line-height: 1.2; }
+.panel > header .back + b { margin-left: 0; }
+.panel .icon {
+  display: grid; place-items: center; flex: 0 0 auto;
+  width: calc(44px * var(--u)); height: calc(44px * var(--u)); padding: 0;
+  border: 2px solid transparent; border-radius: 50%; background: var(--paper-2); color: var(--line);
+}
+.panel .icon:hover { border-color: var(--line); background: var(--accent-soft); color: var(--ink); }
+.panel .icon svg { width: calc(22px * var(--u)); height: calc(22px * var(--u)); stroke-width: 2.2; }
+.sub { color: var(--muted); font-size: calc(16px * var(--u)); }
+
+/* ---------- Кнопки ----------
+   Главная — оранжевая «нажимная» с тёмной кромкой снизу. Вторичная — бумажная с обводкой. */
+.big, .primary, .ghost, .bubble-actions button, .teach-panel button {
+  display: inline-flex; align-items: center; justify-content: center; gap: calc(10px * var(--u));
+  min-height: calc(50px * var(--u)); padding: calc(10px * var(--u)) calc(18px * var(--u));
+  border: 2px solid var(--line); border-radius: calc(14px * var(--u));
+  font: 600 calc(18px * var(--u))/1.2 var(--font); color: var(--ink); background: var(--paper-2);
+  box-shadow: 0 3px 0 var(--line);
+  transition: background .12s, box-shadow .08s, translate .08s;
+}
+.big:hover, .ghost:hover, .bubble-actions button:hover, .teach-panel button:hover { background: var(--accent-soft); }
+.big:active, .primary:active, .ghost:active, .bubble-actions button:active, .teach-panel button:active, .ask .go:active {
+  translate: 0 2px; box-shadow: 0 1px 0 var(--line);
+}
+.big { width: 100%; min-height: calc(58px * var(--u)); font-size: calc(20px * var(--u)); }
+#inspect-element, #mic, .primary, .bubble-actions button.primary, .teach-panel button.primary {
+  background: var(--accent); color: var(--accent-ink); box-shadow: 0 4px 0 var(--line);
+}
+#inspect-element:hover, #mic:hover, .primary:hover, .bubble-actions button.primary:hover, .teach-panel button.primary:hover { background: var(--accent-hover); }
+#inspect-element:active, #mic:active, .primary:active, .bubble-actions button.primary:active { box-shadow: 0 1px 0 var(--line); }
+#mic.rec { background: var(--danger); color: #fff; animation: rec-pulse 1.4s ease-in-out infinite; }
+@keyframes rec-pulse { 50% { box-shadow: 0 4px 0 var(--line), 0 0 0 calc(8px * var(--u)) rgba(180, 71, 27, 0); } 0%, 100% { box-shadow: 0 4px 0 var(--line), 0 0 0 0 rgba(180, 71, 27, .35); } }
+/* если главная кнопка есть, микрофон — вторая по важности */
+#inspect-element:not(.hidden) ~ #mic:not(.rec) { background: var(--paper-2); box-shadow: 0 3px 0 var(--line); }
+.big svg, .primary svg { flex-shrink: 0; }
+button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
+  outline: 3px solid var(--ink); outline-offset: 3px;
+}
+
+/* ---------- Поля ---------- */
+.panel input:not([type=range]):not([type=checkbox]), .panel select, .panel textarea, .teach-panel input {
+  width: 100%; min-height: calc(50px * var(--u)); padding: calc(10px * var(--u)) calc(14px * var(--u));
+  border: 2px solid #c9a888; border-radius: calc(12px * var(--u)); background: #fffdf8;
+  font: calc(18px * var(--u))/1.3 var(--font); color: var(--ink); outline: none;
+}
+.panel input:focus, .panel select:focus, .panel textarea:focus { border-color: var(--line); box-shadow: 0 0 0 3px var(--accent-soft); }
+.panel input::placeholder { color: #8a7060; }
+.panel input[type=range], .panel input[type=checkbox] { accent-color: var(--accent-edge); }
+.panel input[type=range] { width: 100%; }
+.panel input[type=number] { width: calc(90px * var(--u)); }
+.panel label { display: flex; flex-direction: column; gap: calc(6px * var(--u)); font-weight: 600; font-size: calc(16px * var(--u)); }
+.panel label.check { flex-direction: row; align-items: center; gap: calc(12px * var(--u)); font-weight: 500; font-size: calc(17px * var(--u)); min-height: calc(40px * var(--u)); }
+.panel label.check input { width: calc(22px * var(--u)); height: calc(22px * var(--u)); margin: 0; }
+.row { display: flex; gap: calc(10px * var(--u)); align-items: center; }
+.col { display: flex; flex-direction: column; gap: calc(12px * var(--u)); }
+.grow { flex: 1; }
+
+/* ---------- «Чем помочь?» ---------- */
+.ask { display: flex; gap: calc(10px * var(--u)); }
+.ask input { flex: 1; min-width: 0; }
+.ask .go {
+  flex: 0 0 auto; width: calc(54px * var(--u)); min-height: calc(50px * var(--u)); padding: 0;
+  border: 2px solid var(--line); border-radius: calc(12px * var(--u));
+  background: var(--paper-2); color: var(--ink); box-shadow: 0 3px 0 var(--line);
+}
+.ask .go:hover { background: var(--accent-soft); }
+.ask .go svg, #chat-form .primary svg { stroke-width: 2.4; }
+#mic-state { font-size: calc(16px * var(--u)); color: var(--muted); text-align: center; }
+.extras {
+  display: flex; gap: calc(6px * var(--u)); margin: calc(2px * var(--u)) calc(-8px * var(--u)) calc(-8px * var(--u));
+  padding-top: calc(10px * var(--u)); border-top: 2px dashed #e2c7a5;
+}
+.extras:empty { display: none; }
+.extras button {
+  flex: 1 1 0; display: flex; align-items: center; justify-content: center; gap: calc(8px * var(--u));
+  min-height: calc(46px * var(--u)); padding: calc(6px * var(--u)); border: 2px solid transparent; border-radius: calc(12px * var(--u));
+  background: none; color: var(--muted); font: 600 calc(17px * var(--u))/1.2 var(--font);
+}
+.extras button:hover { border-color: #e2c7a5; background: var(--paper-2); color: var(--ink); }
+.extras button svg { width: calc(22px * var(--u)); height: calc(22px * var(--u)); flex-shrink: 0; }
+.extras button.pulse, #inspect-element.pulse { animation: soft-pulse 1.3s ease-in-out infinite; }
+.extras button.pulse { border-color: var(--line); background: var(--accent-soft); color: var(--ink); }
+@keyframes soft-pulse { 50% { outline: 6px solid rgba(232, 119, 26, 0); } 0%, 100% { outline: 0 solid rgba(232, 119, 26, .45); } }
+
+/* ---------- Уроки ---------- */
+#panel-lessons { width: calc(440px * var(--u)); max-height: min(calc(640px * var(--u)), calc(100dvh - 32px)); }
+.les-head { display: flex; align-items: center; gap: calc(12px * var(--u)); }
+.les-progress { flex: 1; height: calc(12px * var(--u)); border: 2px solid var(--line); border-radius: 99px; background: var(--paper-2); overflow: hidden; }
+.les-progress .bar { height: 100%; width: 0; background: var(--accent); transition: width .4s ease; }
+#les-count { flex: 0 0 auto; font-size: calc(16px * var(--u)); font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.les-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: calc(8px * var(--u)); }
+.les-row {
+  display: flex; align-items: center; gap: calc(14px * var(--u)); width: 100%; text-align: left;
+  min-height: calc(64px * var(--u)); padding: calc(8px * var(--u)) calc(12px * var(--u));
+  border: 2px solid #e2c7a5; border-radius: calc(16px * var(--u)); background: var(--paper-2); color: var(--ink);
+  font-family: var(--font); transition: border-color .12s, background .12s;
+}
+.les-row:hover { border-color: var(--line); background: var(--accent-soft); }
+.les-row:active { translate: 0 1px; }
+.les-icon { display: grid; place-items: center; flex-shrink: 0; width: calc(44px * var(--u)); height: calc(44px * var(--u)); border: 2px solid var(--line); border-radius: calc(12px * var(--u)); background: var(--paper); color: var(--line); }
+.les-icon svg { stroke-width: 2; }
+.les-row.done .les-icon { border-color: var(--ok); background: var(--ok-soft); color: var(--ok); }
+.les-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.les-text b { font-size: calc(18px * var(--u)); font-weight: 600; line-height: 1.25; }
+.les-text .sub { font-size: calc(15px * var(--u)); }
+.les-go { flex-shrink: 0; padding: calc(4px * var(--u)) calc(12px * var(--u)); border: 2px solid var(--line); border-radius: 99px; background: var(--accent-soft); font-size: calc(16px * var(--u)); font-weight: 600; }
+.les-row:hover .les-go { background: var(--accent); }
+.les-row.done .les-go { background: var(--paper); color: var(--muted); border-color: #c9a888; font-weight: 500; }
+.les-more { padding: calc(8px * var(--u)) calc(10px * var(--u)); }
+
+/* ---------- Настройки ---------- */
+#panel-settings { width: calc(400px * var(--u)); }
+#ui-scale-value { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 500; }
+details.more { border-top: 2px dashed #e2c7a5; padding-top: calc(10px * var(--u)); }
+details.more summary { cursor: pointer; font-weight: 600; font-size: calc(16px * var(--u)); color: var(--muted); }
+details.more label { margin-top: calc(10px * var(--u)); }
+.ai-hint { display: block; margin-top: calc(6px * var(--u)); font-size: calc(15px * var(--u)); color: var(--muted); }
+#panel-settings .row { flex-wrap: wrap; margin-top: calc(4px * var(--u)); }
+#panel-settings .row button { flex: 1 1 auto; }
+#quit { border-color: transparent; background: none; box-shadow: none; color: var(--muted); }
+#quit:hover { border-color: var(--danger); background: #fbe3d6; color: var(--danger); }
+
+/* ---------- Чат ---------- */
+#panel-chat { width: calc(420px * var(--u)); }
+.chat-log { flex: 1 1 auto; display: flex; flex-direction: column; gap: calc(10px * var(--u)); min-height: calc(140px * var(--u)); max-height: calc(380px * var(--u)); overflow-y: auto; overflow-wrap: anywhere; }
+.msg { flex-shrink: 0; max-width: 85%; padding: calc(10px * var(--u)) calc(14px * var(--u)); border: 2px solid #e2c7a5; border-radius: calc(18px * var(--u)); white-space: pre-wrap; word-break: break-word; }
+.msg.me { align-self: flex-end; border-color: var(--accent-edge); background: var(--user); border-bottom-right-radius: calc(6px * var(--u)); }
+.msg.from-cat { align-self: flex-start; background: var(--paper-2); border-bottom-left-radius: calc(6px * var(--u)); }
+.msg.err { align-self: stretch; border-color: var(--danger); background: #fbe3d6; color: var(--danger); }
+.msg.typing { color: var(--muted); font-style: italic; }
+#chat-form .primary { width: calc(54px * var(--u)); padding: 0; background: var(--paper-2); box-shadow: 0 3px 0 var(--line); }
+#chat-form .primary:hover { background: var(--accent-soft); }
+
+/* ---------- Напоминания ---------- */
+.rem-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: calc(6px * var(--u)); }
+.rem-list li { display: flex; align-items: center; gap: calc(8px * var(--u)); padding: calc(8px * var(--u)) calc(12px * var(--u)); border: 2px solid #e2c7a5; border-radius: calc(12px * var(--u)); background: var(--paper-2); }
+.rem-list li .t { font-variant-numeric: tabular-nums; font-weight: 700; }
+.rem-list li .x { margin-left: auto; }
+.rem-list .empty, .cal-list .day { border: 0; background: none; color: var(--muted); }
+.cal-list .day { padding: calc(6px * var(--u)) 0 0; font-weight: 700; font-size: calc(14px * var(--u)); text-transform: uppercase; }
+.cal-list li.now { background: var(--accent-soft); }
+.chips { display: flex; gap: calc(6px * var(--u)); flex-wrap: wrap; }
+.chips button { border: 2px solid #e2c7a5; border-radius: 99px; padding: calc(4px * var(--u)) calc(12px * var(--u)); background: var(--paper-2); font-family: var(--font); }
+
+/* ---------- Облачко кота ---------- */
+.bubble {
+  max-width: calc(270px * var(--u)); padding: calc(10px * var(--u)) calc(14px * var(--u));
+  border: var(--edge) solid var(--line); border-radius: calc(16px * var(--u)); background: var(--paper);
+  box-shadow: 0 4px 0 var(--line), 0 12px 28px rgba(43, 29, 20, .25);
+  font: 500 calc(17px * var(--u))/1.4 var(--font); color: var(--ink);
+}
+.bubble::after {
+  width: 14px; height: 14px; bottom: -9.5px; margin-left: -7px; background: var(--paper);
+  border: 0; border-right: var(--edge) solid var(--line); border-bottom: var(--edge) solid var(--line);
+}
+.bubble.guide {
+  width: calc(400px * var(--u)); max-width: min(calc(400px * var(--u)), calc(100vw - 32px)); max-height: calc(100vh - 32px);
+  padding: calc(18px * var(--u)) calc(20px * var(--u)) calc(20px * var(--u)); border-radius: calc(26px * var(--u));
+  font-size: calc(21px * var(--u)); font-weight: 500; line-height: 1.4; overflow: auto;
+  transform-origin: 50% 100%; animation: card-in .2s cubic-bezier(.2, .9, .3, 1.15);
+}
+.bubble.guide::after, .bubble.detached::after { display: none; }
+.bubble .step-no { display: inline-block; margin-bottom: calc(10px * var(--u)); padding: 2px calc(12px * var(--u)); border: 2px solid var(--line); border-radius: 99px; background: var(--accent-soft); color: var(--ink); font-size: calc(15px * var(--u)); font-weight: 700; opacity: 1; }
+.bubble .explain { margin-top: calc(10px * var(--u)); font-size: calc(18px * var(--u)); color: var(--muted); font-weight: 400; }
+.bubble-actions { display: flex; flex-wrap: wrap; gap: calc(10px * var(--u)); margin-top: calc(18px * var(--u)); }
+.bubble-actions:empty { display: none; }
+.bubble-actions button { flex: 1 1 auto; min-height: calc(48px * var(--u)); font-size: calc(17px * var(--u)); }
+.bubble-actions button.primary { flex-basis: 100%; min-height: calc(56px * var(--u)); font-size: calc(20px * var(--u)); }
+.bubble.danger { --line: var(--danger); }
+.bubble.danger .bubble-actions button.primary { background: var(--danger); color: #fff; }
+.bubble.trash-say { position: absolute; left: 0; top: 0; bottom: auto; transform: none; z-index: 8; pointer-events: none; }
+.bubble.trash-say::after { display: none; }
+.paw-collapse { display: block; margin: calc(12px * var(--u)) 0 calc(-6px * var(--u)) auto; min-height: 40px; padding: 6px 12px; border: 0; border-radius: 10px; background: none; color: var(--muted); font: 500 calc(15px * var(--u)) var(--font); text-decoration: underline; text-underline-offset: 3px; }
+.paw-collapse:hover { background: var(--paper-2); color: var(--ink); }
+#hint-paw { position: absolute; left: 65%; top: 18%; z-index: 20; width: 52px; height: 52px; display: grid; place-items: center; border: var(--edge) solid var(--line); border-radius: 50%; background: var(--accent); color: var(--ink); box-shadow: 0 4px 0 var(--line), 0 10px 24px rgba(43, 29, 20, .3); cursor: pointer; pointer-events: auto; }
+.inspect-explanation .bubble-actions button { flex-basis: 100%; }
+.inspect-explanation .replay { margin-left: 6px; padding: 2px 4px; border: 0; background: none; box-shadow: none; font-size: 18px; line-height: 1; vertical-align: middle; }
+
+/* ---------- Подсветка цели и клубок ---------- */
+#ring, #ring.inspect-highlight {
+  border: 0 !important; border-radius: 14px; background: rgba(232, 119, 26, .08); pointer-events: none;
+  box-shadow: 0 0 0 4px var(--target), 0 0 0 7px rgba(255, 247, 234, .9), 0 0 26px 10px rgba(232, 119, 26, .35) !important;
+  animation: target-breathe 2.4s ease-in-out infinite;
+}
+#ring.approx { border: 4px dashed var(--target) !important; box-shadow: 0 0 26px 10px rgba(232, 119, 26, .25) !important; }
+@keyframes target-breathe { 50% { background: rgba(232, 119, 26, .16); } }
+#yarn-route { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; overflow: visible; }
+#yarn-route path { fill: none; stroke: #e8a15a; stroke-width: 3; stroke-linecap: round; opacity: .85; }
+#yarn-route .yarn-ball { fill: var(--accent); stroke: var(--line); stroke-width: 1.5; }
+#yarn-route .yarn-thread { stroke: var(--line); stroke-width: 1; fill: none; }
+.trash-glow { border: 3px dashed var(--target); border-radius: 14px; background: rgba(232, 119, 26, .12); }
+.trash-glow.hot { border-style: solid; }
+
+/* ---------- «Объясни, что это»: выбор области ---------- */
+.inspect-picker { position: fixed; inset: 0; z-index: 10000; cursor: crosshair; background: rgba(43, 29, 20, .1); touch-action: none; }
+.inspect-picker .inspect-tip { position: absolute; top: 22px; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 32px); padding: 14px 20px; border: var(--edge) solid var(--line); border-radius: 16px; background: var(--paper); box-shadow: 0 4px 0 var(--line), 0 12px 28px rgba(43, 29, 20, .25); font: 500 19px/1.4 var(--font); pointer-events: none; }
+.inspect-picker .inspect-box { position: absolute; border: 3px solid var(--target); border-radius: 8px; background: rgba(232, 119, 26, .12); pointer-events: none; }
+
+/* ---------- Окно «Кот учится у тебя» ---------- */
+.teach-panel { position: fixed; z-index: 5000; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 400px; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); overflow: auto; padding: 24px; border-radius: 26px; font: 18px/1.45 var(--font); }
+.teach-panel h2 { margin: 0 0 12px; font-size: 24px; }
+.teach-panel p { margin: 0 0 16px; }
+.teach-panel button { width: 100%; margin-top: 12px; }
+.teach-panel .teach-goals { display: grid; gap: 6px; }
+
+/* Высокая контрастность Windows: отдаём цвета системе. */
+@media (forced-colors: active) {
+  .panel, .bubble, .teach-panel { border-color: CanvasText; background: Canvas; box-shadow: none; }
+  .big, .primary, .ghost, .bubble-actions button, .les-row, .les-go { border-color: ButtonText; box-shadow: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .panel, .bubble.guide, #ring, #mic.rec, .extras button.pulse, #inspect-element.pulse { animation: none !important; }
+  .big, .primary, .ghost, .bubble-actions button { transition: none; }
+}

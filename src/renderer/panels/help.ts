@@ -4,7 +4,6 @@
 import { $ } from '../core/dom';
 import { T } from '../core/i18n';
 import { settings } from '../core/settings';
-import { setIconLabel } from '../ui/icons';
 import { routeGoal } from '../guide/router';
 import { registerPanel, showPanel, isPanel } from '../ui/panels';
 import { initMic, micState, refreshMic } from './mic';
@@ -14,7 +13,7 @@ export function firstButton(): HTMLElement {
   const ai = settings.aiReady;
   const b = $('#inspect-element');
   b.dataset.mode = ai ? 'inspect' : 'lessons';
-  setIconLabel(b, ai ? 'inspect' : 'book', T(ai ? 'help.inspect' : 'help.lessons'));
+  b.textContent = T(ai ? 'help.inspect' : 'help.lessons');
   $('.extras [data-act="lessons"]').classList.toggle('hidden', !ai);
   return b;
 }

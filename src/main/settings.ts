@@ -46,6 +46,7 @@ export const DEFAULTS: Settings = {
   voice: 'offline',
   trustedRemote: [],
   shotConsent: false,
+  glass: true,
 };
 
 const SECRETS: SecretKey[] = ['apiKey', 'calendarUrl', 'sttKey', 'groqKey', 'deepseekKey', 'qwenKey'];

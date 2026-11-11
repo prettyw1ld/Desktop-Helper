@@ -42,11 +42,12 @@ export function applySettings(): void {
   setCatSize(size());
   setCatColor(settings.catColor);
   Sound.set(settings.sound, settings.volume);
+  document.documentElement.classList.toggle('glass', settings.glass);
   refreshPlatforms();
 }
 
 const TEXT_FIELDS = ['userName', 'catColor', 'size', 'uiScale'] as const;
-const CHECK_FIELDS = ['speak', 'sound', 'autostart'] as const;
+const CHECK_FIELDS = ['speak', 'sound', 'autostart', 'glass'] as const;
 
 // ---------- Модель ИИ ----------
 const providerField = () => field<HTMLSelectElement>('provider');
@@ -114,6 +115,7 @@ export function initSettings(): void {
       speak: field('speak').checked,
       sound: field('sound').checked,
       autostart: field('autostart').checked,
+      glass: field('glass').checked,
       ...ai,
     }));
     applySettings();
