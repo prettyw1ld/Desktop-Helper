@@ -115,6 +115,7 @@ export interface LookResult {
   explain: string;
   skill: string;
   practiceGoal: string;
+  details?: string;     // inspect: подробнее, по кнопке «Подробнее»
   target: Rect | null;  // в координатах окна кота
   snapped?: boolean;    // место уточнено через «доступность» системы, а не только догадка ИИ
   plan?: string[];      // весь путь к цели (на первом шаге или если путь поменялся)
@@ -125,7 +126,7 @@ export interface LookResult {
 export interface ChatResult { reply: string; actions: string[]; show?: string }
 
 // ---------- Поиск кнопок через «доступность» ----------
-export type LocateOp = 'find' | 'top' | 'window' | 'drives' | 'volume' | 'list' | 'shot' | 'grid';
+export type LocateOp = 'find' | 'top' | 'window' | 'drives' | 'volume' | 'list' | 'shot' | 'grid' | 'context';
 
 export interface LocateQuery {
   op: LocateOp;
@@ -138,6 +139,24 @@ export interface LocateQuery {
   skipProc?: string;    // list: регулярка программ, чьи окна не обходить
   width?: number;       // shot, grid: ширина картинки
   height?: number;      // grid: высота
+  x?: number;           // context: выделение в пикселях экрана
+  y?: number;
+  w?: number;
+  h?: number;
+}
+
+/** Элемент интерфейса по данным «доступности» системы: только подписи, без содержимого полей. */
+export interface UiNode { name: string; type: string; help?: string; keys?: string; access?: string; enabled?: boolean; password?: boolean }
+
+/** context: что за программа и что за элемент под выделением «Объясни, что это». */
+export interface InspectContext {
+  app: string;          // понятное название программы (описание exe)
+  proc: string;
+  title: string;        // заголовок окна
+  rect?: Rect | null;   // окно программы, пиксели экрана
+  element: UiNode | null;
+  path: UiNode[];       // от элемента вверх: группа, вкладка, окно
+  nearby: UiNode[];     // соседи внутри выделения
 }
 
 export interface LocateItem extends Rect {
@@ -172,6 +191,8 @@ export interface LocateResult {
   h?: number;
   sw?: number;          // shot: размер экрана в пикселях
   sh?: number;
+  ctx?: InspectContext | null; // context
+  ms?: number;
 }
 
 // ---------- Уроки про файлы ----------

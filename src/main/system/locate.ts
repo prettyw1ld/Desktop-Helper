@@ -424,6 +424,97 @@ function ListAll($q) {
   return @{ items = $items; ms = $sw.ElapsedMilliseconds; skipped = $skipped }
 }
 
+# «Объясни, что это»: какая программа и какой элемент под выделением. Только названия и типы,
+# без содержимого полей и документов (их значения не читаем вовсе).
+function NodeInfo($e) {
+  $c = $e.Current
+  $type = [string]$c.LocalizedControlType
+  if (-not $type) { $type = $c.ControlType.ProgrammaticName -replace 'ControlType\\.', '' }
+  return @{ name = [string]$c.Name; type = $type; help = [string]$c.HelpText; keys = [string]$c.AcceleratorKey; access = [string]$c.AccessKey; enabled = $c.IsEnabled }
+}
+
+# Самый глубокий элемент, внутри которого точка: спускаемся от верхнего окна под ней.
+function Descend($pt, $sw) {
+  $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
+  $node = $null
+  foreach ($w in (Wins 15)) {
+    $r = $w[0].Current.BoundingRectangle
+    if (-not $r.IsEmpty -and $r.Contains($pt)) { $node = $w[0]; break }
+  }
+  if (-not $node) { return $null }
+  for ($depth = 0; $depth -lt 30 -and $sw.ElapsedMilliseconds -lt 1200; $depth++) {
+    $best = $null
+    $bestArea = [double]::MaxValue
+    $child = $null
+    try { $child = $walker.GetFirstChild($node) } catch { }
+    $n = 0
+    while ($child -and $n -lt 200) {
+      $n++
+      try {
+        $r = $child.Current.BoundingRectangle
+        if (-not $r.IsEmpty -and $r.Contains($pt) -and ($r.Width * $r.Height) -lt $bestArea) { $best = $child; $bestArea = $r.Width * $r.Height }
+      } catch { }
+      try { $child = $walker.GetNextSibling($child) } catch { $child = $null }
+    }
+    if (-not $best) { break }
+    $node = $best
+  }
+  return $node
+}
+
+function Ctx($q) {
+  $sw = [System.Diagnostics.Stopwatch]::StartNew()
+  $sel = New-Object System.Windows.Rect([double]$q.x, [double]$q.y, [double]$q.w, [double]$q.h)
+  $pt = New-Object System.Windows.Point(([double]$q.x + [double]$q.w / 2), ([double]$q.y + [double]$q.h / 2))
+  $el = $null
+  try { $el = $AE::FromPoint($pt) } catch { }
+  # над всем экраном лежит окно кота: если система вернула его, ищем сами
+  if ($el -and $el.Current.ProcessId -eq ${skipPid}) { $el = $null }
+  if (-not $el) { $el = Descend $pt $sw }
+  if (-not $el) { return @{ ctx = $null; ms = $sw.ElapsedMilliseconds } }
+  $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
+  $root = $AE::RootElement
+  # путь от элемента вверх до окна программы
+  $path = @()
+  $top = $el
+  $p = $el
+  for ($i = 0; $i -lt 12; $i++) {
+    try { $p = $walker.GetParent($p) } catch { $p = $null }
+    if (-not $p -or $p.Equals($root)) { break }
+    $top = $p
+    $info = NodeInfo $p
+    if ($info.name) { $path += $info }
+  }
+  # соседи внутри выделения (если обвели несколько кнопок сразу)
+  $nearby = @()
+  try {
+    $parent = $walker.GetParent($el)
+    $child = if ($parent) { $walker.GetFirstChild($parent) } else { $null }
+    $n = 0
+    while ($child -and $n -lt 150 -and $nearby.Count -lt 12 -and $sw.ElapsedMilliseconds -lt 1800) {
+      $n++
+      $r = $child.Current.BoundingRectangle
+      if (-not $r.IsEmpty -and $r.IntersectsWith($sel) -and -not $child.Equals($el)) {
+        $info = NodeInfo $child
+        if ($info.name) { $nearby += $info }
+      }
+      $child = $walker.GetNextSibling($child)
+    }
+  } catch { }
+  # программа: по процессу элемента (у приложений из Microsoft Store окно чужое — ApplicationFrameHost)
+  $app = ''
+  $procName = ''
+  try {
+    $pr = [System.Diagnostics.Process]::GetProcessById($el.Current.ProcessId)
+    $procName = $pr.ProcessName
+    try { $app = [string]$pr.MainModule.FileVersionInfo.FileDescription } catch { }
+    if (-not $app) { try { $app = [string]$pr.MainModule.FileVersionInfo.ProductName } catch { } }
+  } catch { }
+  $element = NodeInfo $el
+  if ($el.Current.IsPassword) { $element.password = $true }
+  return @{ ctx = @{ app = $app; proc = $procName; title = [string]$top.Current.Name; rect = (Rect $top); element = $element; path = $path; nearby = $nearby }; ms = $sw.ElapsedMilliseconds }
+}
+
 function Volume() {
   return @{ volume = [Math]::Round([PushVol]::Level(), 3); muted = [PushVol]::Muted() }
 }
@@ -451,6 +542,7 @@ while ($true) {
     elseif ($q.op -eq 'list') { $res = ListAll $q }
     elseif ($q.op -eq 'shot') { $res = Shot $q }
     elseif ($q.op -eq 'grid') { $res = Grid $q }
+    elseif ($q.op -eq 'context') { $res = Ctx $q }
     $res.id = $q.id
   } catch {
     $res = @{ id = $q.id; error = [string]$_ }

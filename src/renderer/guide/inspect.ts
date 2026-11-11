@@ -108,7 +108,7 @@ async function explain(): Promise<void> {
   goPoint(area, () => { if (token === epoch && active) showExplanation(res, token); });
 }
 
-// Короткое объяснение и всего две кнопки: «Понятно» и «Покажи, как» (если есть безопасное упражнение).
+// Короткое объяснение и кнопки: «Понятно», «Подробнее» (если есть что добавить) и «Покажи, как» (если есть безопасное упражнение).
 // Повторить вслух — значок динамика рядом с текстом.
 function showExplanation(result: LookResult, token: number): void {
   const text = [result.say, result.explain].filter(Boolean).join(' ')
@@ -119,16 +119,23 @@ function showExplanation(result: LookResult, token: number): void {
     stopInspect();
     startGuide(goal, 'practice');
   };
-  const actions: Action[] = [['Понятно', stopInspect, true]];
-  if (result.practiceGoal && result.status !== 'danger') actions.push(['Покажи, как', practice]);
-  dom.bubble.classList.add('inspect-explanation');
-  say(text, Infinity, { guide: true, actions, danger: result.status === 'danger' });
-  const replay = el('button', 'replay', '🔊');
-  replay.title = 'Сказать ещё раз';
-  replay.setAttribute('aria-label', 'Сказать ещё раз');
-  replay.addEventListener('click', (e) => { e.stopPropagation(); if (token === epoch && active) speak(text); });
-  dom.bubbleText.append(replay);
-  speak(text);
+  const details = result.details?.trim() ?? '';
+  // «Подробнее»: тот же пузырь, но с подробным текстом (как пользоваться, как отменить)
+  const show = (body: string, more: boolean) => {
+    const actions: Action[] = [['Понятно', stopInspect, true]];
+    if (more) actions.push(['Подробнее', () => { if (token === epoch && active) show(`${text}\n\n${details}`, false); }]);
+    if (result.practiceGoal && result.status !== 'danger') actions.push(['Покажи, как', practice]);
+    dom.bubble.classList.add('inspect-explanation');
+    say(body, Infinity, { guide: true, actions, danger: result.status === 'danger' });
+    const spoken = more ? text : details;
+    const replay = el('button', 'replay', '🔊');
+    replay.title = 'Сказать ещё раз';
+    replay.setAttribute('aria-label', 'Сказать ещё раз');
+    replay.addEventListener('click', (e) => { e.stopPropagation(); if (token === epoch && active) speak(spoken); });
+    dom.bubbleText.append(replay);
+    speak(spoken);
+  };
+  show(text, !!details);
   api.guideWatch(guideMasks());
 }
 
