@@ -8,7 +8,8 @@ import { setSettings, settings } from '../src/renderer/core/settings';
 import { onScreenClick, startGuide } from '../src/renderer/guide/ai-guide';
 import { endGuide } from '../src/renderer/guide/control';
 import { guide } from '../src/renderer/guide/state';
-import { keepClear, pickSpot } from '../src/renderer/ui/bubble-spot';
+import { keepClear, openedZone, pickSpot, targetZones } from '../src/renderer/ui/bubble-spot';
+import { repeatAiStep } from '../src/renderer/guide/ai-guide';
 import { bubbleText, land, resetDesk, settle } from './helpers';
 
 const overlap = (a: { x: number; y: number; w: number; h: number }, b: typeof a) =>
@@ -18,7 +19,7 @@ test('guide bubble moves off the button and the menu that opens under it', () =>
   // кнопка «Go» в строке меню слева сверху, кот справа от неё, облачко хотело встать под котом
   const target = { x: 37, y: 38, w: 30, h: 20 };
   const box = { w: 300, h: 330 };
-  const spot = pickSpot({ box, preferred: { x: 8, y: 115 }, body: { x: 90, y: 0, w: 100, h: 90 }, target, screen: { w: 1280, h: 800 } });
+  const spot = pickSpot({ box, preferred: { x: 8, y: 115 }, body: { x: 90, y: 0, w: 100, h: 90 }, zones: targetZones(target, 800), screen: { w: 1280, h: 800 } });
   const zone = keepClear(target, 800);
   const r = { ...spot, ...box };
   assert.equal(overlap(r, zone.target), 0, 'must not cover the button');
@@ -26,8 +27,13 @@ test('guide bubble moves off the button and the menu that opens under it', () =>
   // кнопка внизу (панель задач): меню открывается вверх
   assert.ok(keepClear({ x: 600, y: 760, w: 40, h: 40 }, 800).menu.y < 760);
   // ничего не закрывает — остаётся, где было
-  const free = pickSpot({ box, preferred: { x: 700, y: 300 }, body: { x: 650, y: 400, w: 100, h: 90 }, target, screen: { w: 1280, h: 800 } });
+  const free = pickSpot({ box, preferred: { x: 700, y: 300 }, body: { x: 650, y: 400, w: 100, h: 90 }, zones: targetZones(target, 800), screen: { w: 1280, h: 800 } });
   assert.deepEqual(free, { x: 700, y: 300 });
+  // открылось длинное меню: облачко встаёт рядом и не закрывает ни его, ни кнопку
+  const menu = { x: 30, y: 60, w: 330, h: 520 };
+  const zones = [openedZone(menu), ...targetZones(target, 800).slice(0, 1)];
+  const beside = pickSpot({ box, preferred: { x: 8, y: 115 }, body: { x: 90, y: 0, w: 100, h: 90 }, zones, screen: { w: 1280, h: 800 } });
+  assert.equal(overlap({ ...beside, ...box }, menu), 0, 'must not cover the opened menu');
 });
 
 const calls: LookRequest[] = [];
@@ -134,4 +140,23 @@ test('when a menu opens the cat explains it, goes deeper on «Подробнее
   land();
   await settle();
   assert.match(bubbleText(), /Нажми «Go to File»/, '«Понятно» continues with the next step');
+});
+
+test('dragging the cat while it explains the opened menu keeps the explanation, not the old step', async () => {
+  api.guideLook = async (req) => {
+    calls.push(req);
+    if (req.mode === 'check') return { ...step('Нажми в стороне'), opened: '«Go» — меню переходов.', openedBox: { x: 400, y: 320, w: 300, h: 300 } };
+    return step('Нажми «Go»');
+  };
+  await showFirstStep();
+  mock.timers.tick(1000);
+  onScreenClick({ x: 510, y: 305 });
+  mock.timers.tick(1000);
+  await settle();
+  assert.match(bubbleText(), /меню переходов/);
+  assert.equal(calls[1]?.click?.onTarget, true);
+  // кота перенесли: после этого облачко показывают заново
+  assert.equal(repeatAiStep(), true);
+  assert.match(bubbleText(), /меню переходов/);
+  assert.doesNotMatch(bubbleText(), /Нажми «Go»/);
 });

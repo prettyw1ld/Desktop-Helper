@@ -1,5 +1,5 @@
 // Помощник с ИИ: снимок экрана → кот показывает лапкой, куда нажать, и сам проверяет, получилось ли.
-import { isError, type LookMode, type LookResult } from '../../shared/types';
+import { isError, type LookMode, type LookResult, type Rect } from '../../shared/types';
 import { cat, setState, startFall } from '../cat/cat';
 import { celebrate, showPose } from '../cat/poses';
 import { api } from '../core/api';
@@ -7,12 +7,13 @@ import { dom } from '../core/dom';
 import { T } from '../core/i18n';
 import { setSettings, setSkills, settings } from '../core/settings';
 import { Sound } from '../core/sound';
-import { hideBubble, say, type Action } from '../ui/bubble';
+import { hideBubble, say, setBubbleAvoid, type Action, type SayOptions } from '../ui/bubble';
+import { openedZone, targetZones } from '../ui/bubble-spot';
 import { closePanels, showPanel } from '../ui/panels';
 import { hideRing, showRing } from '../ui/ring';
 import { speak, stopSpeaking } from '../ui/speech';
 import { endGuide, onGuideEnd } from './control';
-import { goPoint, guideMasks } from './pointing';
+import { goPoint, guideMasks, stepAside } from './pointing';
 import { guide } from './state';
 import { endTrainer } from './trainer';
 
@@ -45,6 +46,8 @@ function holdScreen(on: boolean): void {
 
 function stopWatching(): void {
   stepShown = false;
+  reshow = null;
+  setBubbleAvoid([]);
   if (clickTimer) clearTimeout(clickTimer);
   clickTimer = null;
   holdScreen(false);
@@ -75,6 +78,13 @@ export function onScreenClick(p: { x: number; y: number } | null): void {
   clickTimer = setTimeout(() => { clickTimer = null; if (guide.active && !guide.busy) look('check', { onTarget }); }, 900);
 }
 
+// Что сейчас написано в облачке подсказки: после переноса кота показываем то же самое, а не прошлый шаг.
+let reshow: (() => void) | null = null;
+function tell(text: string, opts: SayOptions): void {
+  reshow = () => say(text, Infinity, opts);
+  reshow();
+}
+
 const WHAT_HAPPENED = 'Что сейчас произошло?';
 
 export function aiStepActions(): Action[] {
@@ -89,7 +99,7 @@ export function aiStepActions(): Action[] {
 }
 
 function showChange(text: string, back: () => void): void {
-  say(text, Infinity, { guide: true, actions: [['Повторить', () => speak(text)], ['Назад', back], ['Завершить', () => endGuide(false)]] });
+  tell(text, { guide: true, actions: [['Повторить', () => speak(text)], ['Назад', back], ['Завершить', () => endGuide(false)]] });
   speak(text);
 }
 
@@ -108,7 +118,7 @@ function showStep(res: LookResult): void {
   const approx = approxOf(res);
   showRing(res.target, approx);
   const sayIt = () => {
-    say(res.say, Infinity, { actions: aiStepActions(), guide: true, step: stepLabel(), explain: approx ? T('g.approx') : undefined });
+    tell(res.say, { actions: aiStepActions(), guide: true, step: stepLabel(), explain: approx ? T('g.approx') : undefined });
     speak(res.say);
     watchScreen();
   };
@@ -116,10 +126,11 @@ function showStep(res: LookResult): void {
   else { setState('busy'); sayIt(); }
 }
 
-/** Повторить текущую подсказку (после переноса кота). */
-export function repeatAiStep(): void {
-  const last = guide.last;
-  if (last?.say) say(last.say, Infinity, { guide: true, actions: aiStepActions(), step: stepLabel(), explain: approxOf(last) ? T('g.approx') : undefined });
+/** Снова показать то, что кот говорил только что (после переноса кота или нажатия на него). */
+export function repeatAiStep(): boolean {
+  if (guide.busy || !reshow) return false;
+  reshow();
+  return true;
 }
 
 async function done(res: LookResult): Promise<void> {
@@ -146,7 +157,7 @@ function explain(res: LookResult): void {
   const go = () => { if (guide.goal) look('check'); else endGuide(false); };
   const text = danger ? `${T('g.danger')} ${res.say}` : res.say;
   const show = () => {
-    say(text, Infinity, { actions: [[T('g.ok'), go, true], [T('g.stop'), () => endGuide(true)]], guide: true, explain: res.explain, danger });
+    tell(text, { actions: [[T('g.ok'), go, true], [T('g.stop'), () => endGuide(true)]], guide: true, explain: res.explain, danger });
     speak(`${res.explain || ''} ${res.say}`);
   };
   if (danger) Sound.hiss();
@@ -158,6 +169,17 @@ function explain(res: LookResult): void {
 // Нажал человек кнопку, и открылось меню или окно: кот рассказывает, что в нём главное,
 // а по «Подробнее» — следующие пункты, пока есть что рассказать. «Понятно» — дальше по шагам.
 const tour = { told: [] as string[], level: 0, after: null as LookResult | null };
+
+/** Облачко и кот не закрывают то, что открылось (box), а если место неизвестно — кнопку и место под её меню. */
+function keepOpenedClear(box: Rect | null | undefined, pressed: Rect | null | undefined): void {
+  const big = !!box && box.w * box.h > innerWidth * innerHeight * 0.55;
+  if (box && !big) {
+    setBubbleAvoid([openedZone(box), ...(pressed ? targetZones(pressed, innerHeight).slice(0, 1) : [])]);
+    stepAside(box);
+  } else {
+    setBubbleAvoid(pressed && !big ? targetZones(pressed, innerHeight) : []);
+  }
+}
 const MAX_LEVEL = 4;
 
 function showOpened(text: string, res: LookResult): void {
@@ -168,7 +190,7 @@ function showOpened(text: string, res: LookResult): void {
   const practice = res.practiceGoal;
   if (practice) actions.push(['Попробовать', () => startGuide(practice, 'practice')]);
   actions.push(['Понятно', () => { if (after) carryOn(after); else endGuide(false); }, !actions.length]);
-  say(text, Infinity, { guide: true, actions });
+  tell(text, { guide: true, actions });
   speak(text);
 }
 
@@ -188,7 +210,7 @@ function carryOn(res: LookResult): void {
       break;
     default:
       hideRing();
-      say(res.say || T('g.notFound'), Infinity, {
+      tell(res.say || T('g.notFound'), {
         actions: [[T('g.retry'), () => look(guide.history.length ? 'check' : 'start'), true], [T('g.stop'), () => endGuide(true)]],
         guide: true,
       });
@@ -210,6 +232,7 @@ export async function look(mode: LookMode, click?: { onTarget: boolean }): Promi
   if (cat.state !== 'perch' && !['fall', 'jump'].includes(cat.state)) setState('busy');
   say(T(mode === 'check' ? 'g.checking' : 'g.looking'), Infinity, { guide: true });
   const more = mode === 'more';
+  const pressed = guide.last?.target;
   const res = await api.guideLook({
     mode, goal: guide.goal, previousSummary: guide.screenSummary, plan: guide.plan, click,
     history: more ? [...tour.told] : guide.history,
@@ -219,7 +242,7 @@ export async function look(mode: LookMode, click?: { onTarget: boolean }): Promi
   guide.busy = false;
   if (!guide.active) return;
   if (isError(res)) {
-    say(res.error, Infinity, { actions: [[T('g.retry'), () => look(mode), true], [T('g.stop'), () => endGuide(true)]], guide: true });
+    tell(res.error, { actions: [[T('g.retry'), () => look(mode), true], [T('g.stop'), () => endGuide(true)]], guide: true });
     speak(res.error);
     return;
   }
@@ -232,6 +255,9 @@ export async function look(mode: LookMode, click?: { onTarget: boolean }): Promi
     showOpened(text || 'Больше тут рассказывать нечего.', text ? res : { ...res, hasMore: false, practiceGoal: '' });
     return;
   }
+  // после нажатия: не закрываем то, что открылось; в остальных случаях ограничение снимаем
+  if (mode === 'check' && click) keepOpenedClear(res.openedBox, pressed);
+  else setBubbleAvoid([]);
   if (res.screenSummary) guide.screenSummary = res.screenSummary;
   if (res.plan?.length) guide.plan = res.plan;
   if (res.stepIndex) guide.stepIndex = res.stepIndex;
@@ -242,7 +268,7 @@ export async function look(mode: LookMode, click?: { onTarget: boolean }): Promi
     return;
   }
   // человек нажал выделенную кнопку, а модель не рассказала, что открылось: спрашиваем об этом отдельно
-  if (click?.onTarget && (res.status === 'step' || res.status === 'done')) {
+  if ((click?.onTarget || (click && res.openedBox)) && (res.status === 'step' || res.status === 'done')) {
     Object.assign(tour, { told: [], level: 0, after: res });
     await look('more');
     return;

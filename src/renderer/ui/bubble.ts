@@ -4,7 +4,7 @@ import { cat, CAT_H, CAT_W, H, size, W } from '../cat/cat';
 import { dom, el, isHidden } from '../core/dom';
 import { clamp, now, timer } from '../core/util';
 import { guide } from '../guide/state';
-import { pickSpot } from './bubble-spot';
+import { pickSpot, targetZones, type Zone } from './bubble-spot';
 import { icon } from './icons';
 import { ringBox } from './ring';
 
@@ -23,6 +23,10 @@ const { bubble, bubbleText, bubbleActions } = dom;
 const hideTimer = timer();
 let paw: HTMLButtonElement | null = null;
 let folded = false;
+
+// что облачку подсказки закрывать нельзя, кроме кнопки в рамке (например, открывшееся меню)
+let avoid: Zone[] = [];
+export function setBubbleAvoid(zones: Zone[]): void { avoid = zones; }
 
 /** Сказать text и убрать облачко через ms (Infinity — пока не уберут). */
 export function say(text: string, ms = 4000, opts: SayOptions = {}): void {
@@ -74,12 +78,13 @@ export function placeBubble(): void {
   const left = cat.x + CAT_W / 2 - width / 2;
   let dx = clamp(left, 8, Math.max(8, W() - width - 8)) - left;
   let dy = clamp(top, 8, Math.max(8, H() - height - 8)) - top;
-  // подсказка с рамкой вокруг кнопки: облачко не должно закрывать кнопку и меню, которое из неё откроется
+  // подсказка: облачко не должно закрывать кнопку в рамке, место под её меню и то, что уже открылось
   const target = bubble.classList.contains('guide') ? ringBox() : null;
-  if (target) {
+  const zones = bubble.classList.contains('guide') ? [...avoid, ...(target ? targetZones(target, H()) : [])] : [];
+  if (zones.length) {
     const s = dom.sprite.getBoundingClientRect();
     const body = { x: s.left, y: s.top, w: s.width, h: s.height };
-    const spot = pickSpot({ box: { w: width, h: height }, preferred: { x: left + dx, y: top + dy }, body, target, screen: { w: W(), h: H() } });
+    const spot = pickSpot({ box: { w: width, h: height }, preferred: { x: left + dx, y: top + dy }, body, zones, screen: { w: W(), h: H() } });
     dx = spot.x - left;
     dy = spot.y - top;
   }

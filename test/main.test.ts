@@ -13,6 +13,7 @@ import { cleanPlan, formatMarks, pickMark, refineCrop, showGoal, stepOf, boxUnit
 import { overlayBounds, toFrame, workInFrame } from '../src/main/geometry';
 import { aiKey } from '../src/shared/types';
 import { goalFromHowTo, isHowTo, vagueGoal } from '../src/shared/howto';
+import { changedBox } from '../src/main/ai/changed-box';
 import { clickFact, formatContext, inspectPrompt, scrub } from '../src/main/ai/inspect-text';
 
 test('practice files survive repeated setup; folder actions reject arbitrary paths; picker cancel does not open', async () => {
@@ -245,4 +246,20 @@ test('after a press on the highlighted button the model is told the step was don
   const off = clickFact(null, false);
   assert.match(off, /not on the highlighted thing/);
   assert.doesNotMatch(off, /DID the last hint/);
+});
+
+test('the opened menu is found as the place where two screenshots differ, nearest to the press', () => {
+  const w = 384, h = 216;
+  const before = Buffer.alloc(w * h * 4, 250);
+  const after = Buffer.from(before);
+  const paint = (x0: number, y0: number, bw: number, bh: number) => {
+    // строки текста через одну, как в меню на светлом фоне
+    for (let y = y0; y < y0 + bh; y++) for (let x = x0; x < x0 + bw; x++) if (y % 5 < 2) after.fill(60, (y * w + x) * 4, (y * w + x) * 4 + 3);
+  };
+  paint(40, 20, 70, 110);  // меню
+  paint(300, 180, 40, 16); // часы в углу тоже поменялись
+  const box = changedBox(before, after, w, h, { x: 50, y: 16 })!;
+  assert.ok(box.x <= 40 && box.x + box.w >= 110 && box.y <= 20 && box.y + box.h >= 128, JSON.stringify(box));
+  assert.ok(box.w < 100 && box.h < 140, 'the far change is not merged in');
+  assert.equal(changedBox(before, before, w, h), null);
 });

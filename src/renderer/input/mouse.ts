@@ -118,6 +118,7 @@ function onCatClick(): void {
   // во время подсказки клик по коту ничего не ломает, но всегда даёт выход: повторить или закончить
   if (guide.active) {
     if (guide.busy) return;
+    if (guide.kind === 'ai' && repeatAiStep()) return;
     const acts = (guide.kind === 'ai' && guide.last ? aiStepActions() : null)
       ?? (guide.kind === 'script' ? currentStepActions() : null)
       ?? [[T('g.stop'), () => endGuide(true), true]];

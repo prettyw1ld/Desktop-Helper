@@ -64,3 +64,26 @@ export function guideMasks(): Rect[] {
     .map((e) => e.getBoundingClientRect())
     .map((r) => ({ x: Math.round(r.left - 12), y: Math.round(r.top - 12), w: Math.round(r.width + 24), h: Math.round(r.height + 24) }));
 }
+
+/**
+ * Кот стоит поверх того, что открылось (меню, окно): отпрыгивает вбок, чтобы не закрывать.
+ * box — в координатах окна кота. Большое окно (почти весь экран) не обойти: остаётся на месте.
+ */
+export function stepAside(box: Rect): void {
+  if (['drag', 'jump', 'fall'].includes(cat.state)) return;
+  if (box.w * box.h > W() * H() * 0.55) return;
+  const s = $('#sprite').getBoundingClientRect();
+  const hit = s.left < box.x + box.w && s.right > box.x && s.top < box.y + box.h && s.bottom > box.y;
+  if (!hit || !s.width) return;
+  const half = 52 * size();
+  const now = cx();
+  const spots = [box.x + box.w + half + 10, box.x - half - 10].filter((x) => x >= half && x <= W() - half);
+  if (!spots.length) return;
+  const center = spots.sort((a, b) => Math.abs(a - now) - Math.abs(b - now))[0]!;
+  const facing = center < box.x + box.w / 2 ? 1 : -1;
+  jumpTo(center, cat.y, null, () => {
+    if (!guide.active) { startFall(); return; }
+    cat.dir = facing;
+    setState('perch');
+  });
+}

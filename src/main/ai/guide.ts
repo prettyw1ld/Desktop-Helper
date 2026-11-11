@@ -6,6 +6,7 @@ import { aiError, fetchAI, fetchAIRetry, readError } from './http';
 import { CLAUDE_URL, cleanReply, extraFor, pickModel, resolve } from './llm';
 import { cropSelection, formatContext, inspectPrompt, INSPECT_SYSTEM, scrub, windowView } from './screen-region';
 import { clickFact } from './inspect-text';
+import { changedBox } from './changed-box';
 import { boxUnits, cleanPlan, formatMarks, pickMark, refineCrop, stepOf, withTaskbar, type ElementHint, type Mark } from './show';
 import { guideLog } from './guide-log';
 import { toFrame } from '../geometry';
@@ -372,11 +373,58 @@ async function askOllama({ ollamaUrl, visionModel, ollamaModel, system, text, jp
 // ---------- Нажатие мышью во время подсказки ----------
 // Что человек нажал, узнаём у системы сразу в момент нажатия: через секунду на этом месте может быть уже другое окно.
 let lastClick: { at: number; ctx: Promise<InspectContext | null> } | null = null;
+// где нажали, в долях экрана: рядом с этим местом ищем то, что открылось
+let clickSpot: { fx: number; fy: number; at: number } | null = null;
+
+// ---------- Что открылось после нажатия ----------
+// Маленькая копия прошлого снимка (без кота: он исключён из захвата). Сравниваем с новым снимком
+// и находим место, где экран поменялся. Так кот знает, где открылось меню или окно, в любой программе.
+const SMALL_W = 384;
+let prevSmall: { bmp: Buffer; w: number; h: number } | null = null;
+// что открылось, в долях экрана (для «Подробнее»: вырезаем это место покрупнее)
+let openedFrac: Rect | null = null;
+
+function small(shot: Shot): { bmp: Buffer; w: number; h: number } | null {
+  try {
+    const h = Math.round((shot.h * SMALL_W) / shot.w);
+    const img = shot.image.resize({ width: SMALL_W, height: h, quality: 'good' });
+    const size = img.getSize();
+    const bmp = img.toBitmap();
+    return bmp.length === size.width * size.height * 4 ? { bmp, w: size.width, h: size.height } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Где экран поменялся с прошлого снимка, в долях экрана; null — почти нигде. */
+function openedSince(cur: { bmp: Buffer; w: number; h: number } | null): Rect | null {
+  if (!cur || !prevSmall || prevSmall.w !== cur.w || prevSmall.h !== cur.h) return null;
+  const near = clickSpot && Date.now() - clickSpot.at < 8000 ? { x: clickSpot.fx * cur.w, y: clickSpot.fy * cur.h } : null;
+  const box = changedBox(prevSmall.bmp, cur.bmp, cur.w, cur.h, near);
+  if (!box) return null;
+  const r = { x: box.x / cur.w, y: box.y / cur.h, w: box.w / cur.w, h: box.h / cur.h };
+  // крошечное пятно — подсветка под курсором, а не меню
+  return r.w * cur.w < 40 || r.h * cur.h < 24 ? null : r;
+}
+
+/** Вырезать из снимка то, что открылось, с запасом по краям (чтобы модель прочла мелкие пункты). */
+function cropOpened(shot: Shot, f: Rect): NativeImage | null {
+  if (f.w * f.h > 0.6) return null;
+  const pad = 0.03;
+  const x = Math.max(0, Math.floor((f.x - pad) * shot.w));
+  const y = Math.max(0, Math.floor((f.y - pad) * shot.h));
+  const r = Math.min(shot.w, Math.ceil((f.x + f.w + pad) * shot.w));
+  const b = Math.min(shot.h, Math.ceil((f.y + f.h + pad) * shot.h));
+  if (r - x < 120 || b - y < 80) return null;
+  try { return shot.image.crop({ x, y, width: r - x, height: b - y }); } catch { return null; }
+}
 
 /** p — точка нажатия в координатах окна кота (оно начинается в углу основного экрана). */
 export function noteClick(p: { x: number; y: number } | null): void {
+  const d = screen.getPrimaryDisplay();
+  clickSpot = p ? { fx: p.x / d.size.width, fy: p.y / d.size.height, at: Date.now() } : null;
   if (!p || process.platform !== 'win32') { lastClick = null; return; }
-  const b = screen.getPrimaryDisplay().bounds;
+  const b = d.bounds;
   const px = screen.dipToScreenRect(null, { x: p.x + b.x - 4, y: p.y + b.y - 4, width: 8, height: 8 });
   const ctx = withTimeout(locate.ask({ op: 'context', x: px.x, y: px.y, w: px.width, h: px.height }), 2500, { error: 'timeout' })
     .then((res) => res.ctx ?? null)
@@ -497,7 +545,30 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
   const tShot = Date.now() - t0;
   const marks = await marksP;
   const tMarks = Date.now() - t0;
-  const image = inspect ? cropSelection(shot, selection) : shot.image;
+  // что появилось на экране с прошлого снимка (после нажатия): меню, список, окно
+  let openedBox: Rect | null = null;
+  let openedNote = '';
+  if (!inspect && !more) {
+    const cur = small(shot);
+    if (mode === 'check') {
+      const f = openedSince(cur);
+      // почти весь экран поменялся — это уже другое окно целиком, а не меню поверх
+      if (f) {
+        openedFrac = f;
+        const ds = shot.display.size;
+        openedBox = { x: Math.round(f.x * ds.width), y: Math.round(f.y * ds.height), w: Math.round(f.w * ds.width), h: Math.round(f.h * ds.height) };
+        openedNote = `System fact (reliable): since the previous screenshot the screen changed in the box x=${Math.round(f.x * shot.w)}, y=${Math.round(f.y * shot.h)}, `
+          + `w=${Math.round(f.w * shot.w)}, h=${Math.round(f.h * shot.h)} (screenshot pixels). Most likely that is what the press opened: look there.`;
+      } else if (cur && prevSmall) {
+        openedFrac = null;
+      }
+    } else {
+      openedFrac = null;
+    }
+    if (cur) prevSmall = cur;
+  }
+  const zoom = more && openedFrac ? cropOpened(shot, openedFrac) : null;
+  const image = inspect ? cropSelection(shot, selection) : zoom ?? shot.image;
   // «Объясни, что это»: ещё снимок всего окна с рамкой вокруг выделения и сведения от системы
   const tCtx = Date.now();
   const ctx = inspect ? await inspectContext(shot, selection) : null;
@@ -511,7 +582,9 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
   const clicked = mode === 'check' ? await clickText(req.click) : '';
   const text = inspect
     ? inspectPrompt(facts, !!view)
-    : `${userText(req)}\n${clicked ? `${clicked}\n` : ''}${coords}\n${formatMarks(marks)}`;
+    : more
+      ? `${userText(req)}${zoom ? '\nThe image is the part of the screen that appeared after their press, zoomed in.' : ''}`
+      : `${userText(req)}\n${clicked ? `${clicked}\n` : ''}${openedNote ? `${openedNote}\n` : ''}${coords}\n${formatMarks(marks)}`;
 
   const input: ModelInput = {
     ...settings,
@@ -562,7 +635,7 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
     mode, ms: { shot: tShot, marks: tMarks, model: tModel, refine: tRefine },
     display: { size: d.size, scale: d.scaleFactor, work: d.workArea, shot: [shot.w, shot.h] },
     marks: marks.length, taskbarMarks: marks.filter((m) => m.area === 'taskbar').length,
-    status: out.status, say: String(out.say || '').slice(0, 80), opened: typeof out.opened === 'string' ? out.opened.length : 0,
+    status: out.status, say: String(out.say || '').slice(0, 80), opened: typeof out.opened === 'string' ? out.opened.length : 0, openedBox, zoom: zoom?.getSize() ?? null,
     rawTarget: out.target, elementId: out.elementId ?? null, element: out.element ?? null,
     picked: mark ? { id: mark.id, name: mark.name, type: mark.type } : null, refined, target,
   });
@@ -577,6 +650,7 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
     details: inspect && out.details ? String(out.details).trim().slice(0, 900) : '',
     opened: (mode === 'check' || more) && typeof out.opened === 'string' ? out.opened.trim().slice(0, 1200) : '',
     hasMore: out.hasMore !== false,
+    openedBox,
     target,
     snapped,
     plan,
