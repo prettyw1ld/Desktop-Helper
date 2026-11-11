@@ -121,7 +121,11 @@ function planText(plan: string[] = []): string {
 
 function userText({ mode, goal = '', history = [], previousSummary, plan = [], level = 1, item = '' }: LookRequest): string {
   if (mode === 'practice') {
-    return `The user chose to practice this goal themselves: ${goal}. Give exactly ONE safe physical action to begin, with status step and its target. `
+    const open = item
+      ? `The menu with the item «${item.slice(0, 80)}» is open on the screen right now. If pressing that item is the way to the goal, `
+        + `the first action is pressing it: put "${item.slice(0, 80)}" into element.name (type "menu item") and its box into target. `
+      : '';
+    return `The user chose to practice this goal themselves: ${goal}. ${open}Give exactly ONE safe physical action to begin, with status step and its target. `
       + 'Do not claim success before they attempt it. Never perform the action yourself. If the goal is already achieved, ask them to choose another element using status not_found. '
       + 'Do not suggest deletion, sending messages, purchases, installation, entering credentials, or changing configuration.';
   }

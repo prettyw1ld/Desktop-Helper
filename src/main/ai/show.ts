@@ -177,9 +177,11 @@ export function withTaskbar(items: LocateItem[], now = Date.now()): LocateItem[]
 
 /** Название пункта меню без сочетания клавиш в конце: «Go to Line/Column... Ctrl+G» → «Go to Line/Column...». */
 export function itemLabel(name: string): string {
-  return name.replace(/\s+/g, ' ').trim()
-    .replace(/\s+(?:(?:Ctrl|Alt|Shift|Win|Cmd|Option)\+[\w+\-]+|F\d{1,2})$/i, '')
-    .trim().slice(0, 60);
+  const key = /\s+(?:(?:Ctrl|Alt|Shift|Win|Cmd|Option)\+\S+|F\d{1,2})$/i;
+  let out = name.replace(/\s+/g, ' ').trim();
+  // сочетаний бывает два подряд: «Last Edit Location Ctrl+K Ctrl+Q»
+  for (let i = 0; i < 3 && key.test(out); i++) out = out.replace(key, '');
+  return out.trim().slice(0, 60);
 }
 
 /** Пункты из рассказа ИИ, если система их не дала: строки вида «Название» — что делает. */

@@ -245,11 +245,12 @@ function showChooser(page: number): void {
 }
 
 /** Рассказ про один пункт: попробовать, вернуться к списку или идти дальше. */
-function showItem(text: string, res: LookResult): void {
+function showItem(text: string, res: LookResult, item: string): void {
   hideRing();
   const actions: Action[] = [];
   const practice = res.practiceGoal;
-  if (practice) actions.push(['Покажи, как', () => startGuide(practice, 'practice'), true]);
+  // меню ещё открыто: первый шаг — нажать этот пункт в нём
+  if (practice) actions.push(['Покажи, как', () => startGuide(practice, 'practice', item), true]);
   actions.push(['Другой пункт', () => showChooser(0)]);
   actions.push(['Понятно', finishTour, !practice]);
   tell(text, { guide: true, actions });
@@ -312,7 +313,7 @@ export async function look(mode: LookMode, click?: { onTarget: boolean }, item?:
     return;
   }
   if (more && item) {
-    showItem(res.opened || res.explain || `Про «${item}» сейчас рассказать не получилось.`, res);
+    showItem(res.opened || res.explain || `Про «${item}» сейчас рассказать не получилось.`, res, item);
     return;
   }
   if (more) {
@@ -365,14 +366,14 @@ function withShotConsent(go: () => void): void {
   speak(text);
 }
 
-export function startGuide(goal: string, mode: LookMode = 'start'): void {
+export function startGuide(goal: string, mode: LookMode = 'start', item?: string): void {
   goal = String(goal || '').trim();
   if (!goal) return;
   withShotConsent(() => {
     closePanels();
     endTrainer();
     Object.assign(guide, { active: true, kind: 'ai', goal, history: [], plan: [], stepIndex: 0, screenSummary: '', last: null, busy: false });
-    look(mode);
+    look(mode, undefined, item);
   });
 }
 

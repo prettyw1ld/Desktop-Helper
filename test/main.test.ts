@@ -316,6 +316,8 @@ test('menu item labels lose their shortcut; items can be read from the AI text',
   assert.equal(itemLabel('Go to Line/Column... Ctrl+G'), 'Go to Line/Column...');
   assert.equal(itemLabel('Go to Symbol in Editor... Ctrl+Shift+O'), 'Go to Symbol in Editor...');
   assert.equal(itemLabel('Go to Definition F12'), 'Go to Definition');
+  assert.equal(itemLabel('Last Edit Location Ctrl+K Ctrl+Q'), 'Last Edit Location');
+  assert.equal(itemLabel('Go to Bracket Ctrl+Shift+\\'), 'Go to Bracket');
   assert.equal(itemLabel('Back'), 'Back');
   assert.deepEqual(itemsFromText('Меню переходов.\n«Back» — назад.\n- «Go to File...» (Ctrl+P) — файл.\nтекст «внутри» строки'), ['Back', 'Go to File...']);
 });

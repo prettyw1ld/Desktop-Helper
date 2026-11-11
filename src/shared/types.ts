@@ -106,7 +106,7 @@ export interface LookRequest {
   previousSummary?: string;
   plan?: string[];      // путь к цели, который ИИ продумал на первом шаге
   click?: { onTarget: boolean }; // check: проверяем, потому что человек нажал мышью (onTarget — по выделенной кнопке)
-  item?: string;        // more: рассказать только про этот пункт открытого меню
+  item?: string;        // more: рассказать только про этот пункт открытого меню; practice: этот пункт открыт на экране
   level?: number;       // more: какой по счёту рассказ «Подробнее» о том, что открылось
 }
 

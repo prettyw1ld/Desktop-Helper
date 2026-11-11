@@ -207,3 +207,26 @@ test('an opened menu becomes item buttons: ask about one item, try it, or go bac
   await settle();
   assert.match(bubbleText(), /Нажми «Go to File»/);
 });
+
+test('«Покажи, как» about one item tells the model that item is open on the screen', async () => {
+  api.guideLook = async (req) => {
+    calls.push(req);
+    if (req.mode === 'check') return { ...step('Нажми «Go to File»'), opened: 'Меню «Go».', items: ['Back', 'Go to Line/Column...'] };
+    if (req.mode === 'more' && req.item) return { ...step(''), status: 'explain', target: null, opened: 'Про пункт.', practiceGoal: 'Перейти к строке 10' };
+    return step('Нажми «Go»');
+  };
+  await showFirstStep();
+  mock.timers.tick(1000);
+  onScreenClick({ x: 510, y: 305 });
+  mock.timers.tick(1000);
+  await settle();
+  const press = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('#bubble-actions button')].find((b) => b.textContent === label)!.click();
+  press('Go to Line/Column...');
+  await settle();
+  press('Покажи, как');
+  await settle();
+  const req = calls.at(-1)!;
+  assert.equal(req.mode, 'practice');
+  assert.equal(req.goal, 'Перейти к строке 10');
+  assert.equal(req.item, 'Go to Line/Column...');
+});
