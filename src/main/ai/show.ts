@@ -97,16 +97,36 @@ const isField = (m: Mark) => /^(Edit|ComboBox|Document)$/.test(m.type);
  * Кнопка, которую система нашла по названию от ИИ (found; partial — название лишь содержит слова ИИ),
  * и поля ввода рядом (fields). ИИ просит «поле ввода», а назвал подсказку под ним — показываем само поле.
  */
-export function pickNamed(found: Mark[], fields: Mark[], type: string, guess: Box | null): Mark | null {
+export function pickNamed(found: Mark[], fields: Mark[], type: string, guess: Box | null, name = ''): Mark | null {
   const g = guess && center(guess);
-  const whole = found.filter((m) => !m.partial);
-  const part = found.filter((m) => m.partial);
-  let hit = nearest(whole, g, 700) ?? nearest(part, g, 700);
+  const want = bare(name);
+  // сначала точное название («Go», а не «Go Forward»), потом подходящий тип, потом начало названия, потом часть
+  const rank = (m: Mark) => (m.partial ? 4 : want && bare(m.name) === want ? 0 : 2) + (typeFits(type, m.type) ? 0 : 1);
+  const best = Math.min(...found.map(rank));
+  const top = found.filter((m) => rank(m) === best);
+  let hit = nearest(top, g, 700) ?? (top.length === 1 && best <= 1 ? top[0]! : null);
   if (FIELD.test(type) && !(hit && isField(hit))) {
     const field = (hit && nearest(fields, center(hit.overlay), 160)) ?? nearest(fields, g, 300);
     if (field) hit = field;
   }
   return hit;
+}
+
+/** Название без «&», сочетания клавиш и пояснения в скобках: «Go Forward (Alt+RightArrow)» → «go forward». */
+const bare = (s: string) => itemLabel(s.replace(/&/g, '')).replace(/\s*\([^)]*\)\s*$/, '').replace(/(\.\.\.|…)$/, '').trim().toLowerCase();
+
+const TYPES: [RegExp, RegExp][] = [
+  [/menu/i, /^MenuItem$/],
+  [/tab/i, /^TabItem$/],
+  [/list|tree/i, /^(ListItem|TreeItem|DataItem)$/],
+  [/link/i, /^Hyperlink$/],
+  [/check/i, /^CheckBox$/],
+  [/text|field|edit|search|input|box|поле|поиск|строк/i, /^(Edit|ComboBox|Document)$/],
+  [/button|icon|кноп|значок/i, /^(Button|SplitButton|MenuItem)$/],
+];
+function typeFits(asked: string, sys: string): boolean {
+  const rule = TYPES.find(([a]) => a.test(asked));
+  return !rule || rule[1].test(sys);
 }
 
 /**

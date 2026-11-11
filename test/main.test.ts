@@ -304,6 +304,12 @@ test('the AI names the hint under a text field: the paw goes to the field itself
   const group = mk('Recent: Go to Line/Column history', 'Group', 579, 900, 300, 20, true);
   assert.equal(pickNamed([group, item], [], 'menu item', { x: 600, y: 520, w: 100, h: 30 }), item);
   assert.equal(pickNamed([item], [], 'menu item', { x: 1500, y: 100, w: 20, h: 20 }), null, 'too far from where the AI looks');
+  // «Go» в строке меню VS Code и кнопка «Go Forward» рядом; рамка ИИ ближе к «Go Forward» (так было вживую)
+  const goMenu = mk('Go', 'MenuItem', 578, 135, 30, 30);
+  const forward = mk('Go Forward (Alt+RightArrow)', 'Button', 731, 136, 23, 24);
+  const back = mk('Go Back (Alt+LeftArrow)', 'Button', 705, 136, 23, 24);
+  assert.equal(pickNamed([goMenu, back, forward], [], 'menu item', { x: 776, y: 208, w: 52, h: 37 }, 'Go'), goMenu);
+  assert.equal(pickNamed([back, forward], [], 'button', { x: 776, y: 208, w: 52, h: 37 }, 'Go Forward'), forward);
 });
 
 test('menu item labels lose their shortcut; items can be read from the AI text', () => {

@@ -319,7 +319,7 @@ async function namedMark(name: string, type: string, shot: Shot, guess: Rect | n
   ]) as { items?: LocateItem[]; edits?: LocateItem[]; ms?: number };
   const found = toMarks(res.items ?? [], shot);
   const fields = toMarks(res.edits ?? [], shot);
-  const mark = pickNamed(found, fields, type, guess);
+  const mark = pickNamed(found, fields, type, guess, name);
   guideLog('named', { name, type, found: found.length, fields: fields.length, ms: res.ms ?? null, picked: mark ? { name: mark.name.slice(0, 60), type: mark.type, area: mark.area } : null });
   return mark;
 }
