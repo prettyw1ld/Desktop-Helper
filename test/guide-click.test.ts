@@ -159,4 +159,9 @@ test('dragging the cat while it explains the opened menu keeps the explanation, 
   assert.equal(repeatAiStep(), true);
   assert.match(bubbleText(), /меню переходов/);
   assert.doesNotMatch(bubbleText(), /Нажми «Go»/);
+  // «Понятно»: следующий шаг показан, а кот не стоит на открытом меню
+  const ok = [...document.querySelectorAll<HTMLButtonElement>('#bubble-actions button')].find((b) => b.textContent === 'Понятно')!;
+  ok.click();
+  for (let i = 0; i < 4; i++) { mock.timers.tick(400); land(); await settle(); }
+  assert.match(bubbleText(), /Нажми в стороне/);
 });

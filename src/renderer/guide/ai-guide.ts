@@ -47,6 +47,7 @@ function holdScreen(on: boolean): void {
 function stopWatching(): void {
   stepShown = false;
   reshow = null;
+  openedNow = null;
   setBubbleAvoid([]);
   if (clickTimer) clearTimeout(clickTimer);
   clickTimer = null;
@@ -80,6 +81,8 @@ export function onScreenClick(p: { x: number; y: number } | null): void {
 
 // Что сейчас написано в облачке подсказки: после переноса кота показываем то же самое, а не прошлый шаг.
 let reshow: (() => void) | null = null;
+// Что открылось после нажатия и, видимо, ещё открыто (в координатах окна кота): кот на это не встаёт.
+let openedNow: Rect | null = null;
 function tell(text: string, opts: SayOptions): void {
   reshow = () => say(text, Infinity, opts);
   reshow();
@@ -122,7 +125,9 @@ function showStep(res: LookResult): void {
     speak(res.say);
     watchScreen();
   };
-  if (res.target) goPoint(res.target, sayIt);
+  // меню, которое открылось шагом раньше, ещё на экране: кот встаёт у кнопки, но не на это меню
+  const open = openedNow;
+  if (res.target) goPoint(res.target, open ? () => stepAside(open, sayIt) : sayIt);
   else { setState('busy'); sayIt(); }
 }
 
@@ -173,6 +178,7 @@ const tour = { told: [] as string[], level: 0, after: null as LookResult | null 
 /** Облачко и кот не закрывают то, что открылось (box), а если место неизвестно — кнопку и место под её меню. */
 function keepOpenedClear(box: Rect | null | undefined, pressed: Rect | null | undefined): void {
   const big = !!box && box.w * box.h > innerWidth * innerHeight * 0.55;
+  openedNow = box && !big ? box : null;
   if (box && !big) {
     setBubbleAvoid([openedZone(box), ...(pressed ? targetZones(pressed, innerHeight).slice(0, 1) : [])]);
     stepAside(box);
@@ -260,7 +266,7 @@ export async function look(mode: LookMode, click?: { onTarget: boolean }): Promi
   }
   // после нажатия: не закрываем то, что открылось; в остальных случаях ограничение снимаем
   if (mode === 'check' && click) keepOpenedClear(res.openedBox, pressed);
-  else setBubbleAvoid([]);
+  else { openedNow = null; setBubbleAvoid([]); }
   if (res.screenSummary) guide.screenSummary = res.screenSummary;
   if (res.plan?.length) guide.plan = res.plan;
   if (res.stepIndex) guide.stepIndex = res.stepIndex;
