@@ -103,6 +103,7 @@ export function mockApi(): PushikApi {
       return s.skills;
     },
     hide() {},
+    watchClicks() {},
     quit() {},
     on(ch, cb) { handlers[ch] = cb as (data: never) => void; },
   };

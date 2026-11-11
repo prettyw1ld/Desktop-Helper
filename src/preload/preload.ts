@@ -15,6 +15,7 @@ const api: PushikApi = {
   listCalendar: (days) => ipcRenderer.invoke('calendar:list', days),
   quit: () => ipcRenderer.send('app:quit'),
   hide: () => ipcRenderer.send('app:hide'),
+  watchClicks: (on) => ipcRenderer.send('clicks:watch', on),
   simplifyExplanation: (text) => ipcRenderer.invoke('guide:simplify', text),
   guideLook: (req) => ipcRenderer.invoke('guide:look', req),
   guideWatch: (masks) => ipcRenderer.send('guide:watch', masks),

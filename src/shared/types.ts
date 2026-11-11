@@ -196,11 +196,12 @@ export interface PushikEvents {
   'ai-wait': number;
   'work-area': Rect;   // где пол и стены для кота внутри окна (без панели задач)
   'remote-app': string; // запустилась программа удалённого доступа (защита от мошенников)
+  'global-click': undefined; // нажали мышью где угодно на экране (только пока включено watchClicks)
 }
 export type PushikEvent = keyof PushikEvents;
 export const PUSHIK_EVENTS: PushikEvent[] = [
   'reminder', 'reminders-changed', 'open', 'settings-changed', 'calendar-soon', 'calendar-changed',
-  'windows', 'screen-changed', 'ai-wait', 'work-area', 'remote-app',
+  'windows', 'screen-changed', 'ai-wait', 'work-area', 'remote-app', 'global-click',
 ];
 
 /** Мост preload.ts: что окно кота может попросить у главного процесса. */
@@ -217,6 +218,7 @@ export interface PushikApi {
   listCalendar(days: number): Promise<CalendarList>;
   quit(): void;
   hide(): void;
+  watchClicks(on: boolean): void;
   simplifyExplanation(text: string): Promise<{ text: string } | ErrorReply>;
   guideLook(req: LookRequest): Promise<LookResult | ErrorReply>;
   guideWatch(masks: Rect[]): void;

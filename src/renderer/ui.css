@@ -290,3 +290,20 @@ details.more label { margin-top: calc(10px * var(--u)); }
   .panel, .bubble.guide, #ring, #mic.rec, .extras button.pulse, #inspect-element.pulse { animation: none !important; }
   .big, .primary, .ghost, .bubble-actions button { transition: none; }
 }
+
+/* ---------- Окрас кота: три кнопки вместо выпадающего списка ---------- */
+.swatches { display: flex; gap: calc(8px * var(--u)); margin: 0; padding: 0; border: 0; min-width: 0; }
+.swatches legend { padding: 0; margin-bottom: calc(6px * var(--u)); font-weight: 600; font-size: calc(16px * var(--u)); }
+.panel label.swatch {
+  flex: 1 1 0; flex-direction: column; align-items: center; gap: calc(6px * var(--u));
+  padding: calc(10px * var(--u)) calc(6px * var(--u)); border: 2px solid #e2c7a5; border-radius: calc(14px * var(--u));
+  background: var(--paper-2); font-weight: 600; font-size: calc(16px * var(--u)); cursor: pointer; text-align: center;
+}
+.panel label.swatch:hover { border-color: var(--line); }
+.panel label.swatch:has(input:checked) { border-color: var(--line); background: var(--accent-soft); box-shadow: 0 3px 0 var(--line); }
+.panel label.swatch:has(input:focus-visible) { outline: 3px solid var(--ink); outline-offset: 3px; }
+.swatch input { position: absolute; opacity: 0; pointer-events: none; }
+.swatch .dot { width: calc(30px * var(--u)); height: calc(30px * var(--u)); border: 2px solid var(--line); border-radius: 50%; }
+.swatch .dot.ginger { background: #d9822b; }
+.swatch .dot.white { background: #f4efe6; }
+.swatch .dot.black { background: #2d2622; }

@@ -108,7 +108,20 @@ function throwIn(r: Rect): void {
   later(1400, () => showGlow(null));
   // подсказка, как достать кота обратно, потом окно кота прячется, как по «Спрятать»
   later(1300, () => { Sound.meow(); showNote(r, T('trash.inside')); });
-  later(6000, () => { note.classList.add('hidden'); showGlow(null); api.hide(); });
+  later(6000, hideAway);
+  // любое нажатие мыши на экране сразу убирает записку (окно кота клики не ловит, спрашиваем систему)
+  api.watchClicks(true);
+}
+
+// Записка и подсветка пропадают, окно кота прячется, как по «Спрятать».
+function hideAway(): void {
+  // ещё летит в корзину или уже выпрыгивает: щелчок ничего не ломает
+  if (!trashed || flight) return;
+  clearTimers();
+  api.watchClicks(false);
+  note.classList.add('hidden');
+  showGlow(null);
+  api.hide();
 }
 
 function showNote(r: Rect, text: string): void {
@@ -126,6 +139,7 @@ function showNote(r: Rect, text: string): void {
 export async function climbOut(): Promise<void> {
   if (!trashed || flight?.kind === 'out') return;
   clearTimers();
+  api.watchClicks(false);
   note.classList.add('hidden');
   const r = await findBin();
   if (!trashed) return; // пока искали, кота уже достали
@@ -169,6 +183,7 @@ function jumpOut(r: Rect): void {
 // Кот снова на полу и виден.
 function out(): void {
   clearTimers();
+  api.watchClicks(false);
   flight = null;
   trashed = false;
   cat.trashIn = false;
@@ -234,4 +249,5 @@ function frame(): void {
 export function initTrash(): void {
   document.body.append(glow, note);
   onFrame(frame);
+  api.on('global-click', hideAway);
 }

@@ -6,6 +6,7 @@ import { errorDetails, type AiError } from './ai/http';
 import * as guide from './ai/guide';
 import { ask, type ChatMessage, type ChatTools } from './ai/llm';
 import * as stt from './ai/stt';
+import * as clicks from './system/clicks';
 import { createFileActions } from './system/files';
 import * as locate from './system/locate';
 import { toOverlayRect } from './overlay';
@@ -60,6 +61,7 @@ function registerBasics(): void {
   ipcMain.handle('calendar:list', (_e, days: number) => watchers.calendarList(days || 2));
   ipcMain.on('app:quit', () => app.quit());
   ipcMain.on('app:hide', () => ui.win()?.hide());
+  ipcMain.on('clicks:watch', (_e, on: boolean) => { if (on) clicks.watch(() => ui.send('global-click')); else clicks.stop(); });
 }
 
 // ---------- Поиск кнопок без ИИ, файлы, «Открой за меня» ----------

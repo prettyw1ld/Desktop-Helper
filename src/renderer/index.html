@@ -85,13 +85,13 @@
     <header><b data-i18n="set.title"></b><button class="icon" data-close data-i18n-title="close">✕</button></header>
     <form id="settings-form" class="col">
       <label><span data-i18n="set.name"></span><input name="userName" data-i18n-ph="set.namePh" /></label>
-      <label><span data-i18n="set.color"></span>
-        <select name="catColor">
-          <option value="white" data-i18n="set.cWhite"></option>
-          <option value="ginger" data-i18n="set.cGinger"></option>
-          <option value="black" data-i18n="set.cBlack"></option>
-        </select>
-      </label>
+      <!-- кнопки, а не выпадающий список: список открывается вне окна кота, и щелчки по нему уходили «сквозь» -->
+      <fieldset class="swatches">
+        <legend data-i18n="set.color"></legend>
+        <label class="swatch"><input type="radio" name="catColor" value="ginger" /><span class="dot ginger"></span><span data-i18n="set.cGinger"></span></label>
+        <label class="swatch"><input type="radio" name="catColor" value="white" /><span class="dot white"></span><span data-i18n="set.cWhite"></span></label>
+        <label class="swatch"><input type="radio" name="catColor" value="black" /><span class="dot black"></span><span data-i18n="set.cBlack"></span></label>
+      </fieldset>
       <label><span data-i18n="set.size"></span><input name="size" type="range" min="0.5" max="2" step="0.05" /></label>
       <label><span data-i18n="set.uiScale"></span> <output id="ui-scale-value">100%</output><input name="uiScale" type="range" min="0.7" max="1.4" step="0.05" value="1" /></label>
       <label class="check"><input name="speak" type="checkbox" /> <span data-i18n="set.speak"></span></label>

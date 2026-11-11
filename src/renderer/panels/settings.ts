@@ -46,7 +46,8 @@ export function applySettings(): void {
   refreshPlatforms();
 }
 
-const TEXT_FIELDS = ['userName', 'catColor', 'size', 'uiScale'] as const;
+const TEXT_FIELDS = ['userName', 'size', 'uiScale'] as const;
+const catColorField = () => form().elements.namedItem('catColor') as RadioNodeList;
 const CHECK_FIELDS = ['speak', 'sound', 'autostart', 'glass'] as const;
 
 // ---------- Модель ИИ ----------
@@ -89,6 +90,7 @@ function aiChanges(): Partial<Settings> {
 async function fillSettings(): Promise<void> {
   setSettings(await api.getSettings());
   for (const k of TEXT_FIELDS) field(k).value = String(settings[k] ?? '');
+  catColorField().value = settings.catColor;
   field('uiScale').value = String(settings.uiScale || 1);
   for (const k of CHECK_FIELDS) field(k).checked = !!settings[k];
   fillProvider();
@@ -109,7 +111,7 @@ export function initSettings(): void {
     const ai = aiChanges();
     setSettings(await api.saveSettings({
       userName: field('userName').value.trim(),
-      catColor: field<HTMLSelectElement>('catColor').value as typeof settings.catColor,
+      catColor: (catColorField().value || settings.catColor) as typeof settings.catColor,
       size: Number(field('size').value) || 1,
       uiScale: clampScale(field('uiScale').value),
       speak: field('speak').checked,

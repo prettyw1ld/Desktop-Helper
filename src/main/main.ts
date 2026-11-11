@@ -9,6 +9,7 @@ import * as overlay from './overlay';
 import * as protocol from './protocol';
 import * as reminders from './reminders';
 import * as settings from './settings';
+import * as clicks from './system/clicks';
 import * as locate from './system/locate';
 import * as tray from './tray';
 import * as ui from './ui';
@@ -64,6 +65,7 @@ if (!app.requestSingleInstanceLock()) {
     globalShortcut.unregisterAll();
     guide.unwatch();
     locate.stop();
+    clicks.stop();
     watchers.stopAll();
   });
   app.on('window-all-closed', () => app.quit());
