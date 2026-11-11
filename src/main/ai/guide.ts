@@ -138,11 +138,17 @@ function userText({ mode, goal = '', history = [], previousSummary, plan = [], l
       + `${planText(plan)}Follow the planned route and set stepIndex. If the screen shows the route must change (other window, step already done), send a new full plan.`;
   }
   if (mode === 'more') {
-    return `The person opened something while learning: "${goal}". What was already explained to them (do not repeat it):\n${history.map((h) => `- ${h}`).join('\n')}\n`
-      + `They pressed «Подробнее» (level ${level}). Look at the menu, list or window that is open on the screenshot and continue in "opened": `
-      + 'the next 3-6 useful items not explained yet, as "«Name» — what it does, when a beginner would use it", names exactly as written, shortcuts if shown. '
-      + 'At level 3 and later you may add one tip how to use it faster. If it is no longer open, continue from what was explained. '
-      + 'Answer status "explain", "say" = a short title (max 6 words), set hasMore, and give practiceGoal: one safe thing to try with these items (no delete, send, install, settings).';
+    const told = history.length
+      ? `What was already explained to them (do not repeat it):\n${history.map((h) => `- ${h}`).join('\n')}\nThey pressed «Подробнее» (level ${level}). `
+        + 'Continue in "opened": the next 3-6 useful items not explained yet, as "«Name» — what it does, when a beginner would use it", one per line. '
+        + 'At level 3 and later you may add one tip how to use it faster. If it is no longer open, continue from what was explained. '
+      : 'They have just pressed a button and want to understand what it opened. Your ONLY task now is to fill "opened" in Russian: '
+        + 'line 1 — what this menu, list, panel or window is for (one simple sentence); then the 3 most useful items, one per line, as "«Name» — what it does". '
+        + 'If NO menu, list, panel or new window is open on the screenshot, leave "opened" empty. ';
+    return `The person is learning: "${goal}". Look at the menu, list, panel or window that is open on the screenshot. ${told}`
+      + 'Item names exactly as written on the screen, shortcuts if shown. Do not give any action to do, do not tell them to close anything. '
+      + 'Answer status "explain", "say" = a short title (max 6 words), set hasMore (true if items remain unexplained), '
+      + 'and practiceGoal: one safe thing to try with these items (no delete, send, install, settings).';
   }
   return `Goal: "${goal}".\n${done}\nFirst think through the whole route from this screen to the goal and put it in "plan". `
     + 'If the needed app is not visible, the route starts from what IS visible (for example the Start button or search). '

@@ -224,7 +224,9 @@ export async function look(mode: LookMode, click?: { onTarget: boolean }): Promi
     return;
   }
   if (more) {
-    const text = res.opened || res.explain || '';
+    const text = res.opened || (tour.level ? res.explain : '') || '';
+    // спросили, что открылось, а ничего не открылось: идём дальше по шагам
+    if (!text && !tour.level && tour.after) { carryOn(tour.after); return; }
     tour.level++;
     if (text) tour.told.push(text);
     showOpened(text || 'Больше тут рассказывать нечего.', text ? res : { ...res, hasMore: false, practiceGoal: '' });
@@ -237,6 +239,12 @@ export async function look(mode: LookMode, click?: { onTarget: boolean }): Promi
   if (res.opened && (res.status === 'step' || res.status === 'done')) {
     Object.assign(tour, { told: [res.opened], level: 1, after: res });
     showOpened(res.opened, res);
+    return;
+  }
+  // человек нажал выделенную кнопку, а модель не рассказала, что открылось: спрашиваем об этом отдельно
+  if (click?.onTarget && (res.status === 'step' || res.status === 'done')) {
+    Object.assign(tour, { told: [], level: 0, after: res });
+    await look('more');
     return;
   }
   carryOn(res);

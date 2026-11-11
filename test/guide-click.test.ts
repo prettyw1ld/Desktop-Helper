@@ -73,8 +73,14 @@ test('a click anywhere outside the cat checks the step by itself', async () => {
   onScreenClick({ x: 510, y: 305 }); // нажал «Go»
   mock.timers.tick(1000);
   await settle();
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
   assert.equal(calls[1]?.mode, 'check');
+  assert.equal(calls[2]?.mode, 'more', 'the model said nothing about what opened: ask separately');
+  assert.deepEqual(calls[2]?.history, []);
+  mock.timers.tick(400);
+  land();
+  await settle();
+  assert.match(bubbleText(), /Нажми «Back»/, 'nothing opened: carry on with the next step');
   assert.deepEqual(calls[1]?.click, { onTarget: true }, 'the model is told the press hit the highlighted button');
   endGuide(false);
   assert.deepEqual(clicks.at(-1), [false, 'guide']);
