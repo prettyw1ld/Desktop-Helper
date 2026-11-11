@@ -13,7 +13,7 @@ import { cleanPlan, formatMarks, pickMark, refineCrop, showGoal, stepOf, boxUnit
 import { overlayBounds, toFrame, workInFrame } from '../src/main/geometry';
 import { aiKey } from '../src/shared/types';
 import { goalFromHowTo, isHowTo, vagueGoal } from '../src/shared/howto';
-import { changedBox } from '../src/main/ai/changed-box';
+import { changedBox, screenMoved } from '../src/main/ai/changed-box';
 import { clickFact, formatContext, inspectPrompt, scrub } from '../src/main/ai/inspect-text';
 
 test('practice files survive repeated setup; folder actions reject arbitrary paths; picker cancel does not open', async () => {
@@ -262,4 +262,20 @@ test('the opened menu is found as the place where two screenshots differ, neares
   assert.ok(box.x <= 40 && box.x + box.w >= 110 && box.y <= 20 && box.y + box.h >= 128, JSON.stringify(box));
   assert.ok(box.w < 100 && box.h < 140, 'the far change is not merged in');
   assert.equal(changedBox(before, before, w, h), null);
+});
+
+test('a dark menu closing on a dark window counts as a screen change, a clock tick or the cat do not', () => {
+  const w = 160, h = 90;
+  const dark = Buffer.alloc(w * h * 4, 30);
+  const menu = Buffer.from(dark);
+  // тёмное меню 28×45 с редкими светлыми строками: сильно меняется лишь малая доля пикселей
+  for (let y = 8; y < 53; y++) for (let x = 24; x < 52; x++) {
+    const i = (y * w + x) * 4;
+    menu.fill(y % 6 === 0 ? 200 : 45, i, i + 3);
+  }
+  assert.equal(screenMoved(menu, dark, w, h), true, 'the menu closed');
+  const clock = Buffer.from(dark);
+  for (let y = 84; y < 89; y++) for (let x = 150; x < 158; x++) clock.fill(220, (y * w + x) * 4, (y * w + x) * 4 + 3);
+  assert.equal(screenMoved(dark, clock, w, h), false, 'only the clock changed');
+  assert.equal(screenMoved(menu, dark, w, h, (x, y) => x >= 20 && x < 56 && y >= 4 && y < 57), false, 'the change is where the cat is drawn');
 });

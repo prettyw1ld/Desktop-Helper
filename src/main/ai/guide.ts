@@ -6,7 +6,7 @@ import { aiError, fetchAI, fetchAIRetry, readError } from './http';
 import { CLAUDE_URL, cleanReply, extraFor, pickModel, resolve } from './llm';
 import { cropSelection, formatContext, inspectPrompt, INSPECT_SYSTEM, scrub, windowView } from './screen-region';
 import { clickFact } from './inspect-text';
-import { changedBox } from './changed-box';
+import { changedBox, screenMoved } from './changed-box';
 import { boxUnits, cleanPlan, formatMarks, pickMark, refineCrop, stepOf, withTaskbar, type ElementHint, type Mark } from './show';
 import { guideLog } from './guide-log';
 import { toFrame } from '../geometry';
@@ -696,19 +696,8 @@ export function watch({ masks = [], onChange }: { masks?: Rect[]; onChange: () =
       const took = Date.now() - started;
       if (took > 300) { slowUntil = Date.now() + took * 8; guideLog('watch-slow', { ms: took }); }
       if (!base) { base = bmp; return; }
-      let diff = 0;
-      let n = 0;
-      for (let y = 0; y < size.height; y += 2) {
-        for (let x = 0; x < size.width; x += 2) {
-          if (masked(x, y)) continue;
-          const i = (y * size.width + x) * 4;
-          const d = Math.abs(bmp[i]! - base[i]!) + Math.abs(bmp[i + 1]! - base[i + 1]!) + Math.abs(bmp[i + 2]! - base[i + 2]!);
-          if (d > 60) diff++;
-          n++;
-        }
-      }
-      // поменялось больше 3% экрана: открылось окно, страница и т.п.
-      if (n && diff / n > 0.03) { unwatch(); onChange(); }
+      // открылось или закрылось окно, страница, меню
+      if (screenMoved(base, bmp, size.width, size.height, masked)) { unwatch(); onChange(); }
     } catch { /* нет доступа к экрану: просто ждём кнопку «Сделал» */ } finally { busy = false; }
   }, 2000);
 }

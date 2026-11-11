@@ -81,3 +81,29 @@ export function changedBox(a: Buffer, b: Buffer, w: number, h: number, near?: { 
   const y = pick.y0 * CELL;
   return { x, y, w: Math.min(w, (pick.x1 + 1) * CELL) - x, h: Math.min(h, (pick.y1 + 1) * CELL) - y };
 }
+
+/**
+ * Заметно ли поменялся экран между снимками a и b (BGRA w×h): открылось или закрылось окно, меню, список.
+ * skip(x, y) — места, где нарисован сам кот: их не сравниваем.
+ * Сильно поменялось больше 3% экрана — или есть одно сплошное место от 2% экрана
+ * (тёмное меню на тёмном окне меняет мало пикселей сильно, но целым куском).
+ */
+export function screenMoved(a: Buffer, b: Buffer, w: number, h: number, skip: (x: number, y: number) => boolean = () => false): boolean {
+  if (a.length !== b.length || a.length < w * h * 4) return false;
+  const cur = Buffer.from(b);
+  let diff = 0;
+  let n = 0;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      if (skip(x, y)) { a.copy(cur, i, i, i + 4); continue; }
+      if (x % 2 || y % 2) continue;
+      const d = Math.abs(cur[i]! - a[i]!) + Math.abs(cur[i + 1]! - a[i + 1]!) + Math.abs(cur[i + 2]! - a[i + 2]!);
+      if (d > 60) diff++;
+      n++;
+    }
+  }
+  if (n && diff / n > 0.03) return true;
+  const box = changedBox(a, cur, w, h);
+  return !!box && box.w * box.h >= w * h * 0.02;
+}
