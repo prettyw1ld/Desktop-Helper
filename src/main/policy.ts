@@ -15,9 +15,16 @@ export interface PolicyAi {
   apiKey: string;
 }
 
+/** Сервер присутствия: админ-панель видит, кто из котов бодрствует, а кто спит. */
+export interface PolicyPresence {
+  url: string;                 // https://pushik.corp — адрес сервера
+  secret: string;              // секрет регистрации: по нему устройство получает свой токен
+}
+
 export interface Policy {
   org: string;
   ai: PolicyAi | null;         // null: ИИ выключен (в том числе когда политика испорчена)
+  presence: PolicyPresence | null;
   features: Features;
   privacy: Privacy;
   problem: string;             // почему политика не принята целиком; пусто, если всё в порядке
@@ -44,7 +51,7 @@ export function checkUrl(value: string, allowHttp = false): string {
  * испорченная политика не должна открывать дорогу в облако.
  */
 export function parsePolicy(raw: unknown): Policy {
-  const off = (problem: string, org = ''): Policy => ({ org, ai: null, features: { ...ALL_FEATURES }, privacy: { ...OPEN_PRIVACY }, problem });
+  const off = (problem: string, org = ''): Policy => ({ org, ai: null, presence: null, features: { ...ALL_FEATURES }, privacy: { ...OPEN_PRIVACY }, problem });
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return off('policy is not an object');
   const o = raw as Record<string, unknown>;
   const org = str(o.org).slice(0, 80);
@@ -54,15 +61,26 @@ export function parsePolicy(raw: unknown): Policy {
     for (const k of FEATURE_KEYS) if (typeof f[k] === 'boolean') features[k] = f[k];
   }
   const privacy = parsePrivacy(o.privacy);
-  if (o.ai === null || o.ai === false || o.ai === undefined) return { org, ai: null, features, privacy, problem: '' };
-  if (typeof o.ai !== 'object') return { ...off('ai must be an object', org), features, privacy };
+  const presence = parsePresence(o.presence);
+  if (o.ai === null || o.ai === false || o.ai === undefined) return { org, ai: null, presence, features, privacy, problem: '' };
+  if (typeof o.ai !== 'object') return { ...off('ai must be an object', org), presence, features, privacy };
   const a = o.ai as Record<string, unknown>;
   const kind = str(a.kind) === 'ollama' ? 'ollama' : 'openai';
   const url = checkUrl(str(a.url), a.allowHttp === true);
   const model = str(a.model);
-  if (!url) return { ...off('ai.url must be https (http only for localhost or with allowHttp)', org), features, privacy };
-  if (!model) return { ...off('ai.model is empty', org), features, privacy };
-  return { org, ai: { kind, url, model, visionModel: str(a.visionModel) || model, apiKey: str(a.apiKey) }, features, privacy, problem: '' };
+  if (!url) return { ...off('ai.url must be https (http only for localhost or with allowHttp)', org), presence, features, privacy };
+  if (!model) return { ...off('ai.model is empty', org), presence, features, privacy };
+  return { org, ai: { kind, url, model, visionModel: str(a.visionModel) || model, apiKey: str(a.apiKey) }, presence, features, privacy, problem: '' };
+}
+
+/** Раздел presence: без адреса или секрета присутствие просто выключено, остальная политика работает. */
+export function parsePresence(v: unknown): PolicyPresence | null {
+  if (!v || typeof v !== 'object') return null;
+  const p = v as Record<string, unknown>;
+  const url = checkUrl(str(p.url), p.allowHttp === true);
+  const secret = str(p.secret);
+  if (!url || secret.length < 16) return null;
+  return { url, secret };
 }
 
 /** Вывод `reg query` → значения ключа: «    AiUrl    REG_SZ    https://…». */
@@ -91,6 +109,7 @@ export function regToRaw(v: Record<string, string>): Record<string, unknown> | n
   if (v.Screenshots || v.DenyApps) {
     raw.privacy = { screenshots: v.Screenshots || 'screen', denyApps: (v.DenyApps || '').split(/[;,]/).map((a) => a.trim()).filter(Boolean) };
   }
+  if (v.PresenceUrl) raw.presence = { url: v.PresenceUrl, secret: v.PresenceSecret, allowHttp: regBool(v.PresenceAllowHttp) === true };
   if (regBool(v.AiOff)) raw.ai = null;
   else if (v.AiUrl || v.AiModel) {
     raw.ai = { kind: v.AiKind, url: v.AiUrl, model: v.AiModel, visionModel: v.AiVisionModel, allowHttp: regBool(v.AiAllowHttp) === true };

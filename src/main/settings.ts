@@ -77,6 +77,7 @@ let policy: Policy | null = null;
 export const managed = (): boolean => !!policy;
 export const features = () => policy?.features ?? ALL_FEATURES;
 export const privacy = () => policy?.privacy ?? OPEN_PRIVACY;
+export const presence = () => policy?.presence ?? null;
 // ролевые пакеты организации; без политики их нет
 let packList: Pack[] = [];
 export const packs = (): readonly Pack[] => packList;
