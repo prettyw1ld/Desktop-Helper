@@ -31,6 +31,21 @@ export function mockApi(): PushikApi {
     onboarded: q.has('onboarded'), contact: q.get('contact') ?? 'Маша',
     uiScale: Number(q.get('scale')) || 1, aiReady: q.has('ai'), locator: true, platform: q.get('platform') || 'win32',
   };
+  // ?pack: корпоративный режим с маленьким пакетом организации
+  if (q.has('pack')) {
+    Object.assign(s, {
+      managed: true, org: 'Отдел ИБ', host: 'PC-042',
+      packLessons: [{
+        id: 'pack:security:lock-screen', pack: 'Безопасность', title: { ru: 'Заблокируй экран', en: 'Lock the screen' }, words: '', match: 'заблокир', goal: '', done: '',
+        steps: [{ say: 'Нажми вместе клавиши Win и L.', wait: { manual: true } }],
+      }],
+      packReports: [{
+        id: 'report:security', title: { ru: 'Сообщить об инциденте', en: 'Report an incident' }, to: 'security@company.example',
+        intro: 'Не выключай компьютер. Ответь на несколько вопросов.',
+        questions: [{ ask: 'Что случилось?', options: ['Открыл(а) подозрительное письмо', 'Антивирус что-то нашёл'] }, { ask: 'Как с тобой связаться?', options: [] }],
+      }],
+    });
+  }
   const day = new Date();
   const at = (h: number, m: number) => new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m).getTime();
   // тестовый «помощник»: два шага и успех
@@ -96,6 +111,7 @@ export function mockApi(): PushikApi {
     filesAction: async ({ op }) => (op === 'access' ? { trusted: true } : { ok: true }),
     openUri: async () => true,
     openDrive: async () => true,
+    copyText: async () => true,
     transcribe: async () => ({ text: 'Хочу позвонить по видео' }),
     askMic: async () => true,
     addSkill: async (name) => {

@@ -11,7 +11,7 @@ export const DEFAULT_SETTINGS: PublicSettings = {
   hasApiKey: false, hasCalendar: false, hasStt: false, hasVosk: false, aiReady: false, teamKey: false,
   keys: { groq: false, deepseek: false, qwen: false },
   locator: false, platform: 'win32',
-  managed: false, org: '', features: { chat: true, guide: true, inspect: true }, packLessons: [],
+  managed: false, org: '', features: { chat: true, guide: true, inspect: true }, packLessons: [], packReports: [], host: '',
 };
 
 /** Текущие настройки. Читать можно откуда угодно: модули видят обновления (live binding). */

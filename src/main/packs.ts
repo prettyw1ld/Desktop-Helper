@@ -3,7 +3,7 @@
 // администратор. Читаются только в корпоративном режиме. Без Electron, чтобы проверять тестами.
 import fs from 'node:fs';
 import path from 'node:path';
-import type { PackLesson, PackStep } from '../shared/types';
+import type { PackLesson, PackReport, PackStep, ReportQuestion } from '../shared/types';
 
 export interface PackExplain { proc: RegExp | null; title: RegExp | null; text: string }
 
@@ -13,6 +13,7 @@ export interface Pack {
   prompt: string;
   lessons: PackLesson[];
   explain: PackExplain[];
+  report: PackReport | null;
 }
 
 export interface PackSet {
@@ -20,7 +21,8 @@ export interface PackSet {
   problems: string[];   // что пропущено и почему: в журнал, человеку не показываем
 }
 
-export const LIMITS = { packs: 10, prompt: 2000, lessons: 30, steps: 20, say: 160, hint: 400, explain: 50, regex: 200, text: 600 };
+export const LIMITS = { packs: 10, prompt: 2000, lessons: 30, steps: 20, say: 160, hint: 400, explain: 50, regex: 200, text: 600, questions: 12, options: 6 };
+const EMAIL = /^[^\s@<>"]{1,64}@[\w.-]{1,190}\.[a-z]{2,}$/i;
 const ID = /^[a-z0-9][a-z0-9-]{0,39}$/;
 const SCOPE = /^(top|taskbar|start|proc:.{1,80})$/;
 const TYPES = new Set(['Button', 'MenuItem', 'ListItem', 'TreeItem', 'TabItem', 'Edit', 'CheckBox', 'RadioButton', 'Hyperlink', 'ComboBox', 'Text', 'Image', 'SplitButton']);
@@ -124,6 +126,26 @@ function lesson(v: unknown, packId: string, packTitle: string, where: string): P
   };
 }
 
+function report(v: unknown, packId: string, where: string): PackReport | null {
+  if (v === undefined || v === null) return null;
+  if (typeof v !== 'object') return fail(`${where}: must be an object`);
+  const o = v as Record<string, unknown>;
+  const raw = Array.isArray(o.questions) ? o.questions : [];
+  if (!raw.length) fail(`${where}: needs questions`);
+  if (raw.length > LIMITS.questions) fail(`${where}: more than ${LIMITS.questions} questions`);
+  const questions = raw.map((q, i): ReportQuestion => {
+    const x = (typeof q === 'string' ? { ask: q } : q && typeof q === 'object' ? q : {}) as Record<string, unknown>;
+    const ask = str(x.ask, LIMITS.say);
+    if (!ask) fail(`${where}.questions[${i}]: ask is empty`);
+    const opts = Array.isArray(x.options) ? x.options.map((a) => str(a, 40)).filter(Boolean) : [];
+    if (opts.length > LIMITS.options) fail(`${where}.questions[${i}]: more than ${LIMITS.options} options`);
+    return { ask, options: opts };
+  });
+  const to = str(o.to, 254);
+  if (to && !EMAIL.test(to)) fail(`${where}.to: not an e-mail address`);
+  return { id: `report:${packId}`, title: title(o.title, `${where}.title`), intro: str(o.intro, LIMITS.hint), to, questions };
+}
+
 /** Пакет из разобранного JSON; ошибка — исключение с понятным текстом. */
 export function parsePack(raw: unknown, file = 'pack'): Pack {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) fail(`${file}: not an object`);
@@ -148,6 +170,7 @@ export function parsePack(raw: unknown, file = 'pack'): Pack {
     title: name,
     prompt,
     lessons: parsed,
+    report: report(o.report, id, `${file}.report`),
     explain: explain.map((e, i) => {
       const w = `${file}.explain[${i}]`;
       const x = (e && typeof e === 'object' ? e : {}) as Record<string, unknown>;

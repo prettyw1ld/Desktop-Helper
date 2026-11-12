@@ -8,8 +8,8 @@ import { guide, trainer } from '../guide/state';
 import { hideBubble } from './bubble';
 import { icon } from './icons';
 
-export type PanelName = 'help' | 'lessons' | 'chat' | 'reminders' | 'settings';
-export const PANELS: PanelName[] = ['help', 'lessons', 'chat', 'reminders', 'settings'];
+export type PanelName = 'help' | 'lessons' | 'chat' | 'reminders' | 'settings' | 'report';
+export const PANELS: PanelName[] = ['help', 'lessons', 'chat', 'reminders', 'settings', 'report'];
 export const isPanel = (s: string): s is PanelName => (PANELS as string[]).includes(s);
 
 interface PanelHooks { show?: () => void; close?: () => void }

@@ -2,6 +2,7 @@
 import { T } from '../core/i18n';
 import { can } from '../core/settings';
 import { micState } from '../panels/mic';
+import { openReport, REPORT_WORDS } from '../panels/report';
 import { closePanels, showPanel } from '../ui/panels';
 import { speak } from '../ui/speech';
 import { imLostAI, startGuide } from './ai-guide';
@@ -30,6 +31,7 @@ export function startScenario(sc: Scenarios.Scenario): void {
 
 export function routeGoal(text: string): void {
   if (/помо[гщ].*(файл|проводник|finder)|help with files/i.test(text)) { void startFileLesson('files-learn'); return; }
+  if (REPORT_WORDS.test(text) && openReport()) return;
   const m = Scenarios.match(text);
   if (m === Scenarios.LOST) { imLost(); return; }
   if (m && 'match' in m) { startScenario(m); return; }

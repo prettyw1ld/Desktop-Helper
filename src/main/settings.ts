@@ -1,6 +1,7 @@
 // Настройки: значения по умолчанию, ключи команды из team.json и settings.json человека.
 import { app, safeStorage } from 'electron';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { aiKey, isKeyed, PROVIDER_KEY, type KeyedProvider, type PublicSettings, type SecretKey, type Settings } from '../shared/types';
 import { setAllowedOrigin } from './ai/http';
@@ -226,6 +227,8 @@ export function publicView(): PublicSettings {
     managed: !!policy,
     org: policy?.org ?? '',
     packLessons: packList.flatMap((p) => p.lessons),
+    packReports: packList.flatMap((p) => (p.report ? [p.report] : [])),
+    host: policy ? os.hostname() : '',
     features: { ...features() },
   };
 }

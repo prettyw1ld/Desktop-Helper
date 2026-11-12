@@ -82,6 +82,20 @@ export interface PublicSettings extends Omit<Settings, SecretKey> {
   org: string;           // название организации из политики
   features: Features;
   packLessons: PackLesson[]; // уроки из пакетов организации (корпоративный режим)
+  packReports: PackReport[]; // «Сообщить об инциденте»: вопросы по шагам
+  host: string;              // имя компьютера для отчёта; только в корпоративном режиме
+}
+
+/** Вопрос отчёта: ответ кнопкой из options или своими словами. */
+export interface ReportQuestion { ask: string; options: string[] }
+
+/** «Сообщить об инциденте»: Пушик задаёт вопросы и собирает текст. Сам ничего не отправляет. */
+export interface PackReport {
+  id: string;            // report:<пакет>
+  title: { ru: string; en: string };
+  intro: string;
+  to: string;            // почта отдела безопасности: письмо откроется черновиком
+  questions: ReportQuestion[];
 }
 
 /** Шаг урока из пакета: уже проверен главным процессом, регулярки — строками. */
@@ -297,5 +311,6 @@ export interface PushikApi {
   openUri(uri: string): Promise<boolean>;
   filesAction(req: FilesRequest): Promise<FilesResult>;
   openDrive(letter: string): Promise<boolean>;
+  copyText(text: string): Promise<boolean>;
   on<E extends PushikEvent>(channel: E, cb: (data: PushikEvents[E]) => void): void;
 }

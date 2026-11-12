@@ -1,5 +1,5 @@
 // Все запросы из окна кота (preload.ts) к главному процессу.
-import { app, dialog, ipcMain, screen, shell, systemPreferences } from 'electron';
+import { app, clipboard, dialog, ipcMain, screen, shell, systemPreferences } from 'electron';
 import { T } from '../shared/i18n';
 import type { ChatResult, ErrorReply, FilesRequest, LocateQuery, LookRequest, LookResult, Rect, ReminderKind, Settings, Skill } from '../shared/types';
 import { errorDetails, type AiError } from './ai/http';
@@ -108,8 +108,13 @@ function registerSystem(): void {
   // только безопасные адреса (настройки Windows, WhatsApp, Telegram, сайты) и флешка
   ipcMain.handle('open:uri', (_e, uri: unknown) => {
     const u = String(uri || '');
-    if (!/^(ms-settings:|whatsapp:|tg:|https:\/\/)/.test(u)) return false;
+    // mailto: черновик письма (отчёт об инциденте); отправляет человек сам
+    if (!/^(ms-settings:|whatsapp:|tg:|https:\/\/|mailto:)/.test(u)) return false;
     shell.openExternal(u);
+    return true;
+  });
+  ipcMain.handle('clipboard:write', (_e, text: unknown) => {
+    clipboard.writeText(String(text ?? '').slice(0, 20000));
     return true;
   });
   ipcMain.handle('open:drive', (_e, letter: unknown) => {

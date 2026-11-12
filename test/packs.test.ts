@@ -5,6 +5,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { explainFor, packPrompt, packsDir, parsePack, parsePacks, safeRegex } from '../src/main/packs';
 import { packScenario } from '../src/renderer/guide/scenarios';
+import { composeReport } from '../src/shared/report';
 
 const sample = fs.readFileSync(path.join(__dirname, '../../docs/enterprise/packs/security.json'), 'utf8');
 
@@ -93,4 +94,26 @@ test('explain notes match the window by program or title', () => {
 
 test('packs live next to the policy file', () => {
   assert.equal(packsDir(path.join('C:', 'ProgramData', 'Pushik', 'policy.json')), path.join('C:', 'ProgramData', 'Pushik', 'packs'));
+});
+
+test('the incident report collects answers into a draft and never sends it', () => {
+  const p = parsePack(JSON.parse(sample));
+  const r = p.report!;
+  assert.equal(r.id, 'report:security');
+  assert.equal(r.questions[0]!.options.length, 5);
+  assert.deepEqual(r.questions[2]!.options, []);
+  const d = composeReport(r, ['Антивирус что-то нашёл', 'Только что', '  '], { host: 'PC-042', when: new Date(2026, 10, 12, 14, 5), lang: 'ru' });
+  assert.equal(d.subject, 'Сообщить об инциденте: PC-042');
+  assert.match(d.body, /^Время: 12\.11\.2026, 14:05\nКомпьютер: PC-042\n\n1\. Что случилось\?\nАнтивирус что-то нашёл\n/);
+  assert.match(d.body, /3\. Что именно ты сделал\(а\)\? Опиши своими словами\.\n\(нет ответа\)/);
+  assert.ok(d.mailto.startsWith('mailto:security@company.example?subject='));
+  assert.equal(decodeURIComponent(d.mailto.split('&body=')[1]!), d.body);
+  // без адреса — только текст, письма нет
+  assert.equal(composeReport({ ...r, to: '' }, [], { host: '', when: new Date(), lang: 'en' }).mailto, '');
+});
+
+test('a report with a bad address or no questions breaks the pack', () => {
+  assert.throws(() => parsePack({ id: 'a', title: 'A', report: { title: 'R', to: 'x@y', questions: ['?'] } }), /e-mail/);
+  assert.throws(() => parsePack({ id: 'a', title: 'A', report: { title: 'R', questions: [] } }), /needs questions/);
+  assert.equal(parsePack({ id: 'a', title: 'A', report: { title: 'R', questions: ['Что случилось?'] } }).report!.questions[0]!.ask, 'Что случилось?');
 });

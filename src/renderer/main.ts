@@ -20,6 +20,7 @@ import { initMouse } from './input/mouse';
 import { addMsg, initChat } from './panels/chat';
 import { initHelp } from './panels/help';
 import { initLessons } from './panels/lessons';
+import { initReport } from './panels/report';
 import { initReminders } from './panels/reminders';
 import { applySettings, initSettings } from './panels/settings';
 import { initBubble, say } from './ui/bubble';
@@ -37,6 +38,7 @@ async function start(): Promise<void> {
   initChat();
   initSettings();
   initLessons();
+  initReport();
   initCoach();
   initTrainer();
   initAiGuide();
