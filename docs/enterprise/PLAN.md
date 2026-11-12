@@ -27,11 +27,12 @@
 ### 0.3 Electron и сборка
 - [x] E-09 Electron 33 → 45.3.1
 - [x] E-10 Electron fuses (`tools/fuses.cjs`): `RunAsNode`, `NODE_OPTIONS`, `--inspect` выкл., `OnlyLoadAppFromAsar` вкл. Проверка целостности asar на Windows — после обновления electron-builder до 26 (E-10a)
-- [ ] E-10a Обновить electron-builder до 26 и включить `EnableEmbeddedAsarIntegrityValidation` на Windows
+- [ ] E-10a Включить `EnableEmbeddedAsarIntegrityValidation` на Windows (electron-builder 25.1.8 уже вшивает контрольную сумму asar в exe) и проверить запуск
 - [x] E-11 Чек-лист Electron security: `contextIsolation`, `sandbox`, CSP, allowlist для `openExternal` уже были; добавлен запрет переходов, новых окон и webview
 - [ ] E-11a Убрать `'unsafe-eval'` из CSP, если Vosk работает с одним `'wasm-unsafe-eval'`
 - [ ] E-12 Подготовить подпись кода (Authenticode) в сборке; сам сертификат — за компанией
 - [x] E-13 Тихая установка: NSIS `/S` + готовый `policy.json` (`docs/enterprise/policy.md`)
+- [ ] E-13a Проверить вживую в корпоративном режиме: настройки без раздела ИИ, запрос на внешний адрес блокируется, ответ от настоящего внутреннего сервера
 
 ---
 
@@ -111,3 +112,4 @@
 ## Журнал
 - 2026-11-12 — план создан
 - 2026-11-12 — E-01…E-05, E-14: политика организации (`src/main/policy.ts`, описание в `docs/enterprise/policy.md`)
+- 2026-11-12 — E-07 (частично), E-08…E-11, E-13: Electron 45.3.1, fuses, запрет переходов, лимиты запросов. Сборка на Electron 45 запускается на Windows 11, чат скрыт политикой `features.chat: false`
