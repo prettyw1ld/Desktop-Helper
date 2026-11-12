@@ -45,8 +45,9 @@ public static class PushTop {
   [DllImport("user32.dll")] static extern bool GetGUIThreadInfo(uint tid, ref GTI gi);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, System.Text.StringBuilder s, int n);
   // Поле пароля обычной программы Windows (Edit со стилем ES_PASSWORD): UI Automation видит его не всегда
-  public static bool PasswordFocus() {
-    IntPtr fg = GetForegroundWindow();
+  // h = 0: окно перед человеком; иначе — то окно (у каждого потока свой фокус, даже если окно сзади кота)
+  public static bool PasswordFocus(long h) {
+    IntPtr fg = h != 0 ? new IntPtr(h) : GetForegroundWindow();
     if (fg == IntPtr.Zero) return false;
     uint pid; uint tid = GetWindowThreadProcessId(fg, out pid);
     GTI gi = new GTI(); gi.cb = Marshal.SizeOf(typeof(GTI));
@@ -713,7 +714,10 @@ function Guard() {
     $f = $AE::FocusedElement
     if ($f -and $f.Current.IsPassword -and $f.Current.ProcessId -ne ${skipPid}) { $res.password = $true }
   } catch {}
-  try { if (-not $res.password -and [PushTop]::PasswordFocus()) { $res.password = $true } } catch {}
+  # кот перехватил окно (человек нажал на облачко): смотрим фокус в окне под ним
+  $hw = 0
+  if ($el -and -not $res.password) { try { $hw = [long]$el.Current.NativeWindowHandle } catch {} }
+  try { if (-not $res.password -and [PushTop]::PasswordFocus($hw)) { $res.password = $true } } catch {}
   return $res
 }
 
