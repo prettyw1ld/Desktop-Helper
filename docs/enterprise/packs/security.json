@@ -1,0 +1,63 @@
+{
+  "id": "security",
+  "title": { "ru": "Безопасность для сотрудника", "en": "Security for employees" },
+  "version": 1,
+  "prompt": "You help employees of a company with information security. If the person shows a suspicious e-mail, a request for a password or an unexpected file, tell them not to open links or attachments and to report it to the security team (security@company.example, phone 1234). Never help to switch off the antivirus, the VPN or disk encryption. Answer in plain words.",
+  "lessons": [
+    {
+      "id": "phishing",
+      "title": { "ru": "Проверь подозрительное письмо", "en": "Check a suspicious e-mail" },
+      "words": "проверь письмо подозрительное фишинг",
+      "match": "провер.{0,10}письм|подозрительн.{0,10}письм|фишинг|phishing|suspicious e-?mail",
+      "goal": "Check whether the e-mail open on the screen is phishing and show where the report button is",
+      "steps": [
+        { "say": "Посмотри, от кого письмо. Адрес точно знакомый?", "hint": "Мошенники меняют одну букву: sberbank → sberbamk. Сравни с прошлыми письмами." },
+        { "say": "Письмо торопит или пугает? Это частый признак обмана.", "hint": "«Срочно», «аккаунт заблокирован», «премия сгорит сегодня» — так пишут мошенники." },
+        { "say": "Наведи мышку на ссылку, не нажимая. Адрес внизу совпадает?", "hint": "Если адрес внизу окна чужой или странный, ссылку не открывай." },
+        { "say": "Не открывай вложения, которых не ждал(а), особенно архивы.", "hint": "Опасны .zip, .rar, .exe, .js и документы, которые просят «включить содержимое»." },
+        { "say": "Сомневаешься? Перешли письмо в отдел безопасности: security@company.example." }
+      ],
+      "done": "Молодец! Подозрительные письма лучше показать безопасникам."
+    },
+    {
+      "id": "lock-screen",
+      "title": { "ru": "Заблокируй экран, когда отходишь", "en": "Lock the screen when you step away" },
+      "words": "заблокируй экран блокировка",
+      "match": "заблокир.{0,10}экран|блокировк.{0,10}экран|lock (the )?screen",
+      "steps": [
+        { "say": "Нажми вместе клавиши Win и L.", "hint": "Win — клавиша с окошком слева внизу. Экран спрячется, вернуться можно паролем." },
+        { "say": "Получилось? Так делай каждый раз, когда отходишь от стола." }
+      ],
+      "done": "Отлично! Теперь твой компьютер под замком."
+    },
+    {
+      "id": "vpn",
+      "title": { "ru": "Подключись к VPN", "en": "Connect to the VPN" },
+      "words": "подключись к впн vpn",
+      "match": "\\bvpn\\b|впн",
+      "goal": "Connect to the company VPN in Windows settings",
+      "steps": [
+        { "say": "Нажми «Открой за меня», и я открою настройки VPN.", "open": "ms-settings:network-vpn" },
+        { "say": "Нажми на VPN компании, а потом «Подключить».", "find": { "name": "^(Подключить|Connect)$", "types": ["Button"] }, "wait": "gone", "open": "ms-settings:network-vpn" }
+      ],
+      "done": "Готово! Рабочие ресурсы теперь открываются безопасно."
+    },
+    {
+      "id": "encryption",
+      "title": { "ru": "Проверь шифрование диска", "en": "Check disk encryption" },
+      "words": "шифрование диска bitlocker",
+      "match": "шифрован|bitlocker|encryption",
+      "goal": "Check in Windows settings that device encryption or BitLocker is on",
+      "steps": [
+        { "say": "Нажми «Открой за меня», и я открою настройки шифрования.", "open": "ms-settings:deviceencryption" },
+        { "say": "Там написано «Включено»? Если нет, напиши в техподдержку.", "hint": "Шифрование защищает файлы, если ноутбук потеряют или украдут. Выключать его нельзя." }
+      ],
+      "done": "Спасибо! Диск под защитой."
+    }
+  ],
+  "explain": [
+    { "proc": "^(SecHealthUI|MsMpEng|SecurityHealthSystray)$", "text": "Это Защитник Windows, антивирус компании. Он нашёл что-то опасное или просит внимания. Ничего не выключай и не разрешай; если не понятно, позвони в отдел безопасности (1234)." },
+    { "proc": "^(avp|avpui)$", "text": "Это антивирус Касперского. Если он ругается на файл, файл не открывай и сообщи в отдел безопасности (1234)." },
+    { "title": "DLP|утечк|конфиденциальн", "text": "Это система защиты от утечек. Она остановила отправку, потому что в файле могут быть секретные данные. Не пытайся обойти её; если отправка нужна по работе, спроси руководителя или отдел безопасности." }
+  ]
+}

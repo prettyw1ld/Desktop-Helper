@@ -80,7 +80,7 @@ const TOOLS: ToolDef[] = [
   },
 ];
 
-export function systemPrompt({ userName, lang }: { userName?: string; lang?: string }): string {
+export function systemPrompt({ userName, lang, orgPrompt }: { userName?: string; lang?: string; orgPrompt?: string }): string {
   const locale = lang === 'en' ? 'en-US' : 'ru-RU';
   const now = new Date().toLocaleString(locale, { dateStyle: 'full', timeStyle: 'short' });
   const ru = [
@@ -112,7 +112,9 @@ export function systemPrompt({ userName, lang }: { userName?: string; lang?: str
     userName ? `The user's name is ${userName}.` : '',
     `Now: ${now}.`,
   ];
-  return (lang === 'en' ? en : ru).filter(Boolean).join(' ');
+  const base = (lang === 'en' ? en : ru).filter(Boolean).join(' ');
+  // правила организации из ролевых пакетов — отдельным абзацем после своих
+  return orgPrompt ? `${base}\n\n${orgPrompt}` : base;
 }
 
 async function runTool(tools: ChatTools, name: string, input: unknown): Promise<string> {
@@ -246,7 +248,7 @@ function howToGoal(text: string, history: ChatMessage[]): string {
   return prev ? goalFromHowTo(prev.content) : '';
 }
 
-export type AskOptions = Settings & { history: ChatMessage[]; text: string; tools: ChatTools };
+export type AskOptions = Settings & { history: ChatMessage[]; text: string; tools: ChatTools; orgPrompt?: string };
 
 /** Вызовы инструментов живут внутри одного запроса; в историю попадает только текст. */
 export async function ask(opts: AskOptions): Promise<AskOutput & { history: ChatMessage[] }> {

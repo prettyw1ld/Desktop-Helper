@@ -8,7 +8,8 @@ import { OPEN_PRIVACY } from './ai/privacy';
 import * as stt from './ai/stt';
 import * as locate from './system/locate';
 import { ROOT, VOSK_MODEL } from './paths';
-import { ALL_FEATURES, allowedOrigin, enforce, LOCKED, readPolicy, type Policy } from './policy';
+import { packsDir, readPacks, type Pack } from './packs';
+import { ALL_FEATURES, allowedOrigin, enforce, LOCKED, policyFile, readPolicy, type Policy } from './policy';
 
 export const DEFAULTS: Settings = {
   lang: '',
@@ -75,6 +76,9 @@ let policy: Policy | null = null;
 export const managed = (): boolean => !!policy;
 export const features = () => policy?.features ?? ALL_FEATURES;
 export const privacy = () => policy?.privacy ?? OPEN_PRIVACY;
+// ролевые пакеты организации; без политики их нет
+let packList: Pack[] = [];
+export const packs = (): readonly Pack[] => packList;
 let current: Settings = { ...DEFAULTS };
 const listeners: ((next: Settings, prev: Settings) => void)[] = [];
 
@@ -110,6 +114,12 @@ const teamHasAi = (): boolean => !!team.provider || !!team.apiKey || KEYED.some(
 export function load(): Settings {
   policy = readPolicy();
   if (policy?.problem) console.error('policy:', policy.problem);
+  packList = [];
+  if (policy) {
+    const set = readPacks(packsDir(policyFile()));
+    packList = set.packs;
+    for (const p of set.problems) console.error('pack:', p);
+  }
   // в корпоративном режиме запросы к ИИ идут только на адрес из политики
   setAllowedOrigin(policy ? allowedOrigin(policy) : undefined);
   if (policy) team = {};
@@ -215,6 +225,7 @@ export function publicView(): PublicSettings {
     platform: process.platform,
     managed: !!policy,
     org: policy?.org ?? '',
+    packLessons: packList.flatMap((p) => p.lessons),
     features: { ...features() },
   };
 }

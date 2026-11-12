@@ -81,6 +81,28 @@ export interface PublicSettings extends Omit<Settings, SecretKey> {
   managed: boolean;      // корпоративный режим: ИИ и его настройки задаёт политика организации
   org: string;           // название организации из политики
   features: Features;
+  packLessons: PackLesson[]; // уроки из пакетов организации (корпоративный режим)
+}
+
+/** Шаг урока из пакета: уже проверен главным процессом, регулярки — строками. */
+export interface PackStep {
+  say: string;
+  find?: { scope: string; name: string; types?: string[] };
+  wait: { manual?: boolean; next?: boolean; gone?: boolean; focus?: boolean; titleChange?: boolean; top?: string };
+  open?: string;
+  hint?: string;
+}
+
+/** Урок из пакета организации. Без шагов урок ведёт ИИ к цели goal. */
+export interface PackLesson {
+  id: string;            // pack:<пакет>:<урок>
+  pack: string;          // название пакета
+  title: { ru: string; en: string };
+  words: string;
+  match: string;         // регулярка для голосовой/текстовой задачи; пусто — только из «Уроков»
+  goal: string;          // цель для ИИ: урок без шагов или запасной путь, когда кнопку не нашли
+  steps: PackStep[];
+  done: string;
 }
 
 export interface ErrorReply { error: string }

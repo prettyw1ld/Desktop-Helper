@@ -15,15 +15,24 @@ import { endTrainer } from './trainer';
 // «📞 Позвонить по видео» → «Позвонить по видео»
 export const goalOf = (label: string): string => label.replace(/^[^\p{L}\p{N}]+/u, '').trim();
 
+/** Урок по кнопке или по словам. Урок организации без шагов ведёт ИИ, а без ИИ честно говорит, что не может. */
+export function startScenario(sc: Scenarios.Scenario): void {
+  if (sc.fileLesson) { void startFileLesson(sc.id); return; }
+  if (!sc.win?.length && sc.goal) {
+    if (can('guide')) { startGuide(sc.goal); return; }
+    showPanel('help');
+    micState(T('pack.needAi'));
+    speak(T('pack.needAi'));
+    return;
+  }
+  runScenario(sc);
+}
+
 export function routeGoal(text: string): void {
   if (/помо[гщ].*(файл|проводник|finder)|help with files/i.test(text)) { void startFileLesson('files-learn'); return; }
   const m = Scenarios.match(text);
   if (m === Scenarios.LOST) { imLost(); return; }
-  if (m && 'match' in m) {
-    if (m.fileLesson) void startFileLesson(m.id);
-    else runScenario(m);
-    return;
-  }
+  if (m && 'match' in m) { startScenario(m); return; }
   if (can('guide')) { startGuide(goalOf(text)); return; }
   showPanel('help');
   micState(T('coach.unknown'));

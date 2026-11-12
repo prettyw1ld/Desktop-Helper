@@ -8,6 +8,7 @@ import { ask, type ChatMessage, type ChatTools } from './ai/llm';
 import * as stt from './ai/stt';
 import * as clicks from './system/clicks';
 import { createFileActions } from './system/files';
+import { packPrompt } from './packs';
 import * as locate from './system/locate';
 import { toOverlayRect } from './overlay';
 import * as reminders from './reminders';
@@ -129,7 +130,7 @@ function registerGuide(): void {
     if (!allowed) return { error: T('err.policy') };
     if (screenAccess() === 'denied') return { error: T('err.screen') };
     try {
-      return await guide.look({ ...req, settings: settings.forAi(), privacy: settings.privacy(), overlay: ui.win() });
+      return await guide.look({ ...req, settings: settings.forAi(), privacy: settings.privacy(), packs: settings.packs(), overlay: ui.win() });
     } catch (err) {
       const code = (err as AiError).code;
       if (code === 'privatePassword' || code === 'privateApp') return { error: T(code === 'privatePassword' ? 'err.privatePassword' : 'err.privateApp') };
@@ -237,7 +238,7 @@ function registerChat(): void {
     if (!settings.features().chat) return { error: T('err.policy') };
     const locale = s.lang === 'en' ? 'en-US' : 'ru-RU';
     try {
-      const { reply, history, actions, show } = await ask({ ...settings.forAi(s), history: chatHistory, text, tools: chatTools(locale) });
+      const { reply, history, actions, show } = await ask({ ...settings.forAi(s), history: chatHistory, text, tools: chatTools(locale), orgPrompt: packPrompt(settings.packs()) });
       chatHistory = history.slice(-30);
       return show ? { reply, actions, show } : { reply, actions };
     } catch (err) {

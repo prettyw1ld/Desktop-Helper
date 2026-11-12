@@ -10,6 +10,7 @@ import { clickFact } from './inspect-text';
 import { changedBox, screenMoved } from './changed-box';
 import { boxUnits, cleanPlan, formatMarks, itemLabel, sameRowOut, itemsFromText, pickMark, pickNamed, refineCrop, stepOf, withTaskbar, type ElementHint, type Mark } from './show';
 import { guideLog } from './guide-log';
+import { explainFor, packPrompt, type Pack } from '../packs';
 import { toFrame } from '../geometry';
 import * as locate from '../system/locate';
 import type { InspectContext, LocateItem } from '../../shared/types';
@@ -617,8 +618,8 @@ function onlyWindow(shot: Shot, guard: Guard, selection?: Rect): Shot {
 }
 
 /** Посмотреть на экран и решить, что сказать и куда показать. target — в координатах окна кота. */
-export async function look(req: LookRequest & { settings: Settings; overlay: BrowserWindow | null; privacy?: Privacy }): Promise<LookResult> {
-  const { mode, selection, settings, overlay, privacy = OPEN_PRIVACY } = req;
+export async function look(req: LookRequest & { settings: Settings; overlay: BrowserWindow | null; privacy?: Privacy; packs?: readonly Pack[] }): Promise<LookResult> {
+  const { mode, selection, settings, overlay, privacy = OPEN_PRIVACY, packs = [] } = req;
   const inspect = mode === 'inspect';
   // пароль вводят или открыт менеджер паролей: на экран не смотрим совсем
   const guard = await screenGuard();
@@ -669,9 +670,12 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
   const tCtx = Date.now();
   const ctx = inspect ? await inspectContext(shot, selection) : null;
   const view = inspect ? contextView(shot, selection, ctx) : null;
-  const facts = formatContext(ctx);
+  // пояснение организации к служебному окну (антивирус, DLP): ИИ пересказывает его простыми словами
+  const orgNote = inspect ? explainFor(packs, ctx?.proc || guard.proc || '', ctx?.title || guard.title || '') : '';
+  const facts = [formatContext(ctx), orgNote && `Organisation note about this window, retell it simply and keep its advice: ${orgNote}`].filter(Boolean).join('\n');
   const msCtx = Date.now() - tCtx;
-  const system = inspect ? INSPECT_SYSTEM : systemPrompt(settings.lang, process.platform);
+  const org = packPrompt(packs);
+  const system = `${inspect ? INSPECT_SYSTEM : systemPrompt(settings.lang, process.platform)}${org ? `\n\n${org}` : ''}`;
   const size = image.getSize();
   const r = resolve(settings);
   const coords = noShot

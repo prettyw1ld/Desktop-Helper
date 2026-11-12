@@ -2,9 +2,9 @@
 import { $, el } from '../core/dom';
 import { I18N, T } from '../core/i18n';
 import { settings } from '../core/settings';
-import { runScenario } from '../guide/coach';
-import { chooseDocument, startFileLesson } from '../guide/file-lessons';
+import { chooseDocument } from '../guide/file-lessons';
 import * as Scenarios from '../guide/scenarios';
+import { startScenario } from '../guide/router';
 import { startTrainer } from '../guide/trainer';
 import { icon, type IconName } from '../ui/icons';
 import { closePanels, registerPanel } from '../ui/panels';
@@ -23,8 +23,8 @@ export function lessons(): Lesson[] {
     ...Scenarios.list.map((sc): Lesson => ({
       name: sc.skill[lang] || sc.skill.ru,
       names: Object.values(sc.skill),
-      icon: LESSON_ICONS[sc.id] || 'paw',
-      start: () => { if (sc.fileLesson) void startFileLesson(sc.id); else runScenario(sc); },
+      icon: LESSON_ICONS[sc.id] || (sc.pack ? 'shield' : 'paw'),
+      start: () => startScenario(sc),
     })),
     { name: T('files.chooseSkill'), names: I18N.all('files.chooseSkill'), icon: 'folder', start: () => { void chooseDocument(); } },
   ];

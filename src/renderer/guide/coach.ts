@@ -15,6 +15,7 @@ import { hideBubble, say, type Action } from '../ui/bubble';
 import { closePanels, showPanel } from '../ui/panels';
 import { hideRing, showRing } from '../ui/ring';
 import { speak } from '../ui/speech';
+import { startGuide } from './ai-guide';
 import { endGuide, onGuideEnd } from './control';
 import { goPoint } from './pointing';
 import * as Scenarios from './scenarios';
@@ -172,6 +173,9 @@ export function coachStepActions(step: Step): Action[] {
     }]);
   }
   if (step.open) acts.push([T('coach.open'), () => { void openForMe(step); }]);
+  // урок организации: если кнопку так и не нашли, ИИ покажет путь по снимку экрана
+  const goal = sc?.goal;
+  if (goal && can('guide')) acts.push([T('pack.showAi'), () => { endGuide(false); startGuide(goal); }]);
   acts.push([T('g.stop'), () => endGuide(true)]);
   return acts;
 }
