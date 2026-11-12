@@ -6,6 +6,9 @@ import { extraFor, fallbackModel, resolve } from './providers';
 import { goalFromHowTo, isHowTo, vagueGoal } from '../../shared/howto';
 import { SHOW_MARK, showGoal } from './show';
 
+/** Заголовок с ключом; у внутреннего сервера ключа может не быть. */
+export const bearer = (apiKey: string): Record<string, string> => (apiKey ? { authorization: `Bearer ${apiKey}` } : {});
+
 export const CLAUDE_URL = 'https://api.anthropic.com/v1/messages';
 export { extraFor, OPENAI_PRESETS, resolve, type Resolved } from './providers';
 
@@ -15,7 +18,7 @@ async function listModels(url: string, apiKey: string): Promise<string[] | null>
   const cached = modelCache.get(url);
   if (cached) return cached;
   try {
-    const res = await fetchAI(`${url}/models`, { headers: { authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(8000) });
+    const res = await fetchAI(`${url}/models`, { headers: bearer(apiKey), signal: AbortSignal.timeout(8000) });
     if (!res.ok) return null;
     const data = await res.json() as { data?: { id: string }[] };
     const ids = (data.data || []).map((m) => m.id).filter((id) => !/whisper|tts|orpheus|guard|embed/i.test(id));
@@ -175,7 +178,7 @@ async function askOpenAI({ apiKey, url, model, history, text, system }: AskInput
   const use = await pickModel({ url, apiKey, want: model });
   const res = await fetchAIRetry(`${url}/chat/completions`, {
     method: 'POST',
-    headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
+    headers: { ...bearer(apiKey), 'content-type': 'application/json' },
     body: JSON.stringify({
       model: use, max_tokens: 1500, ...extraFor(use, url),
       messages: [{ role: 'system', content: system }, ...history, { role: 'user', content: text }],

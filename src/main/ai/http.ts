@@ -2,6 +2,7 @@
 // как браузер. Обычный fetch из Node их не видит и падает с «fetch failed».
 // Если один способ не достучался, пробуем второй.
 import { net } from 'electron';
+import { originAllowed } from '../policy';
 
 type Fetch = (url: string, opts?: RequestInit) => Promise<Response>;
 
@@ -23,7 +24,13 @@ export const isNetErr = (e: unknown): boolean => {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// Корпоративный режим: единственный адрес, куда можно ходить за ответом ИИ.
+// undefined — ограничений нет (обычный Пушик), null — никуда нельзя.
+let onlyOrigin: string | null | undefined;
+export const setAllowedOrigin = (origin: string | null | undefined): void => { onlyOrigin = origin; };
+
 export async function fetchAI(url: string, opts: RequestInit = {}): Promise<Response> {
+  if (!originAllowed(onlyOrigin, url)) throw aiError('blocked by policy', { code: 'policy' });
   // связь иногда рвётся на секунду: третья попытка после короткой паузы
   const ways: Fetch[] = netFetch ? [netFetch, globalThis.fetch, netFetch] : [globalThis.fetch, globalThis.fetch];
   let last: unknown;

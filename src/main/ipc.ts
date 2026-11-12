@@ -27,6 +27,7 @@ function screenAccess(): string {
 function aiFailure(err: unknown, what: string, fallbackKey: string): ErrorReply {
   const e = err as AiError;
   const s = settings.get();
+  if (e.code === 'policy') return { error: T('err.policy') };
   if (e.offline && s.provider === 'ollama') return { error: T('err.ollama', { url: s.ollamaUrl }) };
   console.error(what, errorDetails(err));
   return { error: T(e.network ? 'err.net' : fallbackKey) };
@@ -121,7 +122,11 @@ function registerSystem(): void {
 // ---------- Помощник: снимок экрана и подсказка ----------
 function registerGuide(): void {
   ipcMain.handle('guide:look', async (_e, req: LookRequest): Promise<LookResult | ErrorReply> => {
-    if (noAi()) return { error: T('err.noKey') };
+    if (noAi()) return { error: T(settings.managed() ? 'err.policy' : 'err.noKey') };
+    const f = settings.features();
+    // «Подробнее» бывает и после объяснения элемента, и в показе по шагам
+    const allowed = req.mode === 'inspect' ? f.inspect : req.mode === 'more' ? f.inspect || f.guide : f.guide;
+    if (!allowed) return { error: T('err.policy') };
     if (screenAccess() === 'denied') return { error: T('err.screen') };
     try {
       return await guide.look({ ...req, settings: settings.forAi(), overlay: ui.win() });
@@ -226,7 +231,8 @@ function registerChat(): void {
   ipcMain.handle('chat:reset', () => { chatHistory = []; return true; });
   ipcMain.handle('chat:send', async (_e, text: string): Promise<ChatResult | ErrorReply> => {
     const s = settings.get();
-    if (noAi()) return { error: T('err.noKey') };
+    if (noAi()) return { error: T(settings.managed() ? 'err.policy' : 'err.noKey') };
+    if (!settings.features().chat) return { error: T('err.policy') };
     const locale = s.lang === 'en' ? 'en-US' : 'ru-RU';
     try {
       const { reply, history, actions, show } = await ask({ ...settings.forAi(s), history: chatHistory, text, tools: chatTools(locale) });

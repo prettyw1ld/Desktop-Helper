@@ -3,7 +3,7 @@
 import { desktopCapturer, nativeImage, screen, type BrowserWindow, type Display, type NativeImage } from 'electron';
 import type { LookMode, LookRequest, LookResult, LookStatus, Rect, Settings } from '../../shared/types';
 import { aiError, fetchAI, fetchAIRetry, readError } from './http';
-import { CLAUDE_URL, cleanReply, extraFor, pickModel, resolve } from './llm';
+import { bearer, CLAUDE_URL, cleanReply, extraFor, pickModel, resolve } from './llm';
 import { cropSelection, formatContext, inspectPrompt, INSPECT_SYSTEM, scrub, windowView } from './screen-region';
 import { clickFact } from './inspect-text';
 import { changedBox, screenMoved } from './changed-box';
@@ -380,7 +380,7 @@ async function askOpenAI({ apiKey, url, vision, system, text, jpeg, before = [] 
   const model = await pickModel({ url, apiKey, want: vision, vision: true });
   const send = (strict: boolean) => fetchAIRetry(`${url}/chat/completions`, {
     method: 'POST',
-    headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
+    headers: { ...bearer(apiKey), 'content-type': 'application/json' },
     body: JSON.stringify({
       model,
       max_tokens: 1500,

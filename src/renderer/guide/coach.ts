@@ -7,7 +7,7 @@ import { celebrate, happy } from '../cat/poses';
 import { api } from '../core/api';
 import { $ } from '../core/dom';
 import { I18N, T } from '../core/i18n';
-import { isMac, setSkills, settings } from '../core/settings';
+import { can, isMac, setSkills, settings } from '../core/settings';
 import { Sound } from '../core/sound';
 import { pick } from '../core/util';
 import { micState } from '../panels/mic';
@@ -355,7 +355,7 @@ function pointToLessons(): void {
   if (guide.active || trainer.step) return;
   hideBubble();
   showPanel('help');
-  const b = settings.aiReady ? $('.extras [data-act="lessons"]') : $('#inspect-element');
+  const b = can('inspect') ? $('.extras [data-act="lessons"]') : $('#inspect-element');
   b.classList.add('pulse');
   micState(T('les.here'));
   speak(T('les.here'));

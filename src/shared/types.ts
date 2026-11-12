@@ -64,6 +64,9 @@ export function aiKey(s: Pick<Settings, 'provider' | 'apiKey' | 'groqKey' | 'dee
   return isKeyed(provider) ? s[PROVIDER_KEY[provider]] : s.apiKey;
 }
 
+/** Что из ИИ разрешено политикой организации: чат, показ по шагам, «Объясни, что это». */
+export interface Features { chat: boolean; guide: boolean; inspect: boolean }
+
 /** Настройки, которые видит окно: без секретов, только признаки, что они заданы. */
 export interface PublicSettings extends Omit<Settings, SecretKey> {
   hasApiKey: boolean;
@@ -75,6 +78,9 @@ export interface PublicSettings extends Omit<Settings, SecretKey> {
   keys: Record<KeyedProvider, boolean>;  // у каких моделей из настроек есть ключ
   locator: boolean;
   platform: string;
+  managed: boolean;      // корпоративный режим: ИИ и его настройки задаёт политика организации
+  org: string;           // название организации из политики
+  features: Features;
 }
 
 export interface ErrorReply { error: string }

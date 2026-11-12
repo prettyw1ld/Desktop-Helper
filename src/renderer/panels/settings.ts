@@ -72,6 +72,11 @@ function showKeyState(): void {
 }
 
 function fillProvider(): void {
+  // корпоративный режим: модель и ключ задаёт политика, выбирать тут нечего
+  $('#ai-settings').classList.toggle('hidden', settings.managed);
+  const note = $('#ai-managed');
+  note.classList.toggle('hidden', !settings.managed);
+  note.textContent = settings.managed ? (settings.org ? T('set.managedBy', { org: settings.org }) : T('set.managed')) : '';
   const select = providerField();
   // модель из team.json, которой нет в списке (Claude, Ollama…): показываем как есть, чтобы её не сбросить
   select.querySelector('option[data-team]')?.remove();
@@ -88,6 +93,7 @@ function fillProvider(): void {
 
 /** Что сохранить про ИИ: модель, если её сменили, и ключ, если его вписали. */
 function aiChanges(): Partial<Settings> {
+  if (settings.managed) return {};
   const provider = providerField().value as Provider;
   const key = field('aiKey').value.trim();
   const out: Partial<Settings> = {};

@@ -220,7 +220,7 @@ function showAll(text: string, res: LookResult): void {
   const actions: Action[] = [];
   // на первом уровне «Подробнее» есть всегда: модель часто говорит «больше нечего», хотя рассказала про 3 пункта из 20
   if ((tour.level <= 1 || res.hasMore !== false) && tour.level < MAX_LEVEL) actions.push([tour.level <= 1 ? 'Подробнее' : 'Ещё подробнее', () => void look('more'), true]);
-  const practice = res.practiceGoal;
+  const practice = settings.features.guide ? res.practiceGoal : '';
   if (practice) actions.push(['Попробовать', () => startGuide(practice, 'practice')]);
   actions.push(['Понятно', finishTour, !actions.length]);
   tell(text, { guide: true, actions });
@@ -254,7 +254,7 @@ const inside = (a: Rect, b: Rect) => {
 function showItem(text: string, res: LookResult, item: string): void {
   hideRing();
   const actions: Action[] = [];
-  const practice = res.practiceGoal;
+  const practice = settings.features.guide ? res.practiceGoal : '';
   // меню ещё открыто: первый шаг — нажать этот пункт в нём
   if (practice) actions.push(['Покажи, как', () => startGuide(practice, 'practice', item), true]);
   actions.push(['Другой пункт', () => showChooser(0)]);

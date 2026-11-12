@@ -10,6 +10,7 @@ export const DEFAULT_SETTINGS: PublicSettings = {
   hasApiKey: false, hasCalendar: false, hasStt: false, hasVosk: false, aiReady: false, teamKey: false,
   keys: { groq: false, deepseek: false, qwen: false },
   locator: false, platform: 'win32',
+  managed: false, org: '', features: { chat: true, guide: true, inspect: true },
 };
 
 /** Текущие настройки. Читать можно откуда угодно: модули видят обновления (live binding). */
@@ -17,5 +18,8 @@ export let settings: PublicSettings = { ...DEFAULT_SETTINGS };
 
 export function setSettings(s: PublicSettings): void { settings = s; }
 export function setSkills(skills: Skill[]): void { settings.skills = skills; }
+
+/** ИИ подключён и эта возможность не выключена политикой организации. */
+export const can = (f: keyof PublicSettings['features']): boolean => settings.aiReady && settings.features[f];
 
 export const isMac = (): boolean => settings.platform === 'darwin';

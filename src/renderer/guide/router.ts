@@ -1,6 +1,6 @@
 // Что человек сказал или написал → готовый урок, иначе ИИ (если есть), иначе честное «не знаю».
 import { T } from '../core/i18n';
-import { settings } from '../core/settings';
+import { can } from '../core/settings';
 import { micState } from '../panels/mic';
 import { closePanels, showPanel } from '../ui/panels';
 import { speak } from '../ui/speech';
@@ -24,7 +24,7 @@ export function routeGoal(text: string): void {
     else runScenario(m);
     return;
   }
-  if (settings.aiReady) { startGuide(goalOf(text)); return; }
+  if (can('guide')) { startGuide(goalOf(text)); return; }
   showPanel('help');
   micState(T('coach.unknown'));
   speak(T('coach.unknown'));
@@ -32,7 +32,7 @@ export function routeGoal(text: string): void {
 
 /** «Я запутался»: с ИИ — по снимку экрана, без него — по названию окна сверху. */
 export function imLost(): void {
-  if (settings.aiReady) { imLostAI(); return; }
+  if (can('guide')) { imLostAI(); return; }
   closePanels();
   endTrainer();
   guide.active = true;

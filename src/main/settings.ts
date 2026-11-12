@@ -3,9 +3,11 @@ import { app, safeStorage } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { aiKey, isKeyed, PROVIDER_KEY, type KeyedProvider, type PublicSettings, type SecretKey, type Settings } from '../shared/types';
+import { setAllowedOrigin } from './ai/http';
 import * as stt from './ai/stt';
 import * as locate from './system/locate';
 import { ROOT, VOSK_MODEL } from './paths';
+import { ALL_FEATURES, allowedOrigin, enforce, LOCKED, readPolicy, type Policy } from './policy';
 
 export const DEFAULTS: Settings = {
   lang: '',
@@ -67,6 +69,10 @@ type TeamKey = typeof TEAM_AI[number];
 type Team = Partial<Record<TeamKey, string>>;
 
 let team: Team = {};
+// Политика организации (корпоративный режим). Есть политика — team.json и ключи человека не действуют.
+let policy: Policy | null = null;
+export const managed = (): boolean => !!policy;
+export const features = () => policy?.features ?? ALL_FEATURES;
 let current: Settings = { ...DEFAULTS };
 const listeners: ((next: Settings, prev: Settings) => void)[] = [];
 
@@ -100,7 +106,12 @@ function splitKey(c: { provider?: string; apiKey?: string } & Partial<Record<Sec
 const teamHasAi = (): boolean => !!team.provider || !!team.apiKey || KEYED.some((p) => !!team[PROVIDER_KEY[p]]);
 
 export function load(): Settings {
-  loadTeam();
+  policy = readPolicy();
+  if (policy?.problem) console.error('policy:', policy.problem);
+  // в корпоративном режиме запросы к ИИ идут только на адрес из политики
+  setAllowedOrigin(policy ? allowedOrigin(policy) : undefined);
+  if (policy) team = {};
+  else loadTeam();
   let s = { ...DEFAULTS, ...team } as Settings;
   const raw = readJson(settingsFile());
   if (raw) {
@@ -131,13 +142,20 @@ export function load(): Settings {
   // выбрана не та модель, что у команды: адрес и модели из готовых настроек этой модели
   if (s.aiChosen && team.provider && s.provider !== team.provider) for (const k of MODEL_FIELDS) s[k] = DEFAULTS[k];
   if (!s.lang) s.lang = app.getLocale().toLowerCase().startsWith('ru') ? 'ru' : 'en';
+  if (policy) s = enforce(s, policy);
   current = s;
   return s;
 }
 
 export function save(next: Partial<Settings>): PublicSettings {
   const prev = current;
-  const s: Settings = { ...current, ...next };
+  if (policy) {
+    // модель, адрес и ключи задаёт только политика: из окна их не поменять
+    next = { ...next };
+    for (const k of LOCKED) delete next[k];
+  }
+  let s: Settings = { ...current, ...next };
+  if (policy) s = enforce(s, policy);
   if ('autostart' in next) s.autostartChosen = true;
   // сменили модель: её адрес и модели из team.json, если у команды та же, иначе готовые
   if (next.provider && next.provider !== prev.provider) {
@@ -165,13 +183,14 @@ export function save(next: Partial<Settings>): PublicSettings {
 export function onChange(fn: (next: Settings, prev: Settings) => void): void { listeners.push(fn); }
 
 export const get = (): Settings => current;
-export const hasAi = (s: Settings = current): boolean => s.provider === 'ollama' || !!aiKey(s);
+export const hasAi = (s: Settings = current): boolean => (policy ? !!policy.ai : s.provider === 'ollama' || !!aiKey(s));
 
 /** Настройки для запроса к ИИ: в apiKey — ключ выбранного сервиса. */
 export const forAi = (s: Settings = current): Settings => ({ ...s, apiKey: aiKey(s) });
 
 // Голос через Groq Whisper берёт ключ Groq, даже если чат и зрение идут через другой сервис
 export function sttKeyFor(s: Settings = current): string {
+  if (policy) return '';
   if (s.sttKey) return s.sttKey;
   if (!/groq\.com/.test(s.sttUrl || stt.DEFAULT_URL)) return '';
   return s.groqKey || (/groq\.com/.test(s.aiUrl || '') ? s.apiKey : '');
@@ -192,5 +211,8 @@ export function publicView(): PublicSettings {
     keys: { groq: !!groqKey, deepseek: !!deepseekKey, qwen: !!qwenKey },
     locator: locate.supported(),
     platform: process.platform,
+    managed: !!policy,
+    org: policy?.org ?? '',
+    features: { ...features() },
   };
 }
