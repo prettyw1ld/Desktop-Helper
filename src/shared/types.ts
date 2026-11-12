@@ -64,6 +64,9 @@ export function aiKey(s: Pick<Settings, 'provider' | 'apiKey' | 'groqKey' | 'dee
   return isKeyed(provider) ? s[PROVIDER_KEY[provider]] : s.apiKey;
 }
 
+/** Что из ИИ разрешено политикой организации: чат, показ по шагам, «Объясни, что это». */
+export interface Features { chat: boolean; guide: boolean; inspect: boolean }
+
 /** Настройки, которые видит окно: без секретов, только признаки, что они заданы. */
 export interface PublicSettings extends Omit<Settings, SecretKey> {
   hasApiKey: boolean;
@@ -75,6 +78,45 @@ export interface PublicSettings extends Omit<Settings, SecretKey> {
   keys: Record<KeyedProvider, boolean>;  // у каких моделей из настроек есть ключ
   locator: boolean;
   platform: string;
+  managed: boolean;      // корпоративный режим: ИИ и его настройки задаёт политика организации
+  org: string;           // название организации из политики
+  features: Features;
+  packLessons: PackLesson[]; // уроки из пакетов организации (корпоративный режим)
+  packReports: PackReport[]; // «Сообщить об инциденте»: вопросы по шагам
+  host: string;              // имя компьютера для отчёта; только в корпоративном режиме
+}
+
+/** Вопрос отчёта: ответ кнопкой из options или своими словами. */
+export interface ReportQuestion { ask: string; options: string[] }
+
+/** «Сообщить об инциденте»: Пушик задаёт вопросы и собирает текст. Сам ничего не отправляет. */
+export interface PackReport {
+  id: string;            // report:<пакет>
+  title: { ru: string; en: string };
+  intro: string;
+  to: string;            // почта отдела безопасности: письмо откроется черновиком
+  questions: ReportQuestion[];
+}
+
+/** Шаг урока из пакета: уже проверен главным процессом, регулярки — строками. */
+export interface PackStep {
+  say: string;
+  find?: { scope: string; name: string; types?: string[] };
+  wait: { manual?: boolean; next?: boolean; gone?: boolean; focus?: boolean; titleChange?: boolean; top?: string };
+  open?: string;
+  hint?: string;
+}
+
+/** Урок из пакета организации. Без шагов урок ведёт ИИ к цели goal. */
+export interface PackLesson {
+  id: string;            // pack:<пакет>:<урок>
+  pack: string;          // название пакета
+  title: { ru: string; en: string };
+  words: string;
+  match: string;         // регулярка для голосовой/текстовой задачи; пусто — только из «Уроков»
+  goal: string;          // цель для ИИ: урок без шагов или запасной путь, когда кнопку не нашли
+  steps: PackStep[];
+  done: string;
 }
 
 export interface ErrorReply { error: string }
@@ -137,7 +179,7 @@ export interface LookResult {
 export interface ChatResult { reply: string; actions: string[]; show?: string }
 
 // ---------- Поиск кнопок через «доступность» ----------
-export type LocateOp = 'find' | 'top' | 'window' | 'drives' | 'volume' | 'list' | 'named' | 'inside' | 'shot' | 'grid' | 'context';
+export type LocateOp = 'find' | 'top' | 'window' | 'drives' | 'volume' | 'list' | 'named' | 'inside' | 'shot' | 'grid' | 'context' | 'guard';
 
 export interface LocateQuery {
   op: LocateOp;
@@ -204,6 +246,10 @@ export interface LocateResult {
   sw?: number;          // shot: размер экрана в пикселях
   sh?: number;
   ctx?: InspectContext | null; // context
+  password?: boolean;   // guard: человек вводит пароль
+  proc?: string;        // guard: программа окна перед человеком
+  title?: string;
+  rect?: Rect | null;   // guard: её окно, пиксели экрана
   ms?: number;
 }
 
@@ -265,5 +311,6 @@ export interface PushikApi {
   openUri(uri: string): Promise<boolean>;
   filesAction(req: FilesRequest): Promise<FilesResult>;
   openDrive(letter: string): Promise<boolean>;
+  copyText(text: string): Promise<boolean>;
   on<E extends PushikEvent>(channel: E, cb: (data: PushikEvents[E]) => void): void;
 }

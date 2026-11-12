@@ -6,6 +6,7 @@ import * as guide from './ai/guide';
 import * as autostart from './autostart';
 import * as ipc from './ipc';
 import * as overlay from './overlay';
+import * as presence from './presence-agent';
 import * as protocol from './protocol';
 import * as reminders from './reminders';
 import * as settings from './settings';
@@ -50,6 +51,9 @@ function onReady(): void {
     },
   });
   tray.createTray();
+  // админ-панель организации видит, что кот бодрствует; выход из сеанса Windows — «ушёл спать»
+  presence.start(settings.presence());
+  ui.win()?.on('session-end', () => { void presence.bye('logoff'); });
   globalShortcut.register('CommandOrControl+Shift+P', () => {
     ui.show();
     ui.send('open', 'chat');
@@ -60,7 +64,19 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', () => ui.showInactive());
+  // Окно кота показывает только свою страницу: никаких переходов, новых окон и встроенных страниц
+  app.on('web-contents-created', (_e, wc) => {
+    wc.on('will-navigate', (e) => e.preventDefault());
+    wc.on('will-attach-webview', (e) => e.preventDefault());
+    wc.setWindowOpenHandler(() => ({ action: 'deny' }));
+  });
   app.whenReady().then(onReady);
+  // перед выходом успеваем сказать серверу «сплю» (не дольше 1,5 с)
+  app.on('before-quit', (e) => {
+    if (!presence.active()) return;
+    e.preventDefault();
+    void presence.bye('quit').finally(() => app.quit());
+  });
   app.on('will-quit', () => {
     globalShortcut.unregisterAll();
     guide.unwatch();

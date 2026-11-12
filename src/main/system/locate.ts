@@ -32,7 +32,29 @@ public static class PushTop {
   [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr h, int a, out int v, int s);
   // Настоящие пиксели на любом экране и масштабе (125%, 150%, два монитора). Старые Windows: как раньше.
   public static void Init() { try { if (SetProcessDpiAwarenessContext(new IntPtr(-4))) return; } catch { } SetProcessDPIAware(); }
+  [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+  // Окно, в котором сейчас работает человек: "hwnd:pid"
+  public static string Fore() {
+    IntPtr h = GetForegroundWindow();
+    if (h == IntPtr.Zero) return "";
+    uint pid; GetWindowThreadProcessId(h, out pid);
+    return h.ToInt64() + ":" + pid;
+  }
   public static long Tray() { return FindWindow("Shell_TrayWnd", null).ToInt64(); }
+  [StructLayout(LayoutKind.Sequential)] public struct GTI { public int cb, flags; public IntPtr active, focus, capture, menuOwner, moveSize, caret; public int l, t, r, b; }
+  [DllImport("user32.dll")] static extern bool GetGUIThreadInfo(uint tid, ref GTI gi);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, System.Text.StringBuilder s, int n);
+  // Поле пароля обычной программы Windows (Edit со стилем ES_PASSWORD): UI Automation видит его не всегда
+  // h = 0: окно перед человеком; иначе — то окно (у каждого потока свой фокус, даже если окно сзади кота)
+  public static bool PasswordFocus(long h) {
+    IntPtr fg = h != 0 ? new IntPtr(h) : GetForegroundWindow();
+    if (fg == IntPtr.Zero) return false;
+    uint pid; uint tid = GetWindowThreadProcessId(fg, out pid);
+    GTI gi = new GTI(); gi.cb = Marshal.SizeOf(typeof(GTI));
+    if (!GetGUIThreadInfo(tid, ref gi) || gi.focus == IntPtr.Zero) return false;
+    var sb = new System.Text.StringBuilder(128); GetClassName(gi.focus, sb, 128);
+    return sb.ToString().IndexOf("edit", StringComparison.OrdinalIgnoreCase) >= 0 && (GetWindowLong(gi.focus, -16) & 0x20) != 0;
+  }
   // Меню «Пуск», поиск и панели Windows 11 живут в особом слое окон: среди детей корня UI Automation
   // их нет. Находим их напрямую по классу окна; открытое = видимое и не «спрятанное» (cloaked).
   public static long[] Immersive() {
@@ -668,6 +690,37 @@ function Ctx($q) {
   return @{ ctx = @{ app = $app; proc = $procName; title = $title; rect = (Rect $top); element = $element; path = $path; nearby = $nearby }; ms = $sw.ElapsedMilliseconds }
 }
 
+# Можно ли сейчас смотреть на экран: вводится ли пароль и какое окно перед человеком.
+# Если впереди окно кота (человек выделяет область), берём верхнее окно программы.
+function Guard() {
+  $res = @{ password = $false; proc = ''; title = ''; rect = $null }
+  $el = $null
+  $fore = [PushTop]::Fore()
+  if ($fore) {
+    $p = $fore.Split(':')
+    if ([int]$p[1] -ne ${skipPid}) {
+      $el = $AE::FromHandle([IntPtr][long]$p[0])
+      try { $res.proc = [System.Diagnostics.Process]::GetProcessById([int]$p[1]).ProcessName } catch {}
+    }
+  }
+  if (-not $el) {
+    $w = Wins 1
+    if ($w.Count) { $el = $w[0][0]; $res.proc = $w[0][1] }
+  }
+  if ($el) {
+    try { $res.title = [string]$el.Current.Name; $res.rect = Rect $el } catch {}
+  }
+  try {
+    $f = $AE::FocusedElement
+    if ($f -and $f.Current.IsPassword -and $f.Current.ProcessId -ne ${skipPid}) { $res.password = $true }
+  } catch {}
+  # кот перехватил окно (человек нажал на облачко): смотрим фокус в окне под ним
+  $hw = 0
+  if ($el -and -not $res.password) { try { $hw = [long]$el.Current.NativeWindowHandle } catch {} }
+  try { if (-not $res.password -and [PushTop]::PasswordFocus($hw)) { $res.password = $true } } catch {}
+  return $res
+}
+
 function Volume() {
   return @{ volume = [Math]::Round([PushVol]::Level(), 3); muted = [PushVol]::Muted() }
 }
@@ -698,6 +751,7 @@ while ($true) {
     elseif ($q.op -eq 'shot') { $res = Shot $q }
     elseif ($q.op -eq 'grid') { $res = Grid $q }
     elseif ($q.op -eq 'context') { $res = Ctx $q }
+    elseif ($q.op -eq 'guard') { $res = Guard }
     $res.id = $q.id
   } catch {
     $res = @{ id = $q.id; error = [string]$_ }

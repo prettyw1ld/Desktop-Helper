@@ -28,6 +28,7 @@ const api: PushikApi = {
   openUri: (uri) => ipcRenderer.invoke('open:uri', uri),
   filesAction: (req) => ipcRenderer.invoke('files:action', req),
   openDrive: (letter) => ipcRenderer.invoke('open:drive', letter),
+  copyText: (text) => ipcRenderer.invoke('clipboard:write', text),
   on: (channel, cb) => {
     if (PUSHIK_EVENTS.includes(channel)) ipcRenderer.on(channel, (_e, data) => cb(data));
   },

@@ -4,6 +4,7 @@ import { isError, type LookResult, type Rect } from '../../shared/types';
 import { cat, setState, startFall } from '../cat/cat';
 import { api } from '../core/api';
 import { $, dom, el } from '../core/dom';
+import { settings } from '../core/settings';
 import { setIgnore } from '../input/mouse';
 import { hideBubble, say, type Action } from '../ui/bubble';
 import { closePanels, showPanel } from '../ui/panels';
@@ -124,7 +125,7 @@ function showExplanation(result: LookResult, token: number): void {
   const show = (body: string, more: boolean) => {
     const actions: Action[] = [['Понятно', stopInspect, true]];
     if (more) actions.push(['Подробнее', () => { if (token === epoch && active) show(`${text}\n\n${details}`, false); }]);
-    if (result.practiceGoal && result.status !== 'danger') actions.push(['Покажи, как', practice]);
+    if (result.practiceGoal && result.status !== 'danger' && settings.features.guide) actions.push(['Покажи, как', practice]);
     dom.bubble.classList.add('inspect-explanation');
     say(body, Infinity, { guide: true, actions, danger: result.status === 'danger' });
     const spoken = more ? text : details;

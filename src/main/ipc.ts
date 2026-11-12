@@ -1,5 +1,5 @@
 // Все запросы из окна кота (preload.ts) к главному процессу.
-import { app, dialog, ipcMain, screen, shell, systemPreferences } from 'electron';
+import { app, clipboard, dialog, ipcMain, screen, shell, systemPreferences } from 'electron';
 import { T } from '../shared/i18n';
 import type { ChatResult, ErrorReply, FilesRequest, LocateQuery, LookRequest, LookResult, Rect, ReminderKind, Settings, Skill } from '../shared/types';
 import { errorDetails, type AiError } from './ai/http';
@@ -8,6 +8,7 @@ import { ask, type ChatMessage, type ChatTools } from './ai/llm';
 import * as stt from './ai/stt';
 import * as clicks from './system/clicks';
 import { createFileActions } from './system/files';
+import { packPrompt } from './packs';
 import * as locate from './system/locate';
 import { toOverlayRect } from './overlay';
 import * as reminders from './reminders';
@@ -27,6 +28,7 @@ function screenAccess(): string {
 function aiFailure(err: unknown, what: string, fallbackKey: string): ErrorReply {
   const e = err as AiError;
   const s = settings.get();
+  if (e.code === 'policy') return { error: T('err.policy') };
   if (e.offline && s.provider === 'ollama') return { error: T('err.ollama', { url: s.ollamaUrl }) };
   console.error(what, errorDetails(err));
   return { error: T(e.network ? 'err.net' : fallbackKey) };
@@ -106,8 +108,13 @@ function registerSystem(): void {
   // только безопасные адреса (настройки Windows, WhatsApp, Telegram, сайты) и флешка
   ipcMain.handle('open:uri', (_e, uri: unknown) => {
     const u = String(uri || '');
-    if (!/^(ms-settings:|whatsapp:|tg:|https:\/\/)/.test(u)) return false;
+    // mailto: черновик письма (отчёт об инциденте); отправляет человек сам
+    if (!/^(ms-settings:|whatsapp:|tg:|https:\/\/|mailto:)/.test(u)) return false;
     shell.openExternal(u);
+    return true;
+  });
+  ipcMain.handle('clipboard:write', (_e, text: unknown) => {
+    clipboard.writeText(String(text ?? '').slice(0, 20000));
     return true;
   });
   ipcMain.handle('open:drive', (_e, letter: unknown) => {
@@ -121,11 +128,17 @@ function registerSystem(): void {
 // ---------- Помощник: снимок экрана и подсказка ----------
 function registerGuide(): void {
   ipcMain.handle('guide:look', async (_e, req: LookRequest): Promise<LookResult | ErrorReply> => {
-    if (noAi()) return { error: T('err.noKey') };
+    if (noAi()) return { error: T(settings.managed() ? 'err.policy' : 'err.noKey') };
+    const f = settings.features();
+    // «Подробнее» бывает и после объяснения элемента, и в показе по шагам
+    const allowed = req.mode === 'inspect' ? f.inspect : req.mode === 'more' ? f.inspect || f.guide : f.guide;
+    if (!allowed) return { error: T('err.policy') };
     if (screenAccess() === 'denied') return { error: T('err.screen') };
     try {
-      return await guide.look({ ...req, settings: settings.forAi(), overlay: ui.win() });
+      return await guide.look({ ...req, settings: settings.forAi(), privacy: settings.privacy(), packs: settings.packs(), overlay: ui.win() });
     } catch (err) {
+      const code = (err as AiError).code;
+      if (code === 'privatePassword' || code === 'privateApp') return { error: T(code === 'privatePassword' ? 'err.privatePassword' : 'err.privateApp') };
       if ((err as AiError).code === 'noShot') return { error: T('err.screen') };
       return aiFailure(err, 'guide:look', 'err.look');
     }
@@ -226,10 +239,11 @@ function registerChat(): void {
   ipcMain.handle('chat:reset', () => { chatHistory = []; return true; });
   ipcMain.handle('chat:send', async (_e, text: string): Promise<ChatResult | ErrorReply> => {
     const s = settings.get();
-    if (noAi()) return { error: T('err.noKey') };
+    if (noAi()) return { error: T(settings.managed() ? 'err.policy' : 'err.noKey') };
+    if (!settings.features().chat) return { error: T('err.policy') };
     const locale = s.lang === 'en' ? 'en-US' : 'ru-RU';
     try {
-      const { reply, history, actions, show } = await ask({ ...settings.forAi(s), history: chatHistory, text, tools: chatTools(locale) });
+      const { reply, history, actions, show } = await ask({ ...settings.forAi(s), history: chatHistory, text, tools: chatTools(locale), orgPrompt: packPrompt(settings.packs()) });
       chatHistory = history.slice(-30);
       return show ? { reply, actions, show } : { reply, actions };
     } catch (err) {

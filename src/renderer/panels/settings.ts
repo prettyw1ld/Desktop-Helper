@@ -57,7 +57,7 @@ export function applySettings(): void {
 const TEXT_FIELDS = ['userName', 'size', 'uiScale'] as const;
 const catColorField = () => form().elements.namedItem('catColor') as RadioNodeList;
 const themeField = () => form().elements.namedItem('theme') as RadioNodeList;
-const CHECK_FIELDS = ['speak', 'sound', 'autostart', 'glass'] as const;
+const CHECK_FIELDS = ['speak', 'sound', 'autostart', 'glass', 'shotConsent'] as const;
 
 // ---------- Модель ИИ ----------
 const providerField = () => field<HTMLSelectElement>('provider');
@@ -72,6 +72,11 @@ function showKeyState(): void {
 }
 
 function fillProvider(): void {
+  // корпоративный режим: модель и ключ задаёт политика, выбирать тут нечего
+  $('#ai-settings').classList.toggle('hidden', settings.managed);
+  const note = $('#ai-managed');
+  note.classList.toggle('hidden', !settings.managed);
+  note.textContent = settings.managed ? (settings.org ? T('set.managedBy', { org: settings.org }) : T('set.managed')) : '';
   const select = providerField();
   // модель из team.json, которой нет в списке (Claude, Ollama…): показываем как есть, чтобы её не сбросить
   select.querySelector('option[data-team]')?.remove();
@@ -88,6 +93,7 @@ function fillProvider(): void {
 
 /** Что сохранить про ИИ: модель, если её сменили, и ключ, если его вписали. */
 function aiChanges(): Partial<Settings> {
+  if (settings.managed) return {};
   const provider = providerField().value as Provider;
   const key = field('aiKey').value.trim();
   const out: Partial<Settings> = {};
@@ -136,6 +142,8 @@ export function initSettings(): void {
       sound: field('sound').checked,
       autostart: field('autostart').checked,
       glass: field('glass').checked,
+      // согласие на снимки экрана можно отозвать: тогда кот снова спросит перед первым снимком
+      shotConsent: field('shotConsent').checked,
       ...ai,
     }));
     applySettings();

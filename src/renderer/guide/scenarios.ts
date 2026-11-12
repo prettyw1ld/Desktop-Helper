@@ -16,7 +16,7 @@
      skipIf   пропустить шаг, если условие уже выполнено (то же, что wait).
      btn      надпись на главной кнопке шага вместо «Сделал(а)» (ключ i18n), например 'g.next'.
 */
-import type { FilePlace } from '../../shared/types';
+import type { FilePlace, PackLesson } from '../../shared/types';
 
 /** Что найти на экране: { scope, name (регулярка), types }. */
 export interface StepQuery {
@@ -68,6 +68,8 @@ export interface Scenario {
   win?: Step[];
   mac?: Step[];
   done?: string;
+  goal?: string;   // урок из пакета: цель для ИИ, если шагов нет или кнопку не нашли
+  pack?: string;   // название пакета организации
 }
 
 const BROWSERS = 'msedge|chrome|firefox|browser|yandex|opera|Safari|Google Chrome|Яндекс';
@@ -332,6 +334,9 @@ export const LOST = { id: 'lost' } as const;
 export function match(text: string): Scenario | typeof LOST | null {
   const t = String(text || '');
   if (/запута|не понима|lost|confused/i.test(t)) return LOST;
+  // уроки организации знают её программы лучше общих
+  const own = SCENARIOS.find((s) => s.pack && s.match.test(t));
+  if (own) return own;
   // уроки про файлы точнее общего «найти в интернете»: «найти скачанный файл» — это файлы
   return SCENARIOS.find((s) => s.fileLesson && s.match.test(t)) || SCENARIOS.find((s) => s.match.test(t)) || null;
 }
@@ -341,6 +346,31 @@ const ORDER = ['tour', 'volume', 'bigger', 'search', 'call', 'photos', 'files-le
 SCENARIOS.sort((a, b) => ORDER.indexOf(a.id) - ORDER.indexOf(b.id));
 
 export const list: readonly Scenario[] = SCENARIOS;
+
+const NEVER = /(?!)/;
+
+/** Урок из пакета организации → сценарий. Шаги одни и те же для Windows и macOS. */
+export function packScenario(l: PackLesson): Scenario {
+  let re = NEVER;
+  try { if (l.match) re = new RegExp(l.match, 'i'); } catch { /* главный процесс уже проверил */ }
+  const steps: Step[] = l.steps.map((st) => ({
+    say: st.say,
+    ...(st.find ? { find: { scope: st.find.scope, name: st.find.name, ...(st.find.types ? { types: st.find.types } : {}) } } : {}),
+    wait: st.wait,
+    ...(st.open ? { open: st.open } : {}),
+    ...(st.hint ? { hint: st.hint } : {}),
+  }));
+  return {
+    id: l.id, match: re, skill: l.title, words: l.words, win: steps, mac: steps, pack: l.pack,
+    ...(l.done ? { done: l.done } : {}), ...(l.goal ? { goal: l.goal } : {}),
+  };
+}
+
+/** Уроки организации в общий список: старые убираем, новые — после встроенных. */
+export function setPackLessons(lessons: readonly PackLesson[]): void {
+  for (let i = SCENARIOS.length - 1; i >= 0; i--) if (SCENARIOS[i]!.pack) SCENARIOS.splice(i, 1);
+  SCENARIOS.push(...lessons.map(packScenario));
+}
 
 export function byId(id: string): Scenario {
   const sc = SCENARIOS.find((s) => s.id === id);

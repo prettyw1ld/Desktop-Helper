@@ -20,10 +20,12 @@ import { initMouse } from './input/mouse';
 import { addMsg, initChat } from './panels/chat';
 import { initHelp } from './panels/help';
 import { initLessons } from './panels/lessons';
+import { initReport } from './panels/report';
 import { initReminders } from './panels/reminders';
 import { applySettings, initSettings } from './panels/settings';
 import { initBubble, say } from './ui/bubble';
 import { initIcons } from './ui/icons';
+import { initFocus } from './ui/focus';
 import { initPanels } from './ui/panels';
 import { initYarn } from './ui/ring';
 
@@ -33,10 +35,12 @@ async function start(): Promise<void> {
   initYarn();
   initTrash();
   initPanels();
+  initFocus();
   initHelp();
   initChat();
   initSettings();
   initLessons();
+  initReport();
   initCoach();
   initTrainer();
   initAiGuide();

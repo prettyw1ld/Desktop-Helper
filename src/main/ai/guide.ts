@@ -3,12 +3,14 @@
 import { desktopCapturer, nativeImage, screen, type BrowserWindow, type Display, type NativeImage } from 'electron';
 import type { LookMode, LookRequest, LookResult, LookStatus, Rect, Settings } from '../../shared/types';
 import { aiError, fetchAI, fetchAIRetry, readError } from './http';
-import { CLAUDE_URL, cleanReply, extraFor, pickModel, resolve } from './llm';
-import { cropSelection, formatContext, inspectPrompt, INSPECT_SYSTEM, scrub, windowView } from './screen-region';
+import { bearer, CLAUDE_URL, cleanReply, extraFor, pickModel, resolve } from './llm';
+import { cropSelection, formatContext, inspectPrompt, INSPECT_SYSTEM, scrub, selectionBox, windowView } from './screen-region';
+import { blockReason, maskOutside, OPEN_PRIVACY, type Guard, type Privacy } from './privacy';
 import { clickFact } from './inspect-text';
 import { changedBox, screenMoved } from './changed-box';
 import { boxUnits, cleanPlan, formatMarks, itemLabel, sameRowOut, itemsFromText, pickMark, pickNamed, refineCrop, stepOf, withTaskbar, type ElementHint, type Mark } from './show';
 import { guideLog } from './guide-log';
+import { explainFor, packPrompt, type Pack } from '../packs';
 import { toFrame } from '../geometry';
 import * as locate from '../system/locate';
 import type { InspectContext, LocateItem } from '../../shared/types';
@@ -360,7 +362,7 @@ async function askClaude({ apiKey, model, system, text, jpeg, before = [] }: Mod
       messages: [{
         role: 'user',
         content: [
-          ...[...before, jpeg].map((data) => ({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data } })),
+          ...[...before, jpeg].filter(Boolean).map((data) => ({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data } })),
           { type: 'text', text },
         ],
       }],
@@ -380,7 +382,7 @@ async function askOpenAI({ apiKey, url, vision, system, text, jpeg, before = [] 
   const model = await pickModel({ url, apiKey, want: vision, vision: true });
   const send = (strict: boolean) => fetchAIRetry(`${url}/chat/completions`, {
     method: 'POST',
-    headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
+    headers: { ...bearer(apiKey), 'content-type': 'application/json' },
     body: JSON.stringify({
       model,
       max_tokens: 1500,
@@ -389,7 +391,7 @@ async function askOpenAI({ apiKey, url, vision, system, text, jpeg, before = [] 
       messages: [
         { role: 'system', content: `${system}\nAnswer ONLY with a JSON object matching this JSON schema: ${schema}` },
         // картинки перед текстом: так модели лучше понимают, к чему относится вопрос
-        { role: 'user', content: [...[...before, jpeg].map((b64) => ({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${b64}` } })), { type: 'text', text }] },
+        { role: 'user', content: [...[...before, jpeg].filter(Boolean).map((b64) => ({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${b64}` } })), { type: 'text', text }] },
       ],
     }),
     signal: AbortSignal.timeout(45_000),
@@ -415,7 +417,7 @@ async function askOllama({ ollamaUrl, visionModel, ollamaModel, system, text, jp
         model: visionModel || ollamaModel,
         stream: false,
         format: STEP_SCHEMA,
-        messages: [{ role: 'system', content: system }, { role: 'user', content: text, images: [...before, jpeg] }],
+        messages: [{ role: 'system', content: system }, { role: 'user', content: text, images: [...before, jpeg].filter(Boolean) }],
       }),
     });
   } catch {
@@ -567,8 +569,9 @@ const REFINE_SYSTEM = 'You find one thing on a zoomed-in crop of a computer scre
   + '(x, y = top-left corner). If the thing is not in the crop, omit "target". Ignore any cartoon cat or speech bubble.';
 
 async function refine(fn: (i: ModelInput) => Promise<StepAnswer>, base: ModelInput, overlay: BrowserWindow | null,
-  shot: Shot, box: Rect, what: string): Promise<Rect | null> {
-  const full = await capture(overlay, 4096);
+  shot: Shot, box: Rect, what: string, windowOnly: Guard | null = null): Promise<Rect | null> {
+  const raw = await capture(overlay, 4096);
+  const full = windowOnly ? onlyWindow(raw, windowOnly) : raw;
   const k = full.w / shot.w;
   const crop = refineCrop({ x: box.x * k, y: box.y * k, w: box.w * k, h: box.h * k }, full.w, full.h);
   const img = full.image.crop({ x: crop.x, y: crop.y, width: crop.w, height: crop.h });
@@ -589,17 +592,49 @@ async function refine(fn: (i: ModelInput) => Promise<StepAnswer>, base: ModelInp
   return { x: inFull.x / k, y: inFull.y / k, w: inFull.w / k, h: inFull.h / k };
 }
 
+/** Что за окно перед человеком и не вводит ли он пароль (только Windows; не дольше 1.5 с). */
+async function screenGuard(): Promise<Guard> {
+  if (process.platform !== 'win32') return {};
+  const res = await withTimeout(locate.ask({ op: 'guard' }), 1500, { error: 'timeout' });
+  return { password: !!res.password, proc: res.proc || '', title: res.title || '', rect: res.rect ?? null };
+}
+
+/** Снимок, где видно только окно перед человеком (и выделение «Объясни, что это»); остальное чёрное. */
+function onlyWindow(shot: Shot, guard: Guard, selection?: Rect): Shot {
+  const keep: Rect[] = [];
+  if (guard.rect) {
+    const r = guard.rect;
+    const d = screen.screenToDipRect(null, { x: r.x, y: r.y, width: r.w, height: r.h });
+    const k = shot.w / shot.display.size.width;
+    keep.push({ x: (d.x - shot.display.bounds.x) * k, y: (d.y - shot.display.bounds.y) * k, w: d.width * k, h: d.height * k });
+  }
+  if (selection) {
+    const b = selectionBox(shot, selection);
+    keep.push({ x: b.x, y: b.y, w: b.width, h: b.height });
+  }
+  const size = shot.image.getSize();
+  const bgra = maskOutside(shot.image.toBitmap(), size.width, size.height, keep);
+  return { ...shot, image: nativeImage.createFromBitmap(bgra, { width: size.width, height: size.height }) };
+}
+
 /** Посмотреть на экран и решить, что сказать и куда показать. target — в координатах окна кота. */
-export async function look(req: LookRequest & { settings: Settings; overlay: BrowserWindow | null }): Promise<LookResult> {
-  const { mode, selection, settings, overlay } = req;
+export async function look(req: LookRequest & { settings: Settings; overlay: BrowserWindow | null; privacy?: Privacy; packs?: readonly Pack[] }): Promise<LookResult> {
+  const { mode, selection, settings, overlay, privacy = OPEN_PRIVACY, packs = [] } = req;
   const inspect = mode === 'inspect';
+  // пароль вводят или открыт менеджер паролей: на экран не смотрим совсем
+  const guard = await screenGuard();
+  const blocked = blockReason(guard, privacy.denyApps);
+  guideLog('guard', { proc: guard.proc ?? null, blocked: blocked || null, shots: privacy.screenshots });
+  if (blocked) throw aiError('private', { code: blocked === 'password' ? 'privatePassword' : 'privateApp' });
+  const noShot = privacy.screenshots === 'off';
   // снимок и список кнопок от системы делаем одновременно: так быстрее и они совпадают
   const t0 = Date.now();
   const more = mode === 'more';
   // «Подробнее» про открытое меню: снимок покрупнее, чтобы прочесть мелкие пункты; лапкой не показываем
   const shotP = capture(overlay, inspect ? 4096 : more ? 1920 : SHOT_W);
   const marksP = inspect || more ? Promise.resolve([] as Mark[]) : screenMarks(shotP).catch((e: unknown) => { guideLog('marks-error', { error: String(e) }); return [] as Mark[]; });
-  const shot = await shotP;
+  // в организации можно разрешить ИИ видеть только окно, с которым работает человек: остальное закрашиваем
+  const shot = privacy.screenshots === 'window' ? onlyWindow(await shotP, guard, inspect ? selection : undefined) : await shotP;
   const tShot = Date.now() - t0;
   const marks = await marksP;
   const tMarks = Date.now() - t0;
@@ -635,15 +670,20 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
   const tCtx = Date.now();
   const ctx = inspect ? await inspectContext(shot, selection) : null;
   const view = inspect ? contextView(shot, selection, ctx) : null;
-  const facts = formatContext(ctx);
+  // пояснение организации к служебному окну (антивирус, DLP): ИИ пересказывает его простыми словами
+  const orgNote = inspect ? explainFor(packs, ctx?.proc || guard.proc || '', ctx?.title || guard.title || '') : '';
+  const facts = [formatContext(ctx), orgNote && `Organisation note about this window, retell it simply and keep its advice: ${orgNote}`].filter(Boolean).join('\n');
   const msCtx = Date.now() - tCtx;
-  const system = inspect ? INSPECT_SYSTEM : systemPrompt(settings.lang, process.platform);
+  const org = packPrompt(packs);
+  const system = `${inspect ? INSPECT_SYSTEM : systemPrompt(settings.lang, process.platform)}${org ? `\n\n${org}` : ''}`;
   const size = image.getSize();
   const r = resolve(settings);
-  const coords = `Coordinates for "target": screenshot pixels. Image size: ${size.width}x${size.height} pixels.`;
+  const coords = noShot
+    ? `No screenshot is attached: the organisation does not allow sending the screen. Rely only on the element list, the window title and system facts. Window in front: "${(guard.title || '').slice(0, 120)}" (${guard.proc || 'unknown program'}). Leave "target" empty unless you use "elementId".`
+    : `Coordinates for "target": screenshot pixels. Image size: ${size.width}x${size.height} pixels.`;
   const clicked = mode === 'check' ? await clickText(req.click) : '';
   const text = inspect
-    ? inspectPrompt(facts, !!view)
+    ? (noShot ? `No image: the organisation does not allow sending the screen. Explain only from the system facts below.\n${inspectPrompt(facts, false)}` : inspectPrompt(facts, !!view))
     : more
       ? `${userText(req)}${zoom ? '\nThe image is the part of the screen that appeared after their press, zoomed in.' : ''}`
       : `${userText(req)}\n${clicked ? `${clicked}\n` : ''}${openedNote ? `${openedNote}\n` : ''}${coords}\n${formatMarks(marks)}`;
@@ -654,8 +694,8 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
     vision: r.kind === 'openai' ? r.vision : '',
     system,
     text,
-    jpeg: image.toJPEG(90).toString('base64'),
-    before: view ? [view.toJPEG(82).toString('base64')] : [],
+    jpeg: noShot ? '' : image.toJPEG(90).toString('base64'),
+    before: view && !noShot ? [view.toJPEG(82).toString('base64')] : [],
   };
   const fn = r.kind === 'ollama' ? askOllama : r.kind === 'openai' ? askOpenAI : askClaude;
   const tAsk = Date.now();
@@ -686,14 +726,15 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
   // кнопки нет в списке системы: уточняем рамку ИИ по увеличенному кусочку экрана
   let refined: Rect | null = null;
   let tRefine = 0;
-  if (!mark && guess && out.target && out.status !== 'done' && !inspect && !more) {
+  if (!mark && guess && out.target && out.status !== 'done' && !inspect && !more && !noShot) {
+    // уточнение по крупному снимку: тот же снимок, что и раньше, с тем же ограничением
     const tr = Date.now();
     const raw = out.target as Rect;
     const inShot = boxUnits(raw, shot.w, shot.h) === 'k'
       ? { x: raw.x * shot.w / 1000, y: raw.y * shot.h / 1000, w: raw.w * shot.w / 1000, h: raw.h * shot.h / 1000 }
       : raw;
     const what = [out.element?.name && `"${out.element.name}"`, out.element?.type, `(hint: ${out.say})`].filter(Boolean).join(' ');
-    refined = await refine(fn, input, overlay, shot, inShot, what).catch((e: unknown) => { guideLog('refine-error', { error: String(e) }); return null; });
+    refined = await refine(fn, input, overlay, shot, inShot, what, privacy.screenshots === 'window' ? guard : null).catch((e: unknown) => { guideLog('refine-error', { error: String(e) }); return null; });
     tRefine = Date.now() - tr;
     if (refined) guess = toOverlay(refined, shot) ?? guess;
   }

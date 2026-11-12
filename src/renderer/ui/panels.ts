@@ -6,10 +6,14 @@ import { T } from '../core/i18n';
 import { rand } from '../core/util';
 import { guide, trainer } from '../guide/state';
 import { hideBubble } from './bubble';
+import { setTyping } from './focus';
 import { icon } from './icons';
 
-export type PanelName = 'help' | 'lessons' | 'chat' | 'reminders' | 'settings';
-export const PANELS: PanelName[] = ['help', 'lessons', 'chat', 'reminders', 'settings'];
+// панели, где печатают: только у них окно кота берёт фокус клавиатуры
+const TYPING: PanelName[] = ['chat', 'reminders', 'settings', 'report'];
+
+export type PanelName = 'help' | 'lessons' | 'chat' | 'reminders' | 'settings' | 'report';
+export const PANELS: PanelName[] = ['help', 'lessons', 'chat', 'reminders', 'settings', 'report'];
 export const isPanel = (s: string): s is PanelName => (PANELS as string[]).includes(s);
 
 interface PanelHooks { show?: () => void; close?: () => void }
@@ -58,6 +62,7 @@ export function showPanel(name: PanelName): void {
   const panel = panelEl(name);
   panel.classList.remove('hidden');
   open = name;
+  setTyping(TYPING.includes(name));
   if (!['act', 'fall', 'drag', 'jump', 'perch'].includes(cat.state)) setState('busy');
   hooks[name]?.show?.();
   placePanel(panel);
@@ -67,6 +72,7 @@ export function closePanels(): void {
   if (open) hooks[open]?.close?.();
   for (const p of $$('.panel')) p.classList.add('hidden');
   open = null;
+  setTyping(false);
   for (const fn of closeHooks) fn();
   if (cat.state === 'busy' && !guide.active && !trainer.step) setState('idle', rand(1500, 4000));
 }

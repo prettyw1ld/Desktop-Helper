@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Пушики организации</title>
+<style>
+  :root { --bg: #fbf6ee; --card: #fffdf9; --line: #6b4423; --muted: #8a7563; --awake: #3f9b52; --dozing: #d49b2a; --asleep: #6a7bb5; --lost: #c4513b; --offline: #a99c90; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #1f1a16; --card: #2a231d; --line: #e8d5bf; --muted: #b3a291; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.4 system-ui, "Segoe UI", sans-serif; background: var(--bg); color: var(--line); }
+  header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; padding: 16px 20px; border-bottom: 2px solid var(--line); }
+  h1 { margin: 0; font-size: 20px; }
+  .counts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .count { border: 2px solid var(--line); border-radius: 99px; padding: 4px 12px; background: var(--card); cursor: pointer; font: inherit; color: inherit; }
+  .count[aria-pressed="true"] { background: var(--line); color: var(--bg); }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+  input[type=search] { margin-left: auto; min-width: 220px; padding: 6px 10px; border: 2px solid var(--line); border-radius: 10px; background: var(--card); color: inherit; font: inherit; }
+  main { padding: 16px 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+  .cat { border: 2px solid var(--line); border-radius: 14px; padding: 12px 14px; background: var(--card); display: flex; flex-direction: column; gap: 4px; }
+  .cat b { font-size: 16px; overflow-wrap: anywhere; }
+  .cat .sub { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+  .cat .state { font-weight: 600; }
+  .cat button { align-self: flex-start; margin-top: 6px; border: 1px solid var(--muted); border-radius: 8px; background: none; color: var(--muted); font: inherit; font-size: 12px; padding: 2px 8px; cursor: pointer; }
+  .empty { grid-column: 1 / -1; color: var(--muted); padding: 40px 0; text-align: center; }
+  footer { padding: 0 20px 16px; color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Пушики организации</h1>
+  <div class="counts" id="counts"></div>
+  <input type="search" id="q" placeholder="Компьютер или пользователь" aria-label="Поиск">
+</header>
+<main id="list"><div class="empty">Загрузка…</div></main>
+<footer id="foot"></footer>
+<script src="app.js"></script>
+</body>
+</html>
