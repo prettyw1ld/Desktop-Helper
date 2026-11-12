@@ -41,6 +41,19 @@ public static class PushTop {
     return h.ToInt64() + ":" + pid;
   }
   public static long Tray() { return FindWindow("Shell_TrayWnd", null).ToInt64(); }
+  [StructLayout(LayoutKind.Sequential)] public struct GTI { public int cb, flags; public IntPtr active, focus, capture, menuOwner, moveSize, caret; public int l, t, r, b; }
+  [DllImport("user32.dll")] static extern bool GetGUIThreadInfo(uint tid, ref GTI gi);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, System.Text.StringBuilder s, int n);
+  // Поле пароля обычной программы Windows (Edit со стилем ES_PASSWORD): UI Automation видит его не всегда
+  public static bool PasswordFocus() {
+    IntPtr fg = GetForegroundWindow();
+    if (fg == IntPtr.Zero) return false;
+    uint pid; uint tid = GetWindowThreadProcessId(fg, out pid);
+    GTI gi = new GTI(); gi.cb = Marshal.SizeOf(typeof(GTI));
+    if (!GetGUIThreadInfo(tid, ref gi) || gi.focus == IntPtr.Zero) return false;
+    var sb = new System.Text.StringBuilder(128); GetClassName(gi.focus, sb, 128);
+    return sb.ToString().IndexOf("edit", StringComparison.OrdinalIgnoreCase) >= 0 && (GetWindowLong(gi.focus, -16) & 0x20) != 0;
+  }
   // Меню «Пуск», поиск и панели Windows 11 живут в особом слое окон: среди детей корня UI Automation
   // их нет. Находим их напрямую по классу окна; открытое = видимое и не «спрятанное» (cloaked).
   public static long[] Immersive() {
@@ -700,6 +713,7 @@ function Guard() {
     $f = $AE::FocusedElement
     if ($f -and $f.Current.IsPassword -and $f.Current.ProcessId -ne ${skipPid}) { $res.password = $true }
   } catch {}
+  try { if (-not $res.password -and [PushTop]::PasswordFocus()) { $res.password = $true } } catch {}
   return $res
 }
 

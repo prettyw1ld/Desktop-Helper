@@ -137,7 +137,7 @@ function report(v: unknown, packId: string, where: string): PackReport | null {
     const x = (typeof q === 'string' ? { ask: q } : q && typeof q === 'object' ? q : {}) as Record<string, unknown>;
     const ask = str(x.ask, LIMITS.say);
     if (!ask) fail(`${where}.questions[${i}]: ask is empty`);
-    const opts = Array.isArray(x.options) ? x.options.map((a) => str(a, 40)).filter(Boolean) : [];
+    const opts = Array.isArray(x.options) ? x.options.map((a) => str(a, 60)).filter(Boolean) : [];
     if (opts.length > LIMITS.options) fail(`${where}.questions[${i}]: more than ${LIMITS.options} options`);
     return { ask, options: opts };
   });
