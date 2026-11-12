@@ -5,6 +5,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Features, Settings } from '../shared/types';
+import { OPEN_PRIVACY, parsePrivacy, type Privacy } from './ai/privacy';
 
 export interface PolicyAi {
   kind: 'openai' | 'ollama';   // openai: vLLM, LiteLLM и любой OpenAI-совместимый сервер
@@ -18,6 +19,7 @@ export interface Policy {
   org: string;
   ai: PolicyAi | null;         // null: ИИ выключен (в том числе когда политика испорчена)
   features: Features;
+  privacy: Privacy;
   problem: string;             // почему политика не принята целиком; пусто, если всё в порядке
 }
 
@@ -42,7 +44,7 @@ export function checkUrl(value: string, allowHttp = false): string {
  * испорченная политика не должна открывать дорогу в облако.
  */
 export function parsePolicy(raw: unknown): Policy {
-  const off = (problem: string, org = ''): Policy => ({ org, ai: null, features: { ...ALL_FEATURES }, problem });
+  const off = (problem: string, org = ''): Policy => ({ org, ai: null, features: { ...ALL_FEATURES }, privacy: { ...OPEN_PRIVACY }, problem });
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return off('policy is not an object');
   const o = raw as Record<string, unknown>;
   const org = str(o.org).slice(0, 80);
@@ -51,15 +53,16 @@ export function parsePolicy(raw: unknown): Policy {
     const f = o.features as Record<string, unknown>;
     for (const k of FEATURE_KEYS) if (typeof f[k] === 'boolean') features[k] = f[k];
   }
-  if (o.ai === null || o.ai === false || o.ai === undefined) return { org, ai: null, features, problem: '' };
-  if (typeof o.ai !== 'object') return { ...off('ai must be an object', org), features };
+  const privacy = parsePrivacy(o.privacy);
+  if (o.ai === null || o.ai === false || o.ai === undefined) return { org, ai: null, features, privacy, problem: '' };
+  if (typeof o.ai !== 'object') return { ...off('ai must be an object', org), features, privacy };
   const a = o.ai as Record<string, unknown>;
   const kind = str(a.kind) === 'ollama' ? 'ollama' : 'openai';
   const url = checkUrl(str(a.url), a.allowHttp === true);
   const model = str(a.model);
-  if (!url) return { ...off('ai.url must be https (http only for localhost or with allowHttp)', org), features };
-  if (!model) return { ...off('ai.model is empty', org), features };
-  return { org, ai: { kind, url, model, visionModel: str(a.visionModel) || model, apiKey: str(a.apiKey) }, features, problem: '' };
+  if (!url) return { ...off('ai.url must be https (http only for localhost or with allowHttp)', org), features, privacy };
+  if (!model) return { ...off('ai.model is empty', org), features, privacy };
+  return { org, ai: { kind, url, model, visionModel: str(a.visionModel) || model, apiKey: str(a.apiKey) }, features, privacy, problem: '' };
 }
 
 /** Вывод `reg query` → значения ключа: «    AiUrl    REG_SZ    https://…». */
@@ -85,6 +88,9 @@ export function regToRaw(v: Record<string, string>): Record<string, unknown> | n
     if (b !== undefined) features[key] = b;
   }
   if (Object.keys(features).length) raw.features = features;
+  if (v.Screenshots || v.DenyApps) {
+    raw.privacy = { screenshots: v.Screenshots || 'screen', denyApps: (v.DenyApps || '').split(/[;,]/).map((a) => a.trim()).filter(Boolean) };
+  }
   if (regBool(v.AiOff)) raw.ai = null;
   else if (v.AiUrl || v.AiModel) {
     raw.ai = { kind: v.AiKind, url: v.AiUrl, model: v.AiModel, visionModel: v.AiVisionModel, allowHttp: regBool(v.AiAllowHttp) === true };

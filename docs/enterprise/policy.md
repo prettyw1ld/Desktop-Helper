@@ -28,7 +28,8 @@
     "model": "qwen3-vl-8b",
     "visionModel": "qwen3-vl-8b"
   },
-  "features": { "chat": true, "guide": true, "inspect": true }
+  "features": { "chat": true, "guide": true, "inspect": true },
+  "privacy": { "screenshots": "window", "denyApps": ["1cv8", "iBank2"] }
 }
 ```
 
@@ -43,6 +44,12 @@
 | `features.chat` | Чат с котом |
 | `features.guide` | Показ по шагам («Сказать задачу», «Покажи, как») |
 | `features.inspect` | «Объясни, что это» |
+| `privacy.screenshots` | `screen` — весь экран (по умолчанию); `window` — ИИ видит только окно, с которым работает человек, остальное закрашено чёрным; `off` — снимок экрана не отправляется вообще, ИИ получает только названия кнопок окна от Windows. Непонятное значение считается `off` |
+| `privacy.denyApps` | Программы (имя процесса), при которых Пушик на экран не смотрит: банк-клиент, кадровая 1С, СКЗИ |
+
+Всегда, и без политики, Пушик не смотрит на экран, когда вводится пароль (поле пароля в фокусе),
+открыт менеджер паролей (KeePass, 1Password, Bitwarden и другие), окно запроса прав администратора или экран входа.
+Снимки дальше компьютера в этих случаях не уходят, человек видит объяснение.
 
 ## Групповая политика (Windows)
 
@@ -58,6 +65,8 @@
 | `AiAllowHttp` | REG_DWORD | `1` |
 | `AiOff` | REG_DWORD | `1` — ИИ выключен |
 | `Chat`, `Guide`, `Inspect` | REG_DWORD | `0` — выключить |
+| `Screenshots` | REG_SZ | `screen`, `window` или `off` |
+| `DenyApps` | REG_SZ | `1cv8; iBank2` |
 
 ## Сертификат внутреннего сервера
 

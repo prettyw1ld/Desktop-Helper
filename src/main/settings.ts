@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { aiKey, isKeyed, PROVIDER_KEY, type KeyedProvider, type PublicSettings, type SecretKey, type Settings } from '../shared/types';
 import { setAllowedOrigin } from './ai/http';
+import { OPEN_PRIVACY } from './ai/privacy';
 import * as stt from './ai/stt';
 import * as locate from './system/locate';
 import { ROOT, VOSK_MODEL } from './paths';
@@ -73,6 +74,7 @@ let team: Team = {};
 let policy: Policy | null = null;
 export const managed = (): boolean => !!policy;
 export const features = () => policy?.features ?? ALL_FEATURES;
+export const privacy = () => policy?.privacy ?? OPEN_PRIVACY;
 let current: Settings = { ...DEFAULTS };
 const listeners: ((next: Settings, prev: Settings) => void)[] = [];
 

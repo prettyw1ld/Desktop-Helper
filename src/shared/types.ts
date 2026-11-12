@@ -143,7 +143,7 @@ export interface LookResult {
 export interface ChatResult { reply: string; actions: string[]; show?: string }
 
 // ---------- Поиск кнопок через «доступность» ----------
-export type LocateOp = 'find' | 'top' | 'window' | 'drives' | 'volume' | 'list' | 'named' | 'inside' | 'shot' | 'grid' | 'context';
+export type LocateOp = 'find' | 'top' | 'window' | 'drives' | 'volume' | 'list' | 'named' | 'inside' | 'shot' | 'grid' | 'context' | 'guard';
 
 export interface LocateQuery {
   op: LocateOp;
@@ -210,6 +210,10 @@ export interface LocateResult {
   sw?: number;          // shot: размер экрана в пикселях
   sh?: number;
   ctx?: InspectContext | null; // context
+  password?: boolean;   // guard: человек вводит пароль
+  proc?: string;        // guard: программа окна перед человеком
+  title?: string;
+  rect?: Rect | null;   // guard: её окно, пиксели экрана
   ms?: number;
 }
 

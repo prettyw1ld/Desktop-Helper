@@ -129,8 +129,10 @@ function registerGuide(): void {
     if (!allowed) return { error: T('err.policy') };
     if (screenAccess() === 'denied') return { error: T('err.screen') };
     try {
-      return await guide.look({ ...req, settings: settings.forAi(), overlay: ui.win() });
+      return await guide.look({ ...req, settings: settings.forAi(), privacy: settings.privacy(), overlay: ui.win() });
     } catch (err) {
+      const code = (err as AiError).code;
+      if (code === 'privatePassword' || code === 'privateApp') return { error: T(code === 'privatePassword' ? 'err.privatePassword' : 'err.privateApp') };
       if ((err as AiError).code === 'noShot') return { error: T('err.screen') };
       return aiFailure(err, 'guide:look', 'err.look');
     }
