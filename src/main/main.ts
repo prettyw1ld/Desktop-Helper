@@ -60,6 +60,12 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', () => ui.showInactive());
+  // Окно кота показывает только свою страницу: никаких переходов, новых окон и встроенных страниц
+  app.on('web-contents-created', (_e, wc) => {
+    wc.on('will-navigate', (e) => e.preventDefault());
+    wc.on('will-attach-webview', (e) => e.preventDefault());
+    wc.setWindowOpenHandler(() => ({ action: 'deny' }));
+  });
   app.whenReady().then(onReady);
   app.on('will-quit', () => {
     globalShortcut.unregisterAll();

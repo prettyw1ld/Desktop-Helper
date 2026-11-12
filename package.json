@@ -19,9 +19,10 @@
     "vosk": "node tools/fetch-vosk-model.mts"
   },
   "devDependencies": {
+    "@electron/fuses": "^2.1.3",
     "@happy-dom/global-registrator": "^21.0.4",
     "@types/node": "^26.6.6",
-    "electron": "^33.2.1",
+    "electron": "^45.3.1",
     "electron-builder": "^25.1.8",
     "esbuild": "^0.28.2",
     "happy-dom": "^21.0.4",
@@ -65,7 +66,8 @@
     "directories": {
       "buildResources": "build-resources",
       "output": "dist"
-    }
+    },
+    "afterPack": "tools/fuses.cjs"
   },
   "author": "prettyw1ld",
   "license": "MIT",

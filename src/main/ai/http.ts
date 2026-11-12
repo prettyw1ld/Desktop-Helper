@@ -27,12 +27,21 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // Корпоративный режим: единственный адрес, куда можно ходить за ответом ИИ.
 // undefined — ограничений нет (обычный Пушик), null — никуда нельзя.
 let onlyOrigin: string | null | undefined;
+const MAX_BODY = 12 * 1024 * 1024;
 export const setAllowedOrigin = (origin: string | null | undefined): void => { onlyOrigin = origin; };
 
 export async function fetchAI(url: string, opts: RequestInit = {}): Promise<Response> {
   if (!originAllowed(onlyOrigin, url)) throw aiError('blocked by policy', { code: 'policy' });
-  // связь иногда рвётся на секунду: третья попытка после короткой паузы
-  const ways: Fetch[] = netFetch ? [netFetch, globalThis.fetch, netFetch] : [globalThis.fetch, globalThis.fetch];
+  // запрос не висит вечно и не бывает огромным (снимок экрана в base64 — до 2–3 МБ)
+  if (typeof opts.body === 'string' && opts.body.length > MAX_BODY) throw aiError('request is too large', { code: 'tooLarge' });
+  if (!opts.signal) opts = { ...opts, signal: AbortSignal.timeout(60_000) };
+  // связь иногда рвётся на секунду: третья попытка после короткой паузы.
+  // В корпоративном режиме — только сеть Chromium: она проверяет сертификат сервера по хранилищу Windows/macOS,
+  // куда администратор кладёт корневой сертификат организации, и уважает системный прокси.
+  const managed = onlyOrigin !== undefined;
+  const ways: Fetch[] = netFetch
+    ? (managed ? [netFetch, netFetch] : [netFetch, globalThis.fetch, netFetch])
+    : [globalThis.fetch, globalThis.fetch];
   let last: unknown;
   for (const [i, f] of ways.entries()) {
     if (i === ways.length - 1) await sleep(900);

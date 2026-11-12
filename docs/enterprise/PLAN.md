@@ -21,15 +21,17 @@
 
 ### 0.2 Секреты
 - [ ] E-06 Ключи больше не лежат открытым текстом в `team.json`: токен устройства хранится через `safeStorage`
-- [ ] E-07 Поддержка своего корневого сертификата (внутренний CA) и токена/mTLS к внутреннему шлюзу
-- [ ] E-08 Лимит размера снимка и таймауты для внутреннего сервера
+- [~] E-07 Свой корневой сертификат: работает через системное хранилище (готово); токен/mTLS к шлюзу — вместе с E-06
+- [x] E-08 Лимит размера снимка и таймауты для внутреннего сервера
 
 ### 0.3 Electron и сборка
-- [ ] E-09 Обновить Electron 33 → поддерживаемая версия (43–45), прогнать тесты и живую проверку на Windows
-- [ ] E-10 Electron fuses: `RunAsNode` выкл., `EnableNodeOptionsEnvironmentVariable` выкл., `EnableEmbeddedAsarIntegrityValidation` вкл., `OnlyLoadAppFromAsar` вкл.
-- [ ] E-11 Проверить по чек-листу Electron security: CSP, `contextIsolation`, `sandbox`, запрет `openExternal` вне allowlist, запрет навигации
+- [x] E-09 Electron 33 → 45.3.1
+- [x] E-10 Electron fuses (`tools/fuses.cjs`): `RunAsNode`, `NODE_OPTIONS`, `--inspect` выкл., `OnlyLoadAppFromAsar` вкл. Проверка целостности asar на Windows — после обновления electron-builder до 26 (E-10a)
+- [ ] E-10a Обновить electron-builder до 26 и включить `EnableEmbeddedAsarIntegrityValidation` на Windows
+- [x] E-11 Чек-лист Electron security: `contextIsolation`, `sandbox`, CSP, allowlist для `openExternal` уже были; добавлен запрет переходов, новых окон и webview
+- [ ] E-11a Убрать `'unsafe-eval'` из CSP, если Vosk работает с одним `'wasm-unsafe-eval'`
 - [ ] E-12 Подготовить подпись кода (Authenticode) в сборке; сам сертификат — за компанией
-- [ ] E-13 Тихая установка: NSIS `/S` + готовый `policy.json` (инструкция для GPO/KSC)
+- [x] E-13 Тихая установка: NSIS `/S` + готовый `policy.json` (`docs/enterprise/policy.md`)
 
 ---
 
