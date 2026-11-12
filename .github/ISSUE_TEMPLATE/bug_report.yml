@@ -1,0 +1,77 @@
+name: Bug report
+description: Report something that is not working as expected.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please describe one specific problem. Include clear steps to reproduce it and attach a screenshot or short recording when it helps explain the issue.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: A short, plain-language description of the problem.
+      placeholder: The dialog appears behind the window it should be displayed over.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the actions that lead to the problem.
+      placeholder: |
+        1. Open…
+        2. Click…
+        3. Observe…
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+      placeholder: The dialog should appear above the relevant Windows window, beside the “Explain this” window and the cat.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead?
+      placeholder: The dialog appears underneath the relevant Windows window, directly behind the “Explain this” window.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: operating-system
+    attributes:
+      label: Operating system
+      description: Select the system where you saw the problem.
+      options:
+        - Windows
+        - macOS
+    validations:
+      required: true
+
+  - type: input
+    id: app-version
+    attributes:
+      label: App version
+      description: If known, include the version shown in the app or installer filename.
+      placeholder: "For example: 0.9.0"
+    validations:
+      required: false
+
+  - type: textarea
+    id: attachments
+    attributes:
+      label: Screenshot or recording
+      description: Drag and drop an image or video here, or paste it into this field. Remove any personal information first.
+      placeholder: Attachments make visual bugs much easier to understand.
+    validations:
+      required: false
