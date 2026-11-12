@@ -5,7 +5,8 @@ import { $ } from '../core/dom';
 import { T } from '../core/i18n';
 import { can, settings } from '../core/settings';
 import { routeGoal } from '../guide/router';
-import { registerPanel, showPanel, isPanel } from '../ui/panels';
+import { setTyping } from '../ui/focus';
+import { openPanel, registerPanel, showPanel, isPanel } from '../ui/panels';
 import { initMic, micState, refreshMic } from './mic';
 
 /** Без ИИ «Объясни, что это» не сработает, поэтому на её месте — вход в уроки. */
@@ -24,6 +25,8 @@ function showAskIfNoMic(): void {
   const form = $('#ask-form');
   form.classList.toggle('hidden', !noMic);
   form.setAttribute('aria-hidden', String(!noMic));
+  // без микрофона задачу пишут: тогда окно кота берёт фокус
+  if (isPanel('help') && openPanel() === 'help') setTyping(noMic);
 }
 
 function renderHelp(): void {

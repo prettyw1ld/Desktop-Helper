@@ -25,6 +25,7 @@ import { initReminders } from './panels/reminders';
 import { applySettings, initSettings } from './panels/settings';
 import { initBubble, say } from './ui/bubble';
 import { initIcons } from './ui/icons';
+import { initFocus } from './ui/focus';
 import { initPanels } from './ui/panels';
 import { initYarn } from './ui/ring';
 
@@ -34,6 +35,7 @@ async function start(): Promise<void> {
   initYarn();
   initTrash();
   initPanels();
+  initFocus();
   initHelp();
   initChat();
   initSettings();

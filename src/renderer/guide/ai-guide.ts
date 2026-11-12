@@ -10,6 +10,7 @@ import { Sound } from '../core/sound';
 import { hideBubble, placeBubble, say, setBubbleAvoid, type Action, type SayOptions } from '../ui/bubble';
 import { openedZone, targetZones } from '../ui/bubble-spot';
 import { closePanels, showPanel } from '../ui/panels';
+import { setHold } from '../ui/focus';
 import { hideRing, showRing } from '../ui/ring';
 import { speak, stopSpeaking } from '../ui/speech';
 import { endGuide, onGuideEnd } from './control';
@@ -51,7 +52,7 @@ function holdScreen(on: boolean): void {
   if (on === holding) return;
   holding = on;
   if (!on) api.watchClicks(false, 'guide');
-  api.setFocusable(!on);
+  setHold(on);
 }
 
 function stopWatching(): void {
