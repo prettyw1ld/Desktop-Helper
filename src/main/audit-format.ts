@@ -55,3 +55,21 @@ export function parseSiem(raw: unknown): SiemTarget | null {
   if (!Number.isInteger(port) || port < 1 || port > 65535) return null;
   return { host, port, proto };
 }
+
+/** Строка журнала со ссылкой на предыдущую: prev — sha256 прошлой строки (пусто у самой первой). */
+export function chainLine(rec: Record<string, unknown>, prev: string): string {
+  return JSON.stringify({ ...rec, prev });
+}
+
+/**
+ * Проверка цепочки: номер первой строки (с 0), у которой prev не совпал с хешем предыдущей, или -1.
+ * hash — sha256 в hex; первую строку не проверяем (её предшественник мог уйти в старый файл).
+ */
+export function chainBreak(lines: string[], hash: (s: string) => string): number {
+  for (let i = 1; i < lines.length; i++) {
+    let rec: { prev?: unknown };
+    try { rec = JSON.parse(lines[i]!) as { prev?: unknown }; } catch { return i; }
+    if (rec.prev !== hash(lines[i - 1]!)) return i;
+  }
+  return -1;
+}

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { dangerOf, guardAnswer, hostAllowed, parseAnswers } from '../src/main/ai/answer-guard';
-import { cef, parseSiem, syslogLine } from '../src/main/audit-format';
+import { cef, chainBreak, parseSiem, syslogLine } from '../src/main/audit-format';
 import { parsePolicy, parseReg, regToRaw } from '../src/main/policy';
 
 const NO = 'нельзя';
@@ -83,6 +83,17 @@ test('audit writes the local log and sends syslog over UDP and TCP', async () =>
   });
   const tcp = await gotTcp;
   assert.match(tcp, /^\d+ <134>1 .*\|start\|.*\d+ <134>1 .*\|quit\|/s);
+  // строки связаны хешами, и цепочка продолжилась после повторного init
+  const crypto = await import('node:crypto');
+  const sha = (x: string) => crypto.createHash('sha256').update(x).digest('hex');
+  const all = fs.readFileSync(path.join(dir, 'audit.log'), 'utf8').trim().split('\n');
+  assert.equal(all.length, 3);
+  assert.equal(chainBreak(all, sha), -1);
+  assert.equal((JSON.parse(all[0]!) as { prev: string }).prev, '');
+  const cut = [all[0]!, all[2]!];
+  assert.equal(chainBreak(cut, sha), 1, 'a removed line breaks the chain');
+  const edited = [all[0]!, all[1]!.replace('"start"', '"stArt"'), all[2]!];
+  assert.equal(chainBreak(edited, sha), 2, 'an edited line breaks the chain');
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
