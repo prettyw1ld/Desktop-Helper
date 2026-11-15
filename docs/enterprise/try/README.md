@@ -12,7 +12,7 @@
 ## Включить
 
 1. Собери Пушика из ветки `enterprise`: в папке проекта `npm install`, затем `npm run build`, затем `npx electron-builder --win --dir`.
-2. Открой PowerShell **от имени администратора**, перейди в `docs\enterprise\try` и выполни `.\try.ps1`.
+2. В PowerShell перейди в `docs\enterprise\try` и выполни `powershell -ExecutionPolicy Bypass -File .\try.ps1`. Windows спросит права администратора: они нужны, чтобы записать политику в `C:\ProgramData\Pushik`.
    Пушик перезапустится, откроется админ-панель: логин `admin`, пароль `admin-password-42`.
 
 ## Как сотрудник

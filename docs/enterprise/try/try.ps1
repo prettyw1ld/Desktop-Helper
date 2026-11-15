@@ -2,7 +2,7 @@
 #   .\try.ps1          — включить: политика, пакет «Безопасность», проверочный ИИ, сервер админ-панели, приёмник журнала
 #   .\try.ps1 -Off     — выключить: убрать политику, Пушик снова обычный
 #   .\try.ps1 -Say "Отключи антивирус"  — проверочный ИИ будет отвечать этой фразой (проверка фильтра ответов)
-# Запускать в PowerShell от имени администратора: политика лежит в C:\ProgramData\Pushik.
+# Права администратора нужны (политика лежит в C:\ProgramData\Pushik): без них скрипт сам попросит их у Windows.
 param([switch]$Off, [string]$Say = '')
 
 $ErrorActionPreference = 'Stop'
@@ -11,10 +11,16 @@ $repo = Resolve-Path (Join-Path $here '..\..\..')
 $dir = Join-Path $env:ProgramData 'Pushik'
 
 $admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-if (-not $admin) { Write-Host 'Запусти PowerShell от имени администратора: политика пишется в C:\ProgramData\Pushik.' -ForegroundColor Yellow; exit 1 }
+if (-not $admin) {
+  # политика пишется в C:\ProgramData\Pushik: перезапускаемся с правами администратора (Windows спросит разрешение)
+  $a = @('-NoExit', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"") + $(if ($Off) { @('-Off') } else { @() }) + $(if ($Say) { @('-Say', "`"$Say`"") } else { @() })
+  Start-Process powershell -Verb RunAs -ArgumentList $a
+  exit 0
+}
 
 function Stop-Pushik {
-  Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -match 'win-unpacked' -or $_.Name -match '^(Пушик|Pushik)\.exe$' } |
+  # собранный Пушик и Пушик из npm start (electron.exe из node_modules этого проекта)
+  Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -match 'win-unpacked' -or $_.Name -match '^(Пушик|Pushik)\.exe$' -or ($_.ExecutablePath -and $_.ExecutablePath.StartsWith("$repo\node_modules\electron", 'OrdinalIgnoreCase')) } |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 }
 
