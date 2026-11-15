@@ -130,6 +130,9 @@ export const isError = (r: unknown): r is ErrorReply =>
 
 export interface Rect { x: number; y: number; w: number; h: number }
 
+/** Туннель наружу: что за программа, кто её запустил, закрыл ли её кот. */
+export interface TunnelNotice { app: string; by: string; result: 'warned' | 'stopped' | 'stop_failed' }
+
 // ---------- Напоминания и календарь ----------
 export type ReminderKind = 'reminder' | 'focus';
 export interface Reminder { id: string; at: number; text: string; kind: ReminderKind }
@@ -281,12 +284,13 @@ export interface PushikEvents {
   'looking': undefined; // сейчас делается снимок экрана для ИИ
   'work-area': Rect;   // где пол и стены для кота внутри окна (без панели задач)
   'remote-app': string; // запустилась программа удалённого доступа (защита от мошенников)
+  'tunnel': TunnelNotice; // открыт туннель во внешний сервис (cloudflared, ngrok…): корпоративный режим
   'global-click': { x: number; y: number } | null; // нажали мышью где угодно на экране, в координатах окна кота (пока включено watchClicks)
 }
 export type PushikEvent = keyof PushikEvents;
 export const PUSHIK_EVENTS: PushikEvent[] = [
   'reminder', 'reminders-changed', 'open', 'settings-changed', 'calendar-soon', 'calendar-changed',
-  'windows', 'screen-changed', 'ai-wait', 'looking', 'work-area', 'remote-app', 'global-click',
+  'windows', 'screen-changed', 'ai-wait', 'looking', 'work-area', 'remote-app', 'tunnel', 'global-click',
 ];
 
 /** Мост preload.ts: что окно кота может попросить у главного процесса. */

@@ -8,6 +8,7 @@ import type { Features, Settings } from '../shared/types';
 import { OPEN_PRIVACY, parsePrivacy, type Privacy } from './ai/privacy';
 import { parseAnswers, type AnswerRules } from './ai/answer-guard';
 import { parseSiem, type SiemTarget } from './audit-format';
+import { parseTunnels, type TunnelRules } from './system/tunnels';
 
 export interface PolicyAi {
   kind: 'openai' | 'ollama';   // openai: vLLM, LiteLLM и любой OpenAI-совместимый сервер
@@ -33,6 +34,7 @@ export interface Policy {
   privacy: Privacy;
   answers?: AnswerRules;       // какие ссылки ИИ может давать
   siem?: SiemTarget | null;    // куда слать журнал событий
+  tunnels?: TunnelRules;       // туннели во внешние сервисы (cloudflared, ngrok…): предупредить или остановить
   problem: string;             // почему политика не принята целиком; пусто, если всё в порядке
 }
 
@@ -60,7 +62,7 @@ export function parsePolicy(raw: unknown): Policy {
   const p = parseCore(raw);
   const o = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
   // ссылки и журнал не зависят от раздела ai: испорченный ai их не отменяет
-  return { ...p, answers: parseAnswers(o.answers), siem: parseSiem(o.siem) };
+  return { ...p, answers: parseAnswers(o.answers), siem: parseSiem(o.siem), tunnels: parseTunnels(o.tunnels) };
 }
 
 function parseCore(raw: unknown): Policy {
@@ -125,7 +127,8 @@ export function regToRaw(v: Record<string, string>): Record<string, unknown> | n
     raw.privacy = { screenshots: v.Screenshots || 'screen', denyApps: (v.DenyApps || '').split(/[;,]/).map((a) => a.trim()).filter(Boolean), masks: (v.Masks || '').split('\\0').map((a) => a.trim()).filter(Boolean) };
   }
   if (v.AllowHosts) raw.answers = { allowHosts: v.AllowHosts.split(/[;,\s]+/).filter(Boolean) };
-  if (v.SiemHost) raw.siem = { host: v.SiemHost, port: Number(v.SiemPort) || undefined, proto: v.SiemProto };
+  if (v.Tunnels || v.TunnelsAllow) raw.tunnels = { action: v.Tunnels, allow: (v.TunnelsAllow || '').split('\\0').map((a) => a.trim()).filter(Boolean) };
+  if (v.SiemHost) raw.siem ={ host: v.SiemHost, port: Number(v.SiemPort) || undefined, proto: v.SiemProto };
   if (v.PresenceUrl) raw.presence = { url: v.PresenceUrl, secret: v.PresenceSecret, allowHttp: regBool(v.PresenceAllowHttp) === true, ...(v.PresenceGroup ? { group: v.PresenceGroup } : {}), ...(v.ConfigKey ? { configKey: v.ConfigKey } : {}) };
   if (regBool(v.AiOff)) raw.ai = null;
   else if (v.AiUrl || v.AiModel) {

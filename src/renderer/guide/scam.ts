@@ -1,5 +1,6 @@
 // Защита от мошенников без ИИ: запустилась программа удалённого доступа (AnyDesk, TeamViewer…).
 // Кот не пугает, а спокойно спрашивает. «Это свои» — больше не спрашиваем про эту программу.
+import type { TunnelNotice } from '../../shared/types';
 import { surprised } from '../cat/poses';
 import { leaveTrash } from '../cat/trash';
 import { api } from '../core/api';
@@ -45,6 +46,20 @@ export function remoteAppStarted(app: string): void {
   speak(text);
 }
 
+/** Открыт туннель наружу (cloudflared, ngrok…). Кот говорит, что закрыл его или что так нельзя, и кто его запустил. */
+export function tunnelOpened(t: TunnelNotice): void {
+  leaveTrash();
+  if (guide.active) endGuide(false);
+  guide.active = true;
+  Sound.bell();
+  surprised(() => {});
+  const key = t.result === 'stopped' ? 'tunnel.stopped' : t.result === 'stop_failed' ? 'tunnel.failed' : 'tunnel.warn';
+  const text = [T(key, { app: t.app }), t.by ? T('tunnel.by', { by: t.by }) : ''].filter(Boolean).join(' ');
+  say(text, Infinity, { guide: true, danger: true, explain: T('tunnel.tip'), actions: [[T('g.ok'), done, true]] });
+  speak(text);
+}
+
 export function initScamGuard(): void {
   api.on('remote-app', remoteAppStarted);
+  api.on('tunnel', tunnelOpened);
 }

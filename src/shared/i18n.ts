@@ -69,7 +69,7 @@ const STR: Record<Lang, Dict> = {
     // главный процесс
     'tray.call': 'Позвать Пуша', 'tray.chat': 'Чат с Пушем', 'tray.reminders': 'Напоминания',
     'tray.settings': 'Настройки', 'tray.log': 'Журнал подсказок', 'tray.toggle': 'Спрятать / показать', 'tray.quit': 'Выход', 'tray.pause': 'Не смотреть на экран час', 'cat.looking': 'смотрю на экран',
-    'notif.focus': 'Пуш: фокус-сессия закончилась', 'notif.reminder': 'Пуш напоминает', 'notif.calendar': 'Пуш: скоро встреча',
+    'notif.focus': 'Пуш: фокус-сессия закончилась', 'notif.reminder': 'Пуш напоминает', 'notif.calendar': 'Пуш: скоро встреча', 'notif.tunnel': 'Пуш: открыт туннель наружу', 'tunnel.stopped': 'Я закрыл {app}: он открывал этот компьютер в интернет в обход защиты компании. Так нельзя.', 'tunnel.warn': 'Запущен {app}: он открывает этот компьютер в интернет в обход защиты компании. Так нельзя, закрой его.', 'tunnel.failed': 'Запущен {app}, и закрыть его я не смог: он открывает этот компьютер в интернет. Закрой его и сообщи в отдел безопасности.', 'tunnel.by': 'Его запустила программа {by}. Если это ИИ-помощник, не разрешай ему открывать туннели.', 'tunnel.tip': 'Туннель (Cloudflare, ngrok и подобные) даёт доступ к компьютеру и рабочей сети из интернета. Отдел безопасности уже получил запись в журнале.',
     'rem.default': 'Напоминание',
     'err.privatePassword': 'Сейчас вводится пароль, поэтому на экран я не смотрю. Допиши его, и я помогу 🐾',
     'err.privateApp': 'В этой программе хранятся пароли или секреты, поэтому на экран я не смотрю.',
@@ -305,7 +305,7 @@ const STR: Record<Lang, Dict> = {
     'greet.day': 'Hi{name}! I am Push. Click me 🐾', 'greet.evening': 'Good evening{name}! Purr 🌆',
     'tray.call': 'Call Push', 'tray.chat': 'Chat with Push', 'tray.reminders': 'Reminders',
     'tray.settings': 'Settings', 'tray.log': 'Hint log', 'tray.toggle': 'Hide / show', 'tray.quit': 'Quit', 'tray.pause': 'Don\'t look at the screen for an hour', 'cat.looking': 'looking at the screen',
-    'notif.focus': 'Push: focus session is over', 'notif.reminder': 'Push reminds you', 'notif.calendar': 'Push: meeting soon',
+    'notif.focus': 'Push: focus session is over', 'notif.reminder': 'Push reminds you', 'notif.calendar': 'Push: meeting soon', 'notif.tunnel': 'Push: a tunnel to the internet was opened', 'tunnel.stopped': 'I closed {app}: it opened this computer to the internet around the company protection. That is not allowed.', 'tunnel.warn': '{app} is running: it opens this computer to the internet around the company protection. That is not allowed, please close it.', 'tunnel.failed': '{app} is running and I could not close it: it opens this computer to the internet. Close it and tell the security team.', 'tunnel.by': 'It was started by {by}. If that is an AI assistant, do not let it open tunnels.', 'tunnel.tip': 'A tunnel (Cloudflare, ngrok and the like) lets the internet reach this computer and the office network. The security team already has a record in the log.',
     'rem.default': 'Reminder',
     'err.privatePassword': 'A password is being typed, so I am not looking at the screen. Finish it and I will help 🐾',
     'err.privateApp': 'This program keeps passwords or secrets, so I am not looking at the screen.',

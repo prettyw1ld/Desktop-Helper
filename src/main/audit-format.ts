@@ -19,6 +19,7 @@ export const EVENTS: Record<string, string> = {
   pause: 'Screenshots paused by user',
   resume: 'Screenshots resumed by user',
   config: 'Signed settings from the server applied',
+  tunnel: 'Tunnel to an external service detected',
 };
 
 const head = (s: string): string => s.replace(/\\/g, '\\\\').replace(/\|/g, '\\|');

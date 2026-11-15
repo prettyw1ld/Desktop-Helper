@@ -56,6 +56,7 @@ function onReady(): void {
       watchers.startCalendar();
       watchers.startWindowsWatch();
       watchers.startRemoteWatch();
+      watchers.startTunnelWatch();
       // точная лапка в подсказках ИИ берёт кнопки через PowerShell: запускаем его заранее
       if (settings.hasAi()) setTimeout(() => locate.warm(), 4000);
     },

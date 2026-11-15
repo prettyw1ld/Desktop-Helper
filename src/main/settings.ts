@@ -10,6 +10,7 @@ import { parseMasks, setMasks } from './ai/redact';
 import { OPEN_ANSWERS } from './ai/answer-guard';
 import * as stt from './ai/stt';
 import * as locate from './system/locate';
+import { DEFAULT_TUNNELS, type TunnelRules } from './system/tunnels';
 import { ROOT, VOSK_MODEL } from './paths';
 import { packsDir, readPacks, type Pack } from './packs';
 import { tighten, type Payload, type Tunable } from './remote-config';
@@ -94,6 +95,8 @@ export function setRemote(p: Payload[]): void {
   setMasks(parseMasks(privacy().masks));
 }
 export const siem = () => policy?.siem ?? null;
+/** Что делать с туннелями во внешние сервисы; обычный Пушик за ними не следит. */
+export const tunnels = (): TunnelRules => (policy ? policy.tunnels ?? DEFAULT_TUNNELS : { action: 'off', allow: [] });
 export const org = () => policy?.org ?? '';
 export const policyProblem = () => policy?.problem ?? '';
 // ролевые пакеты организации; без политики их нет

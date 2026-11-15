@@ -40,6 +40,7 @@ $policy = [ordered]@{
   answers = @{ allowHosts = @('corp.local') }
   presence = @{ url = 'http://localhost:8899'; secret = 'enroll-secret-0123456789'; allowHttp = $true; group = 'Отдел ИБ' }
   siem = @{ host = '127.0.0.1'; port = 5514; proto = 'udp' }
+  tunnels = @{ action = 'stop' }   # туннели наружу (cloudflared, ngrok, ssh -R) кот закрывает
 }
 [IO.File]::WriteAllText((Join-Path $dir 'policy.json'), ($policy | ConvertTo-Json -Depth 5), (New-Object Text.UTF8Encoding $false))
 
