@@ -4,7 +4,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY package.json ./
 # только pg, без скриптов установки: меньше поводов для атаки через зависимости
-RUN npm install --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force
+RUN npm install --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force \
+  && node -e "import('pg')"   # pg необязателен в package.json, но в образе он нужен: без сети сборка должна упасть, а не тихо его пропустить
 COPY *.mjs ./
 COPY public ./public
 COPY tools ./tools

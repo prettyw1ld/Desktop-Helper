@@ -67,8 +67,8 @@ export async function pgStore(url) {
       if (info) await pool.query('update devices set grp = $2, packs = $3 where id = $1', [id, info.group, info.packs.join(',')]);
       await pool.query(
         `insert into mood_history (device_id, at, mood, reason)
-         select id, to_timestamp($5 / 1000.0), $2, $3 from devices where id = $1 and (mood <> $2 or reason <> $3)`,
-        [id, mood, reason, idleSec, now]);
+         select id, to_timestamp($4 / 1000.0), $2, $3 from devices where id = $1 and (mood <> $2 or reason <> $3)`,
+        [id, mood, reason, now]);
       await pool.query(
         'update devices set mood = $2, reason = $3, idle_sec = $4, version = $5, last_seen = to_timestamp($6 / 1000.0) where id = $1',
         [id, mood, reason, idleSec, version, now]);
