@@ -186,6 +186,10 @@ function primarySource(sources: Electron.DesktopCapturerSource[], display: Displ
 // Раньше прятали прозрачностью, и на Windows прозрачное окно после этого уходило под браузер.
 // Защиту сразу снимаем, чтобы кот был виден в записи экрана.
 // Каждый снимок видно: кот показывает «смотрю на экран» (окно кота подписывается через setOnShot)
+// программа, перед которой кот давал последнюю подсказку (для отметки «подсказка неверная»)
+let lastApp = '';
+export const lastLookApp = (): string => lastApp;
+
 let onShot: () => void = () => {};
 export const setOnShot = (fn: () => void): void => { onShot = fn; };
 
@@ -638,6 +642,7 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
     throw aiError('private', { code: blocked === 'password' ? 'privatePassword' : 'privateApp' });
   }
   audit.event('look', { mode, app: guard.proc || '', shots: shotsPaused() ? 'paused' : privacy.screenshots });
+  lastApp = guard.proc || '';
   if (shotsPaused()) throw aiError('paused', { code: 'privatePaused' });
   const noShot = privacy.screenshots === 'off';
   // снимок и список кнопок от системы делаем одновременно: так быстрее и они совпадают

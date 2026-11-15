@@ -4,6 +4,7 @@ import { T } from '../shared/i18n';
 import type { ChatResult, ErrorReply, FilesRequest, LocateQuery, LookRequest, LookResult, Rect, ReminderKind, Settings, Skill } from '../shared/types';
 import { errorDetails, type AiError } from './ai/http';
 import * as guide from './ai/guide';
+import { guideLog } from './ai/guide-log';
 import { guardAnswer } from './ai/answer-guard';
 import * as audit from './audit';
 import { ask, type ChatMessage, type ChatTools } from './ai/llm';
@@ -187,6 +188,15 @@ function registerGuide(): void {
     guide.watch({ masks, focus, onChange: () => ui.send('screen-changed') });
   });
   ipcMain.on('guide:unwatch', () => guide.unwatch());
+  // «Не то»: человек отметил подсказку как неверную. В журнал — только режим, номер шага и программа, без текста
+  ipcMain.on('guide:wrong', (_e, v: unknown) => {
+    const o = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
+    const mode = typeof o.mode === 'string' ? o.mode.slice(0, 20) : '';
+    const step = Number.isInteger(o.step) ? Number(o.step) : 0;
+    const info = { mode, step, pointed: o.pointed === true, app: guide.lastLookApp() };
+    guideLog('wrong', info);
+    audit.event('hint.wrong', info, 4);
+  });
 }
 
 // ---------- Голос ----------

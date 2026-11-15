@@ -129,6 +129,7 @@
 | `chat` | 3 | `cnt` — длина вопроса в знаках |
 | `answer.blocked` | 7 | `where` (chat/guide), `reason` (`command`, `protection`, `secrets`) |
 | `answer.links` | 4 | `where`, `cnt` — сколько ссылок убрано |
+| `hint.wrong` | 4 | человек нажал «Не то» под подсказкой: `mode`, `step` (номер шага), `pointed` (показывал ли кот лапкой), `app` |
 | `pause`, `resume` | 4 / 3 | человек поставил или снял паузу снимков |
 
 Пример строки для SIEM:
@@ -136,4 +137,11 @@
 ```
 <131>1 2026-11-15T10:00:00.000Z PC-042 Pushik - - - CEF:0|Pushik|Pushik|0.9.0|answer.blocked|Dangerous AI answer hidden|7|rt=1794736800000 dvchost=PC-042 suser=anna where=chat reason=command
 ```
+
+## Состав сборки (SBOM)
+
+`npm run sbom` пишет `dist/sbom.cdx.json` в формате CycloneDX 1.5: все пакеты с версиями, лицензиями и контрольными
+суммами. У того, что попадает в установщик, `scope: required`; у инструментов сборки — `excluded`.
+Файл создаётся и при `npm run dist`. `npm run check:deps` проверяет по базе npm то, что попадает в установщик,
+и завершается ошибкой при уязвимостях уровня high и выше (нужен доступ к реестру npm или его зеркалу).
 

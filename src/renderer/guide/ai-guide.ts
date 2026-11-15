@@ -105,11 +105,22 @@ export function aiStepActions(): Action[] {
   const actions: Action[] = [
     [T('g.done'), () => look('check'), true],
     [T('g.again'), () => { if (guide.last) showStep(guide.last); }],
+    [T('g.wrong'), wrongHint],
     [T('g.stop'), () => endGuide(true)],
   ];
   const changed = guide.last?.whatChanged;
   if (changed) actions.splice(1, 0, [WHAT_HAPPENED, () => showChange(changed, () => { if (guide.last) showStep(guide.last); })]);
   return actions;
+}
+
+/** «Не то»: отмечаем подсказку как неверную (в журнал, без текста) и смотрим на экран заново. */
+function wrongHint(): void {
+  if (guide.busy) return;
+  api.guideWrong({ mode: guide.mode, step: guide.stepIndex, pointed: !!guide.last?.target });
+  // ИИ узнаёт, что прошлая подсказка не подошла, и не повторяет её
+  const n = guide.history.length;
+  if (n) guide.history[n - 1] = `${guide.history[n - 1]} (WRONG: the person says this hint was wrong or pointed at the wrong place; they have NOT done it. Look again and give a different, correct hint)`;
+  void look('check');
 }
 
 function showChange(text: string, back: () => void): void {

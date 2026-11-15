@@ -21,6 +21,7 @@ const api: PushikApi = {
   guideLook: (req) => ipcRenderer.invoke('guide:look', req),
   guideWatch: (masks, focus) => ipcRenderer.send('guide:watch', masks, focus),
   guideUnwatch: () => ipcRenderer.send('guide:unwatch'),
+  guideWrong: (info) => ipcRenderer.send('guide:wrong', info),
   transcribe: (audio, mime) => ipcRenderer.invoke('stt:transcribe', { audio, mime }),
   askMic: () => ipcRenderer.invoke('mic:ask'),
   addSkill: (name) => ipcRenderer.invoke('skills:add', name),

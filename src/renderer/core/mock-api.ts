@@ -96,6 +96,7 @@ export function mockApi(): PushikApi {
     },
     guideWatch() {},
     guideUnwatch() {},
+    guideWrong() {},
     // тестовый «рабочий стол»: панель задач с WhatsApp
     locate: async (query) => {
       const desk = window.__desk ??= {

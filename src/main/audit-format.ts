@@ -15,6 +15,7 @@ export const EVENTS: Record<string, string> = {
   chat: 'Chat question',
   'answer.blocked': 'Dangerous AI answer hidden',
   'answer.links': 'Links removed from AI answer',
+  'hint.wrong': 'User marked a hint as wrong',
   pause: 'Screenshots paused by user',
   resume: 'Screenshots resumed by user',
 };

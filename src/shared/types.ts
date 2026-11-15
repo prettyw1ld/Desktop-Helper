@@ -305,6 +305,7 @@ export interface PushikApi {
   /** focus — место у кнопки из подсказки: там замечаем и небольшие перемены (закрылось меню). */
   guideWatch(masks: Rect[], focus?: Rect | null): void;
   guideUnwatch(): void;
+  guideWrong(info: { mode: string; step: number; pointed: boolean }): void;
   transcribe(audio: ArrayBuffer, mime: string): Promise<{ text: string } | ErrorReply>;
   askMic(): Promise<boolean>;
   addSkill(name: string): Promise<Skill[]>;

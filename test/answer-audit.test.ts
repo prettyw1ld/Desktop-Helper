@@ -85,3 +85,8 @@ test('audit writes the local log and sends syslog over UDP and TCP', async () =>
   assert.match(tcp, /^\d+ <134>1 .*\|start\|.*\d+ <134>1 .*\|quit\|/s);
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('a wrong-hint mark has its own CEF name', () => {
+  const e = { time: new Date(0), event: 'hint.wrong', severity: 4, fields: { mode: 'check', step: 2, pointed: true, app: 'outlook' } };
+  assert.equal(cef(e, '1'), 'CEF:0|Pushik|Pushik|1|hint.wrong|User marked a hint as wrong|4|rt=0 mode=check step=2 pointed=true app=outlook');
+});
