@@ -1,9 +1,11 @@
 ﻿# Проба корпоративного режима Пушика на своём компьютере.
-#   .\try.ps1          — включить: политика, пакет «Безопасность», проверочный ИИ, сервер админ-панели, приёмник журнала
+#   .\try.ps1          — включить: политика, пакет «Безопасность», локальная модель в Ollama, сервер админ-панели, приёмник журнала
 #   .\try.ps1 -Off     — выключить: убрать политику, Пушик снова обычный
+#   .\try.ps1 -Model qwen2.5vl:3b       — другая модель Ollama (нужна модель, которая видит картинки)
+#   .\try.ps1 -FakeAi  — вместо модели проверочный ИИ: отвечает одной фразой и сохраняет запросы в requests\
 #   .\try.ps1 -Say "Отключи антивирус"  — проверочный ИИ будет отвечать этой фразой (проверка фильтра ответов)
 # Права администратора нужны (политика лежит в C:\ProgramData\Pushik): без них скрипт сам попросит их у Windows.
-param([switch]$Off, [string]$Say = '')
+param([switch]$Off, [string]$Say = '', [switch]$FakeAi, [string]$Model = 'qwen3-vl:4b-instruct')
 
 $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
@@ -13,7 +15,8 @@ $dir = Join-Path $env:ProgramData 'Pushik'
 $admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $admin) {
   # политика пишется в C:\ProgramData\Pushik: перезапускаемся с правами администратора (Windows спросит разрешение)
-  $a = @('-NoExit', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"") + $(if ($Off) { @('-Off') } else { @() }) + $(if ($Say) { @('-Say', "`"$Say`"") } else { @() })
+  $a = @('-NoExit', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"") + $(if ($Off) { @('-Off') } else { @() }) + $(if ($Say) { @('-Say', "`"$Say`"") } else { @() }) +
+    $(if ($FakeAi) { @('-FakeAi') } else { @() }) + @('-Model', "`"$Model`"")
   Start-Process powershell -Verb RunAs -ArgumentList $a
   exit 0
 }
@@ -31,11 +34,49 @@ if ($Off) {
   exit 0
 }
 
+function Find-Ollama {
+  $c = Get-Command ollama -ErrorAction SilentlyContinue
+  if ($c) { return $c.Source }
+  $p = Join-Path $env:LOCALAPPDATA 'Programs\Ollama\ollama.exe'
+  if (Test-Path $p) { return $p }
+  return $null
+}
+
+function Test-Ollama {
+  try { Invoke-WebRequest -UseBasicParsing http://localhost:11434/api/version -TimeoutSec 3 | Out-Null; return $true } catch { return $false }
+}
+
+# Локальная модель: Ollama на этом компьютере, OpenAI-совместимый адрес http://localhost:11434/v1.
+# Снимок экрана и правила урока длинные: окно контекста 8192 вместо 4096, модель держим в памяти 30 минут.
+$useFake = $FakeAi -or [bool]$Say
+if (-not $useFake) {
+  $ollama = Find-Ollama
+  if (-not $ollama) {
+    Write-Host 'Ollama не найдена: поставь её (winget install Ollama.Ollama) или запусти с -FakeAi. Пока включаю проверочный ИИ.' -ForegroundColor Yellow
+    $useFake = $true
+  } else {
+    if (-not (Test-Ollama)) {
+      $env:OLLAMA_CONTEXT_LENGTH = '8192'; $env:OLLAMA_KEEP_ALIVE = '30m'
+      Start-Process $ollama -ArgumentList 'serve' -WindowStyle Hidden
+      foreach ($i in 1..15) { Start-Sleep 1; if (Test-Ollama) { break } }
+    }
+    if (-not (Test-Ollama)) {
+      Write-Host 'Ollama не отвечает на http://localhost:11434. Пока включаю проверочный ИИ.' -ForegroundColor Yellow
+      $useFake = $true
+    } elseif (-not ((& $ollama list) -match "^$([regex]::Escape($Model))\s")) {
+      Write-Host "Скачиваю модель $Model (несколько гигабайт, один раз)..."
+      & $ollama pull $Model
+      if ($LASTEXITCODE -ne 0) { Write-Host "Модель $Model не скачалась. Пока включаю проверочный ИИ." -ForegroundColor Yellow; $useFake = $true }
+    }
+  }
+}
+$ai = if ($useFake) { @{ kind = 'openai'; url = 'http://localhost:8898/v1'; model = 'fake-vl' } } else { @{ kind = 'openai'; url = 'http://localhost:11434/v1'; model = $Model } }
+
 New-Item -ItemType Directory -Force (Join-Path $dir 'packs') | Out-Null
 Copy-Item (Join-Path $repo 'docs\enterprise\packs\security.json') (Join-Path $dir 'packs') -Force
 $policy = [ordered]@{
   org = 'Проба ИБ'
-  ai = @{ kind = 'openai'; url = 'http://localhost:8898/v1'; model = 'fake-vl' }
+  ai = $ai
   privacy = @{ screenshots = 'window'; denyApps = @('notepad'); masks = @('ТН-\d{6}') }
   answers = @{ allowHosts = @('corp.local') }
   presence = @{ url = 'http://localhost:8899'; secret = 'enroll-secret-0123456789'; allowHttp = $true; group = 'Отдел ИБ' }
@@ -46,8 +87,10 @@ $policy = [ordered]@{
 
 # окна запускаем прямо через node с рабочей папкой: так русские буквы в пути не ломаются
 $env:ENROLL_SECRET = 'enroll-secret-0123456789'; $env:ADMIN_PASSWORD = 'admin-password-42'; $env:PORT = '8899'
-$aiArgs = @("`"$here\fake-ai.mjs`"") + $(if ($Say) { @("`"$Say`"") } else { @() })
-Start-Process node -ArgumentList $aiArgs -WorkingDirectory $here
+if ($useFake) {
+  $aiArgs = @("`"$here\fake-ai.mjs`"") + $(if ($Say) { @("`"$Say`"") } else { @() })
+  Start-Process node -ArgumentList $aiArgs -WorkingDirectory $here
+}
 Start-Process node -ArgumentList 'index.mjs' -WorkingDirectory (Join-Path $repo 'server')
 Start-Process node -ArgumentList "`"$here\siem-listen.mjs`"" -WorkingDirectory $here
 Start-Sleep 2
@@ -63,5 +106,6 @@ Start-Sleep 3
 Start-Process 'http://localhost:8899/'
 Write-Host ''
 Write-Host 'Готово. Админ-панель: http://localhost:8899  (логин admin, пароль admin-password-42)' -ForegroundColor Green
-Write-Host "Что ушло бы к ИИ: $here\requests   Журнал Пушика: $env:APPDATA\Пушик\audit.log"
+if ($useFake) { Write-Host "ИИ: проверочный. Что ушло бы к ИИ: $here\requests" } else { Write-Host "ИИ: локальная модель $Model в Ollama (http://localhost:11434/v1)" }
+Write-Host "Журнал Пушика: $env:APPDATA\Пушик\audit.log"
 Write-Host 'Выключить: .\try.ps1 -Off'
