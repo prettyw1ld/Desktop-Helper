@@ -38,7 +38,7 @@ $policy = [ordered]@{
   ai = @{ kind = 'openai'; url = 'http://localhost:8898/v1'; model = 'fake-vl' }
   privacy = @{ screenshots = 'window'; denyApps = @('notepad'); masks = @('ТН-\d{6}') }
   answers = @{ allowHosts = @('corp.local') }
-  presence = @{ url = 'http://localhost:8899'; secret = 'enroll-secret-0123456789'; allowHttp = $true }
+  presence = @{ url = 'http://localhost:8899'; secret = 'enroll-secret-0123456789'; allowHttp = $true; group = 'Отдел ИБ' }
   siem = @{ host = '127.0.0.1'; port = 5514; proto = 'udp' }
 }
 [IO.File]::WriteAllText((Join-Path $dir 'policy.json'), ($policy | ConvertTo-Json -Depth 5), (New-Object Text.UTF8Encoding $false))

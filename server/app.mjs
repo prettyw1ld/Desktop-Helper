@@ -2,6 +2,7 @@
 //   POST /api/enroll   секрет регистрации → токен устройства
 //   POST /api/beat     «жив» и смены состояния (Bearer-токен устройства)
 //   GET  /api/devices  список для админ-панели (пароль администратора)
+//   GET  /api/devices/<id>  карточка: устройство и смены состояния за 7 дней
 //   DELETE /api/devices/<id>  забыть устройство: его токен перестанет работать
 //   GET  /             сама админ-панель
 import crypto from 'node:crypto';
@@ -22,6 +23,9 @@ const same = (a, b) => {
   return crypto.timingSafeEqual(x, y);
 };
 const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+/** Имена ролевых пакетов: до 10 коротких идентификаторов. */
+const packIds = (v) => (Array.isArray(v) ? v.filter((p) => typeof p === 'string' && /^[a-z0-9][a-z0-9-]{0,39}$/.test(p)).slice(0, 10) : []);
+const WEEK = 7 * 86400_000;
 
 class HttpError extends Error {
   constructor(status, code) { super(code); this.status = status; this.code = code; }
@@ -101,6 +105,7 @@ export function createApp({ store, enrollSecret, adminPassword, now = () => Date
     const token = crypto.randomBytes(32).toString('base64url');
     const d = await store.enroll({
       deviceKey, host: str(b.host, 64), user: str(b.user, 128), os: str(b.os, 64), version: str(b.version, 32),
+      group: str(b.group, 60), packs: packIds(b.packs),
       tokenHash: sha(token), now: now(),
     });
     return { token, deviceId: d.id };
@@ -112,19 +117,38 @@ export function createApp({ store, enrollSecret, adminPassword, now = () => Date
     const mood = MOODS.has(b.mood) ? b.mood : 'awake';
     const reason = mood === 'asleep' && REASONS.has(b.reason) ? b.reason : '';
     const idleSec = Number.isFinite(b.idleSec) ? Math.max(0, Math.min(10 ** 7, Math.round(b.idleSec))) : 0;
-    await store.beat(d.id, { mood, reason, idleSec, version: str(b.version, 32) || d.version, now: now() });
+    // первое сообщение после запуска Пушика несёт подразделение и пакеты из его политики
+    const info = Array.isArray(b.packs) || typeof b.group === 'string' ? { group: str(b.group, 60), packs: packIds(b.packs) } : null;
+    await store.beat(d.id, { mood, reason, idleSec, version: str(b.version, 32) || d.version, now: now(), info });
     return { ok: true };
   }
 
   async function devices() {
     const t = now();
     const list = (await store.list()).map((d) => ({
-      id: d.id, host: d.host, user: d.user, os: d.os, version: d.version,
+      id: d.id, host: d.host, user: d.user, os: d.os, version: d.version, group: d.group || '', packs: d.packs || [],
       status: statusOf(d, t), mood: d.mood, reason: d.reason, idleSec: d.idleSec, lastSeen: d.lastSeen, createdAt: d.createdAt,
     }));
     const counts = { awake: 0, dozing: 0, asleep: 0, lost: 0, offline: 0 };
     for (const d of list) counts[d.status]++;
     return { now: t, counts, devices: list };
+  }
+
+  /** Карточка устройства: что о нём известно и как менялось состояние за 7 дней. */
+  async function card(id) {
+    const t = now();
+    const d = (await store.list()).find((x) => x.id === id);
+    if (!d) throw new HttpError(404, 'not found');
+    const since = t - WEEK;
+    const history = (await store.history(id, since)).map((h) => ({ at: Math.max(h.at, since), mood: h.mood, reason: h.reason }));
+    return {
+      now: t, since,
+      device: {
+        id: d.id, host: d.host, user: d.user, os: d.os, version: d.version, group: d.group || '', packs: d.packs || [],
+        status: statusOf(d, t), mood: d.mood, reason: d.reason, idleSec: d.idleSec, lastSeen: d.lastSeen, createdAt: d.createdAt,
+      },
+      history,
+    };
   }
 
   return async function handle(req, res) {
@@ -135,6 +159,7 @@ export function createApp({ store, enrollSecret, adminPassword, now = () => Date
       if (req.method === 'POST' && p === '/api/beat') return send(res, 200, await beat(req));
       if (req.method === 'GET' && p === '/api/devices') { admin(req); return send(res, 200, await devices()); }
       const del = /^\/api\/devices\/([0-9a-f-]{36})$/.exec(p);
+      if (req.method === 'GET' && del) { admin(req); return send(res, 200, await card(del[1])); }
       if (req.method === 'DELETE' && del) { admin(req); return send(res, (await store.remove(del[1])) ? 200 : 404, { ok: true }); }
       if (req.method === 'GET' && (p === '/' || p === '/index.html')) {
         admin(req);

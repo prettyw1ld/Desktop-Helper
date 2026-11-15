@@ -16,6 +16,8 @@ create table if not exists devices (
   created_at timestamptz not null default now(),
   last_seen timestamptz not null default now()
 );
+alter table devices add column if not exists grp text not null default '';
+alter table devices add column if not exists packs text not null default '';
 create index if not exists devices_token on devices (token_hash);
 create table if not exists mood_history (
   device_id uuid not null references devices(id) on delete cascade,
@@ -28,6 +30,7 @@ create index if not exists mood_history_device on mood_history (device_id, at);
 
 const row = (r) => r && ({
   id: r.id, deviceKey: r.device_key, host: r.host, user: r.user, os: r.os, version: r.version, tokenHash: r.token_hash,
+  group: r.grp, packs: r.packs ? r.packs.split(',') : [],
   mood: r.mood, reason: r.reason, idleSec: r.idle_sec, createdAt: +r.created_at, lastSeen: +r.last_seen,
 });
 
@@ -36,20 +39,23 @@ export async function pgStore(url) {
   const pool = new pg.Pool({ connectionString: url, max: 10 });
   await pool.query(SCHEMA);
   return {
-    async enroll({ deviceKey, host, user, os, version, tokenHash, now }) {
+    async enroll({ deviceKey, host, user, os, version, group = '', packs = [], tokenHash, now }) {
       const r = await pool.query(
-        `insert into devices (id, device_key, host, "user", os, version, token_hash, created_at, last_seen)
-         values ($1, $2, $3, $4, $5, $6, $7, to_timestamp($8 / 1000.0), to_timestamp($8 / 1000.0))
-         on conflict (device_key) do update set host = $3, "user" = $4, os = $5, version = $6, token_hash = $7
-         returning *`,
-        [crypto.randomUUID(), deviceKey, host, user, os, version, tokenHash, now]);
+        `insert into devices (id, device_key, host, "user", os, version, token_hash, created_at, last_seen, grp, packs)
+         values ($1, $2, $3, $4, $5, $6, $7, to_timestamp($8 / 1000.0), to_timestamp($8 / 1000.0), $9, $10)
+         on conflict (device_key) do update set host = $3, "user" = $4, os = $5, version = $6, token_hash = $7, grp = $9, packs = $10
+         returning *, (xmax = 0) as fresh`,
+        [crypto.randomUUID(), deviceKey, host, user, os, version, tokenHash, now, group, packs.join(',')]);
+      // новое устройство: с этой записи начинается его история
+      if (r.rows[0].fresh) await pool.query("insert into mood_history (device_id, at, mood) values ($1, to_timestamp($2 / 1000.0), 'awake')", [r.rows[0].id, now]);
       return row(r.rows[0]);
     },
     async byToken(tokenHash) {
       const r = await pool.query('select * from devices where token_hash = $1', [tokenHash]);
       return row(r.rows[0]) || null;
     },
-    async beat(id, { mood, reason, idleSec, version, now }) {
+    async beat(id, { mood, reason, idleSec, version, now, info = null }) {
+      if (info) await pool.query('update devices set grp = $2, packs = $3 where id = $1', [id, info.group, info.packs.join(',')]);
       await pool.query(
         `insert into mood_history (device_id, at, mood, reason)
          select id, to_timestamp($5 / 1000.0), $2, $3 from devices where id = $1 and (mood <> $2 or reason <> $3)`,
@@ -60,7 +66,12 @@ export async function pgStore(url) {
     },
     async list() { return (await pool.query('select * from devices order by host')).rows.map(row); },
     async history(id, since) {
-      const r = await pool.query('select at, mood, reason from mood_history where device_id = $1 and at >= to_timestamp($2 / 1000.0) order by at', [id, since]);
+      // смены состояния с момента since и одна до него: с неё начинается полоса истории
+      const r = await pool.query(
+        `(select at, mood, reason from mood_history where device_id = $1 and at < to_timestamp($2 / 1000.0) order by at desc limit 1)
+         union all
+         (select at, mood, reason from mood_history where device_id = $1 and at >= to_timestamp($2 / 1000.0))
+         order by at`, [id, since]);
       return r.rows.map((h) => ({ deviceId: id, at: +h.at, mood: h.mood, reason: h.reason }));
     },
     async remove(id) { return (await pool.query('delete from devices where id = $1', [id])).rowCount > 0; },

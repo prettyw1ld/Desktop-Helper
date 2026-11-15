@@ -16,6 +16,7 @@ let token = '';
 let timer: NodeJS.Timeout | null = null;
 let failures = 0;
 let stopped = false;
+let packIds: string[] = [];
 
 const log = (...a: unknown[]) => console.log('presence:', ...a);
 const tokenFile = () => path.join(app.getPath('userData'), 'presence.json');
@@ -80,6 +81,8 @@ async function enroll(): Promise<boolean> {
     user,
     os: `${process.platform} ${os.release()}`,
     version: app.getVersion(),
+    ...(cfg.group ? { group: cfg.group } : {}),
+    packs: packIds,
   };
   const r = await post('/api/enroll', body);
   if (r.status !== 200 || typeof r.json.token !== 'string') { log('enroll failed', r.status); return false; }
@@ -91,9 +94,14 @@ async function enroll(): Promise<boolean> {
 
 const idle = (): number => { try { return powerMonitor.getSystemIdleTime(); } catch { return 0; } };
 
-async function send(b: Beat, ms?: number): Promise<boolean> {
+let helloSent = false;
+
+async function send(msg: Beat, ms?: number): Promise<boolean> {
   if (!token && !(await enroll())) return false;
+  // первое сообщение после запуска несёт подразделение и пакеты: политика могла поменяться, а токен старый
+  const b = helloSent ? msg : { ...msg, group: cfg?.group ?? '', packs: packIds };
   const r = await post('/api/beat', b, token, ms);
+  if (r.status === 200) helloSent = true;
   if (r.status === 401) {
     // устройство удалили на сервере или токен устарел: регистрируемся заново
     token = '';
@@ -121,9 +129,10 @@ function event(change: Partial<Flags>): void {
 }
 
 /** Запуск: только если в политике есть presence. */
-export function start(p: PolicyPresence | null): void {
+export function start(p: PolicyPresence | null, packs: string[] = []): void {
   if (!p || cfg) return;
   cfg = p;
+  packIds = packs.slice(0, 10);
   stopped = false;
   token = loadToken(p.url);
   powerMonitor.on('lock-screen', () => event({ locked: true }));

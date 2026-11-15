@@ -59,7 +59,7 @@ function onReady(): void {
   });
   tray.createTray();
   // админ-панель организации видит, что кот бодрствует; выход из сеанса Windows — «ушёл спать»
-  presence.start(settings.presence());
+  presence.start(settings.presence(), settings.packs().map((p) => p.id));
   ui.win()?.on('session-end', () => { void presence.bye('logoff'); });
   globalShortcut.register('CommandOrControl+Shift+P', () => {
     ui.show();

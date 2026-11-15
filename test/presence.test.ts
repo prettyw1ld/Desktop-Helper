@@ -122,3 +122,40 @@ test('server: refuses big bodies, non-JSON and too many enrolls', async () => {
     assert.equal(last, 429);
   } finally { s.close(); }
 });
+
+test('server: department, packs and a 7-day history card', async () => {
+  let t = 10 * 86400_000;
+  const s = await server(() => t);
+  try {
+    const e = await (await fetch(`${s.base}/api/enroll`, json({ secret: SECRET, deviceKey: KEY, host: 'PC-001', group: ' Отдел ИБ ', packs: ['security', 'Bad Id', 7] }))).json() as { token: string; deviceId: string };
+    type Card = { since: number; device: { group: string; packs: string[]; status: string }; history: { at: number; mood: string; reason: string }[] };
+    const card = async () => await (await fetch(`${s.base}/api/devices/${e.deviceId}`, basic(ADMIN))).json() as Card;
+    let c = await card();
+    assert.equal(c.device.group, 'Отдел ИБ');
+    assert.deepEqual(c.device.packs, ['security']);
+    assert.deepEqual(c.history.map((h) => h.mood), ['awake']);
+
+    t += 3600_000;
+    await fetch(`${s.base}/api/beat`, json({ mood: 'asleep', reason: 'lock' }, e.token));
+    await fetch(`${s.base}/api/beat`, json({ mood: 'asleep', reason: 'lock' }, e.token)); // то же состояние — не событие
+    t += 8 * 86400_000;
+    // после перезапуска Пушик сообщает новое подразделение и пакеты тем же токеном
+    await fetch(`${s.base}/api/beat`, json({ mood: 'awake', group: 'Бухгалтерия', packs: [] }, e.token));
+    c = await card();
+    assert.equal(c.device.group, 'Бухгалтерия');
+    assert.deepEqual(c.device.packs, []);
+    // старше 7 дней остаётся одна запись — с неё начинается полоса; её время прижато к началу окна
+    assert.deepEqual(c.history.map((h) => [h.mood, h.reason]), [['asleep', 'lock'], ['awake', '']]);
+    assert.equal(c.history[0]!.at, c.since);
+    const list = await (await fetch(`${s.base}/api/devices`, basic(ADMIN))).json() as { devices: { group: string; packs: string[] }[] };
+    assert.equal(list.devices[0]!.group, 'Бухгалтерия');
+
+    assert.equal((await fetch(`${s.base}/api/devices/${e.deviceId}`)).status, 401);
+    assert.equal((await fetch(`${s.base}/api/devices/00000000-0000-0000-0000-000000000000`, basic(ADMIN))).status, 404);
+  } finally { s.close(); }
+});
+
+test('policy presence carries the department', () => {
+  assert.deepEqual(parsePresence({ url: 'https://p.corp', secret: SECRET, group: 'Отдел ИБ' }), { url: 'https://p.corp', secret: SECRET, group: 'Отдел ИБ' });
+  assert.deepEqual(regToRaw({ PresenceUrl: 'https://p.corp', PresenceSecret: SECRET, PresenceGroup: 'ИБ' })?.presence, { url: 'https://p.corp', secret: SECRET, allowHttp: false, group: 'ИБ' });
+});
