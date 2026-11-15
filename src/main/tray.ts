@@ -1,6 +1,7 @@
 // Значок в трее и его меню.
 import { app, Menu, nativeImage, shell, Tray, type MenuItemConstructorOptions } from 'electron';
 import { logFile } from './ai/guide-log';
+import * as audit from './audit';
 import { pauseShots, resumeShots, shotsPaused } from './ai/privacy';
 import path from 'node:path';
 import { T } from '../shared/i18n';
@@ -20,9 +21,10 @@ let pauseTimer: NodeJS.Timeout | null = null;
 function togglePause(): void {
   if (pauseTimer) clearTimeout(pauseTimer);
   pauseTimer = null;
-  if (shotsPaused()) resumeShots();
+  if (shotsPaused()) { resumeShots(); audit.event('resume'); }
   else {
     pauseShots();
+    audit.event('pause', {}, 4);
     // пауза кончилась — галочка в меню снимается сама
     pauseTimer = setTimeout(() => { pauseTimer = null; rebuildMenu(); }, shotsPaused() + 500);
   }

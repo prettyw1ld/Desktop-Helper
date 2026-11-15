@@ -7,6 +7,7 @@ import { aiKey, isKeyed, PROVIDER_KEY, type KeyedProvider, type PublicSettings, 
 import { setAllowedOrigin } from './ai/http';
 import { OPEN_PRIVACY } from './ai/privacy';
 import { parseMasks, setMasks } from './ai/redact';
+import { OPEN_ANSWERS } from './ai/answer-guard';
 import * as stt from './ai/stt';
 import * as locate from './system/locate';
 import { ROOT, VOSK_MODEL } from './paths';
@@ -79,6 +80,10 @@ export const managed = (): boolean => !!policy;
 export const features = () => policy?.features ?? ALL_FEATURES;
 export const privacy = () => policy?.privacy ?? OPEN_PRIVACY;
 export const presence = () => policy?.presence ?? null;
+export const answers = () => policy?.answers ?? OPEN_ANSWERS;
+export const siem = () => policy?.siem ?? null;
+export const org = () => policy?.org ?? '';
+export const policyProblem = () => policy?.problem ?? '';
 // ролевые пакеты организации; без политики их нет
 let packList: Pack[] = [];
 export const packs = (): readonly Pack[] => packList;

@@ -6,6 +6,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Features, Settings } from '../shared/types';
 import { OPEN_PRIVACY, parsePrivacy, type Privacy } from './ai/privacy';
+import { parseAnswers, type AnswerRules } from './ai/answer-guard';
+import { parseSiem, type SiemTarget } from './audit-format';
 
 export interface PolicyAi {
   kind: 'openai' | 'ollama';   // openai: vLLM, LiteLLM и любой OpenAI-совместимый сервер
@@ -27,6 +29,8 @@ export interface Policy {
   presence: PolicyPresence | null;
   features: Features;
   privacy: Privacy;
+  answers?: AnswerRules;       // какие ссылки ИИ может давать
+  siem?: SiemTarget | null;    // куда слать журнал событий
   problem: string;             // почему политика не принята целиком; пусто, если всё в порядке
 }
 
@@ -51,6 +55,13 @@ export function checkUrl(value: string, allowHttp = false): string {
  * испорченная политика не должна открывать дорогу в облако.
  */
 export function parsePolicy(raw: unknown): Policy {
+  const p = parseCore(raw);
+  const o = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+  // ссылки и журнал не зависят от раздела ai: испорченный ai их не отменяет
+  return { ...p, answers: parseAnswers(o.answers), siem: parseSiem(o.siem) };
+}
+
+function parseCore(raw: unknown): Policy {
   const off = (problem: string, org = ''): Policy => ({ org, ai: null, presence: null, features: { ...ALL_FEATURES }, privacy: { ...OPEN_PRIVACY }, problem });
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return off('policy is not an object');
   const o = raw as Record<string, unknown>;
@@ -109,6 +120,8 @@ export function regToRaw(v: Record<string, string>): Record<string, unknown> | n
   if (v.Screenshots || v.DenyApps || v.Masks) {
     raw.privacy = { screenshots: v.Screenshots || 'screen', denyApps: (v.DenyApps || '').split(/[;,]/).map((a) => a.trim()).filter(Boolean), masks: (v.Masks || '').split('\\0').map((a) => a.trim()).filter(Boolean) };
   }
+  if (v.AllowHosts) raw.answers = { allowHosts: v.AllowHosts.split(/[;,\s]+/).filter(Boolean) };
+  if (v.SiemHost) raw.siem = { host: v.SiemHost, port: Number(v.SiemPort) || undefined, proto: v.SiemProto };
   if (v.PresenceUrl) raw.presence = { url: v.PresenceUrl, secret: v.PresenceSecret, allowHttp: regBool(v.PresenceAllowHttp) === true };
   if (regBool(v.AiOff)) raw.ai = null;
   else if (v.AiUrl || v.AiModel) {

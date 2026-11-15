@@ -3,6 +3,7 @@
 import { app, globalShortcut, session } from 'electron';
 import { I18N } from '../shared/i18n';
 import * as guide from './ai/guide';
+import * as audit from './audit';
 import * as autostart from './autostart';
 import * as ipc from './ipc';
 import * as overlay from './overlay';
@@ -23,6 +24,12 @@ ipc.register();
 settings.onChange((s, prev) => {
   autostart.apply(s.autostart);
   I18N.setLang(s.lang);
+  // журнал событий для службы ИБ — только в корпоративном режиме
+  if (settings.managed()) {
+    audit.init({ dir: app.getPath('userData'), siem: settings.siem(), version: app.getVersion() });
+    audit.event('start');
+    audit.event('policy', { org: settings.org(), reason: settings.policyProblem() }, settings.policyProblem() ? 6 : 3);
+  }
   if (prev.lang !== s.lang || prev.autostart !== s.autostart || settings.hasAi(prev) !== settings.hasAi(s)) tray.rebuildMenu();
   if (prev.catColor !== s.catColor) tray.refreshIcon();
   if (prev.calendarUrl !== s.calendarUrl || prev.calendarBefore !== s.calendarBefore) watchers.startCalendar();
@@ -71,8 +78,10 @@ if (!app.requestSingleInstanceLock()) {
     wc.setWindowOpenHandler(() => ({ action: 'deny' }));
   });
   app.whenReady().then(onReady);
+  let quitLogged = false;
   // перед выходом успеваем сказать серверу «сплю» (не дольше 1,5 с)
   app.on('before-quit', (e) => {
+    if (!quitLogged) { quitLogged = true; audit.event('quit'); }
     if (!presence.active()) return;
     e.preventDefault();
     void presence.bye('quit').finally(() => app.quit());

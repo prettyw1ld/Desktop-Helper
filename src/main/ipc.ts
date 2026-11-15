@@ -4,6 +4,8 @@ import { T } from '../shared/i18n';
 import type { ChatResult, ErrorReply, FilesRequest, LocateQuery, LookRequest, LookResult, Rect, ReminderKind, Settings, Skill } from '../shared/types';
 import { errorDetails, type AiError } from './ai/http';
 import * as guide from './ai/guide';
+import { guardAnswer } from './ai/answer-guard';
+import * as audit from './audit';
 import { ask, type ChatMessage, type ChatTools } from './ai/llm';
 import * as stt from './ai/stt';
 import * as clicks from './system/clicks';
@@ -125,6 +127,24 @@ function registerSystem(): void {
   });
 }
 
+// ---------- Проверка ответов ИИ ----------
+/** Ответ ИИ к показу: опасный — отказ, лишние ссылки — убрать. Что сделали — в журнал. */
+function guarded(text: string, where: string): { text: string; danger: boolean } {
+  if (!text) return { text, danger: false };
+  const g = guardAnswer(text, settings.answers(), T('ai.unsafe'), T('ai.linkRemoved'));
+  if (g.danger) { audit.event('answer.blocked', { where, reason: g.danger }, 7); console.warn('answer blocked:', where, g.danger); }
+  if (g.removedLinks) audit.event('answer.links', { where, cnt: g.removedLinks }, 4);
+  return { text: g.text, danger: !!g.danger };
+}
+
+function guardLook(res: LookResult): LookResult {
+  const say = guarded(res.say, 'guide');
+  const explain = guarded(res.explain, 'guide');
+  // опасный совет: ни показа лапкой, ни плана — только отказ
+  if (say.danger || explain.danger) return { ...res, say: T('ai.unsafe'), explain: '', target: null, plan: [] };
+  return { ...res, say: say.text, explain: explain.text };
+}
+
 // ---------- Помощник: снимок экрана и подсказка ----------
 function registerGuide(): void {
   ipcMain.handle('guide:look', async (_e, req: LookRequest): Promise<LookResult | ErrorReply> => {
@@ -135,7 +155,8 @@ function registerGuide(): void {
     if (!allowed) return { error: T('err.policy') };
     if (screenAccess() === 'denied') return { error: T('err.screen') };
     try {
-      return await guide.look({ ...req, settings: settings.forAi(), privacy: settings.privacy(), packs: settings.packs(), overlay: ui.win() });
+      const res = await guide.look({ ...req, settings: settings.forAi(), privacy: settings.privacy(), packs: settings.packs(), overlay: ui.win() });
+      return guardLook(res);
     } catch (err) {
       const code = (err as AiError).code;
       if (code === 'privatePassword' || code === 'privateApp') return { error: T(code === 'privatePassword' ? 'err.privatePassword' : 'err.privateApp') };
@@ -246,7 +267,10 @@ function registerChat(): void {
     try {
       const { reply, history, actions, show } = await ask({ ...settings.forAi(s), history: chatHistory, text, tools: chatTools(locale), orgPrompt: packPrompt(settings.packs()) });
       chatHistory = history.slice(-30);
-      return show ? { reply, actions, show } : { reply, actions };
+      audit.event('chat', { cnt: text.length });
+      const g = guarded(reply, 'chat');
+      if (g.danger) return { reply: g.text, actions: [] };
+      return show ? { reply: g.text, actions, show } : { reply: g.text, actions };
     } catch (err) {
       return aiFailure(err, 'chat:send', 'err.ask');
     }

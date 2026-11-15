@@ -10,6 +10,7 @@ import { clickFact } from './inspect-text';
 import { changedBox, screenMoved } from './changed-box';
 import { boxUnits, cleanPlan, formatMarks, itemLabel, sameRowOut, itemsFromText, pickMark, pickNamed, refineCrop, stepOf, withTaskbar, type ElementHint, type Mark } from './show';
 import { guideLog } from './guide-log';
+import * as audit from '../audit';
 import { clean, SCREEN_DATA_RULE } from './redact';
 import { explainFor, packPrompt, type Pack } from '../packs';
 import { toFrame } from '../geometry';
@@ -632,7 +633,11 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
   const guard = await screenGuard();
   const blocked = blockReason(guard, privacy.denyApps);
   guideLog('guard', { proc: guard.proc ?? null, blocked: blocked || null, shots: privacy.screenshots });
-  if (blocked) throw aiError('private', { code: blocked === 'password' ? 'privatePassword' : 'privateApp' });
+  if (blocked) {
+    audit.event('look.blocked', { mode, app: guard.proc || '', reason: blocked }, 5);
+    throw aiError('private', { code: blocked === 'password' ? 'privatePassword' : 'privateApp' });
+  }
+  audit.event('look', { mode, app: guard.proc || '', shots: shotsPaused() ? 'paused' : privacy.screenshots });
   if (shotsPaused()) throw aiError('paused', { code: 'privatePaused' });
   const noShot = privacy.screenshots === 'off';
   // снимок и список кнопок от системы делаем одновременно: так быстрее и они совпадают
