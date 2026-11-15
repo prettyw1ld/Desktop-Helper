@@ -402,6 +402,14 @@ export function initAiGuide(): void {
   api.on('global-click', onScreenClick);
   // бесплатный ИИ попросил подождать: кот говорит, что думает, вместо тишины
   api.on('ai-wait', (sec) => say(T('ai.wait', { sec }), (sec + 1) * 1000, { guide: true }));
+  // снимок экрана всегда видно: над котом надпись «смотрю на экран»
+  let lookTimer: ReturnType<typeof setTimeout> | null = null;
+  api.on('looking', () => {
+    dom.fx.dataset.looking = T('cat.looking');
+    dom.cat.classList.add('looking');
+    if (lookTimer) clearTimeout(lookTimer);
+    lookTimer = setTimeout(() => dom.cat.classList.remove('looking'), 2500);
+  });
   // Экран заметно поменялся после подсказки: сами проверяем, получилось ли.
   // Не больше одного раза на шаг и не раньше чем через 3 с:
   // иначе любое движение на экране (видео, прокрутка) заставляет кота говорить без спроса.

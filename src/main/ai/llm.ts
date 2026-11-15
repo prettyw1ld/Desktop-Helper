@@ -5,6 +5,7 @@ import { aiError, fetchAI, fetchAIRetry, readError } from './http';
 import { extraFor, fallbackModel, resolve } from './providers';
 import { goalFromHowTo, isHowTo, vagueGoal } from '../../shared/howto';
 import { SHOW_MARK, showGoal } from './show';
+import { clean } from './redact';
 
 /** Заголовок с ключом; у внутреннего сервера ключа может не быть. */
 export const bearer = (apiKey: string): Record<string, string> => (apiKey ? { authorization: `Bearer ${apiKey}` } : {});
@@ -251,7 +252,9 @@ function howToGoal(text: string, history: ChatMessage[]): string {
 export type AskOptions = Settings & { history: ChatMessage[]; text: string; tools: ChatTools; orgPrompt?: string };
 
 /** Вызовы инструментов живут внутри одного запроса; в историю попадает только текст. */
-export async function ask(opts: AskOptions): Promise<AskOutput & { history: ChatMessage[] }> {
+export async function ask(raw: AskOptions): Promise<AskOutput & { history: ChatMessage[] }> {
+  // номера карт, ИНН, СНИЛС, паспорт и ключи в чат-модель не уходят
+  const opts = { ...raw, text: clean(raw.text) };
   const system = systemPrompt(opts);
   const r = resolve(opts);
   const input: AskInput = {

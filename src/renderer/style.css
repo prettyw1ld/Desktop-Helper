@@ -51,6 +51,11 @@ button { font: inherit; cursor: pointer; }
   text-shadow: 0 0 3px #fff, 0 0 3px #fff; animation: blink 1s steps(2) infinite;
 }
 @keyframes blink { 50% { opacity: .2; } }
+/* делается снимок экрана для ИИ: короткая надпись над котом */
+.cat.looking .fx::before {
+  content: attr(data-looking); position: absolute; left: 50%; top: 22px; translate: -50% 0; white-space: nowrap;
+  padding: 2px 8px; border-radius: 9px; background: #3b2a1e; color: #fff; font: 600 12px/16px system-ui, sans-serif;
+}
 
 @keyframes dangle { 0%,100% { rotate: -5deg; } 50% { rotate: 5deg; } }
 @keyframes scared { 0%,100% { translate: -2px 0; } 50% { translate: 2px 0; } }

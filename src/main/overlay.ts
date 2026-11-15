@@ -5,6 +5,7 @@ import path from 'node:path';
 import type { Rect } from '../shared/types';
 import { overlayBounds, toFrame, workInFrame } from './geometry';
 import { setOnWait } from './ai/http';
+import { setOnShot } from './ai/guide';
 import { BUILD } from './paths';
 import * as ui from './ui';
 
@@ -45,6 +46,7 @@ export function createWindow({ onLoad }: { onLoad?: () => void } = {}): BrowserW
   win.setIgnoreMouseEvents(true, { forward: true });
   win.loadFile(path.join(BUILD, 'renderer', 'index.html'));
   setOnWait((sec) => ui.send('ai-wait', sec));
+  setOnShot(() => ui.send('looking'));
   // Напоминания и прочее запускаем, когда окно готово, чтобы просроченные успели показаться котом.
   if (onLoad) win.webContents.once('did-finish-load', onLoad);
   // где пол для кота: окно закрывает и панель задач, а гуляет кот над ней

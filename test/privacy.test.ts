@@ -15,17 +15,17 @@ test('privacy: no look at the screen while a password is typed or a password man
 });
 
 test('privacy: policy section is read strictly', () => {
-  assert.deepEqual(parsePrivacy(undefined), { screenshots: 'screen', denyApps: [] });
+  assert.deepEqual(parsePrivacy(undefined), { screenshots: 'screen', denyApps: [], masks: [] });
   assert.equal(parsePrivacy({ screenshots: 'window' }).screenshots, 'window');
   assert.equal(parsePrivacy({ screenshots: 'off' }).screenshots, 'off');
   assert.equal(parsePrivacy({ screenshots: 'nonsense' }).screenshots, 'off', 'unknown value: the strictest');
   assert.deepEqual(parsePrivacy({ denyApps: ['1cv8', '', 5, ' iBank2 '] }).denyApps, ['1cv8', 'iBank2']);
   const p = parsePolicy({ ai: { url: 'https://llm.corp.local/v1', model: 'm' }, privacy: { screenshots: 'off', denyApps: ['1cv8'] } });
-  assert.deepEqual(p.privacy, { screenshots: 'off', denyApps: ['1cv8'] });
+  assert.deepEqual(p.privacy, { screenshots: 'off', denyApps: ['1cv8'], masks: [] });
   // испорченный раздел ИИ не отменяет запреты на снимки
   assert.equal(parsePolicy({ ai: 'x', privacy: { screenshots: 'window' } }).privacy.screenshots, 'window');
   const reg = parsePolicy(regToRaw(parseReg('    Screenshots    REG_SZ    window\r\n    DenyApps    REG_SZ    1cv8; iBank2')));
-  assert.deepEqual(reg.privacy, { screenshots: 'window', denyApps: ['1cv8', 'iBank2'] });
+  assert.deepEqual(reg.privacy, { screenshots: 'window', denyApps: ['1cv8', 'iBank2'], masks: [] });
 });
 
 test('privacy: everything outside the kept window is painted black', () => {

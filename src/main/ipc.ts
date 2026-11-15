@@ -139,6 +139,7 @@ function registerGuide(): void {
     } catch (err) {
       const code = (err as AiError).code;
       if (code === 'privatePassword' || code === 'privateApp') return { error: T(code === 'privatePassword' ? 'err.privatePassword' : 'err.privateApp') };
+      if (code === 'privatePaused') return { error: T('err.privatePaused') };
       if ((err as AiError).code === 'noShot') return { error: T('err.screen') };
       return aiFailure(err, 'guide:look', 'err.look');
     }

@@ -273,6 +273,7 @@ export interface PushikEvents {
   'windows': WinRect[];
   'screen-changed': undefined;
   'ai-wait': number;
+  'looking': undefined; // сейчас делается снимок экрана для ИИ
   'work-area': Rect;   // где пол и стены для кота внутри окна (без панели задач)
   'remote-app': string; // запустилась программа удалённого доступа (защита от мошенников)
   'global-click': { x: number; y: number } | null; // нажали мышью где угодно на экране, в координатах окна кота (пока включено watchClicks)
@@ -280,7 +281,7 @@ export interface PushikEvents {
 export type PushikEvent = keyof PushikEvents;
 export const PUSHIK_EVENTS: PushikEvent[] = [
   'reminder', 'reminders-changed', 'open', 'settings-changed', 'calendar-soon', 'calendar-changed',
-  'windows', 'screen-changed', 'ai-wait', 'work-area', 'remote-app', 'global-click',
+  'windows', 'screen-changed', 'ai-wait', 'looking', 'work-area', 'remote-app', 'global-click',
 ];
 
 /** Мост preload.ts: что окно кота может попросить у главного процесса. */

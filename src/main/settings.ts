@@ -6,6 +6,7 @@ import path from 'node:path';
 import { aiKey, isKeyed, PROVIDER_KEY, type KeyedProvider, type PublicSettings, type SecretKey, type Settings } from '../shared/types';
 import { setAllowedOrigin } from './ai/http';
 import { OPEN_PRIVACY } from './ai/privacy';
+import { parseMasks, setMasks } from './ai/redact';
 import * as stt from './ai/stt';
 import * as locate from './system/locate';
 import { ROOT, VOSK_MODEL } from './paths';
@@ -115,6 +116,7 @@ const teamHasAi = (): boolean => !!team.provider || !!team.apiKey || KEYED.some(
 
 export function load(): Settings {
   policy = readPolicy();
+  setMasks(parseMasks(privacy().masks));
   if (policy?.problem) console.error('policy:', policy.problem);
   packList = [];
   if (policy) {

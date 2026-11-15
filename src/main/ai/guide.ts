@@ -5,11 +5,12 @@ import type { LookMode, LookRequest, LookResult, LookStatus, Rect, Settings } fr
 import { aiError, fetchAI, fetchAIRetry, readError } from './http';
 import { bearer, CLAUDE_URL, cleanReply, extraFor, pickModel, resolve } from './llm';
 import { cropSelection, formatContext, inspectPrompt, INSPECT_SYSTEM, scrub, selectionBox, windowView } from './screen-region';
-import { blockReason, maskOutside, OPEN_PRIVACY, type Guard, type Privacy } from './privacy';
+import { blockReason, maskOutside, OPEN_PRIVACY, shotsPaused, type Guard, type Privacy } from './privacy';
 import { clickFact } from './inspect-text';
 import { changedBox, screenMoved } from './changed-box';
 import { boxUnits, cleanPlan, formatMarks, itemLabel, sameRowOut, itemsFromText, pickMark, pickNamed, refineCrop, stepOf, withTaskbar, type ElementHint, type Mark } from './show';
 import { guideLog } from './guide-log';
+import { clean, SCREEN_DATA_RULE } from './redact';
 import { explainFor, packPrompt, type Pack } from '../packs';
 import { toFrame } from '../geometry';
 import * as locate from '../system/locate';
@@ -183,7 +184,13 @@ function primarySource(sources: Electron.DesktopCapturerSource[], display: Displ
 // overlay: окно кота. На время снимка его исключаем из захвата: человек кота видит, а ИИ нет.
 // Раньше прятали прозрачностью, и на Windows прозрачное окно после этого уходило под браузер.
 // Защиту сразу снимаем, чтобы кот был виден в записи экрана.
+// Каждый снимок видно: кот показывает «смотрю на экран» (окно кота подписывается через setOnShot)
+let onShot: () => void = () => {};
+export const setOnShot = (fn: () => void): void => { onShot = fn; };
+
 export async function capture(overlay: BrowserWindow | null, width = SHOT_W): Promise<Shot> {
+  if (shotsPaused()) throw aiError('paused', { code: 'privatePaused' });
+  onShot();
   const display = screen.getPrimaryDisplay();
   const { width: dw, height: dh } = display.size;
   const w = Math.min(width, dw);
@@ -626,6 +633,7 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
   const blocked = blockReason(guard, privacy.denyApps);
   guideLog('guard', { proc: guard.proc ?? null, blocked: blocked || null, shots: privacy.screenshots });
   if (blocked) throw aiError('private', { code: blocked === 'password' ? 'privatePassword' : 'privateApp' });
+  if (shotsPaused()) throw aiError('paused', { code: 'privatePaused' });
   const noShot = privacy.screenshots === 'off';
   // снимок и список кнопок от системы делаем одновременно: так быстрее и они совпадают
   const t0 = Date.now();
@@ -675,7 +683,7 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
   const facts = [formatContext(ctx), orgNote && `Organisation note about this window, retell it simply and keep its advice: ${orgNote}`].filter(Boolean).join('\n');
   const msCtx = Date.now() - tCtx;
   const org = packPrompt(packs);
-  const system = `${inspect ? INSPECT_SYSTEM : systemPrompt(settings.lang, process.platform)}${org ? `\n\n${org}` : ''}`;
+  const system = `${inspect ? INSPECT_SYSTEM : systemPrompt(settings.lang, process.platform)}\n${SCREEN_DATA_RULE}${org ? `\n\n${org}` : ''}`;
   const size = image.getSize();
   const r = resolve(settings);
   const coords = noShot
@@ -697,7 +705,9 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
     jpeg: noShot ? '' : image.toJPEG(90).toString('base64'),
     before: view && !noShot ? [view.toJPEG(82).toString('base64')] : [],
   };
-  const fn = r.kind === 'ollama' ? askOllama : r.kind === 'openai' ? askOpenAI : askClaude;
+  const raw = r.kind === 'ollama' ? askOllama : r.kind === 'openai' ? askOpenAI : askClaude;
+  // к модели — без скрытого текста, номеров карт, ИНН, СНИЛС, паспорта и ключей (и масок организации)
+  const fn = (i: ModelInput): Promise<StepAnswer> => raw({ ...i, text: clean(i.text) });
   const tAsk = Date.now();
   let out: StepAnswer;
   try {

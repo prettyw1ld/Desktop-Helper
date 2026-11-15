@@ -4,11 +4,19 @@ import type { Rect } from '../../shared/types';
 
 /** Как смотреть на экран: весь экран, только окно, с которым работает человек, или вообще без снимка. */
 export type ShotMode = 'screen' | 'window' | 'off';
-export interface Privacy { screenshots: ShotMode; denyApps: string[] }
-export const OPEN_PRIVACY: Privacy = { screenshots: 'screen', denyApps: [] };
+export interface Privacy { screenshots: ShotMode; denyApps: string[]; masks: string[] }
+export const OPEN_PRIVACY: Privacy = { screenshots: 'screen', denyApps: [], masks: [] };
 
 // Программы, на которые не смотрим никогда: менеджеры паролей, запрос прав администратора (UAC), вход в Windows.
 const BUILTIN_DENY = /^(keepass|keepassxc|1password|bitwarden|lastpass|dashlane|nordpass|roboform|enpass|keeper|passwordsafe|consent|credentialuibroker|logonui|lockapp)$/i;
+
+// Пауза снимков: человек попросил кота не смотреть на экран (меню в трее). Живёт до перезапуска.
+export const PAUSE_MS = 60 * 60 * 1000;
+let pausedUntil = 0;
+export function pauseShots(ms = PAUSE_MS, now = Date.now()): void { pausedUntil = now + ms; }
+export function resumeShots(): void { pausedUntil = 0; }
+/** Сколько ещё длится пауза, мс (0 — снимать можно). */
+export function shotsPaused(now = Date.now()): number { return Math.max(0, pausedUntil - now); }
 
 /** Что знает система об окне перед человеком (locator: guard). */
 export interface Guard { password?: boolean; proc?: string; title?: string; rect?: Rect | null }
@@ -32,7 +40,9 @@ export function parsePrivacy(raw: unknown): Privacy {
   const denyApps = Array.isArray(o.denyApps)
     ? o.denyApps.filter((a): a is string => typeof a === 'string' && !!a.trim()).map((a) => a.trim()).slice(0, 200)
     : [];
-  return { screenshots, denyApps };
+  // свои маски организации (табельные номера, номера договоров): регулярки, проверяются в redact.parseMasks
+  const masks = Array.isArray(o.masks) ? o.masks.filter((m): m is string => typeof m === 'string' && !!m.trim()).slice(0, 50) : [];
+  return { screenshots, denyApps, masks };
 }
 
 /** Закрасить чёрным всё, кроме keep (картинка BGRA w×h, прямоугольники в её пикселях). */

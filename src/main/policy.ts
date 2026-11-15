@@ -87,7 +87,7 @@ export function parsePresence(v: unknown): PolicyPresence | null {
 export function parseReg(out: string): Record<string, string> {
   const res: Record<string, string> = {};
   for (const line of out.split(/\r?\n/)) {
-    const m = /^\s+(\S+)\s+REG_(?:SZ|EXPAND_SZ|DWORD)\s+(.*)$/.exec(line);
+    const m = /^\s+(\S+)\s+REG_(?:SZ|EXPAND_SZ|MULTI_SZ|DWORD)\s+(.*)$/.exec(line);
     if (m) res[m[1]!] = m[2]!.trim();
   }
   return res;
@@ -106,8 +106,8 @@ export function regToRaw(v: Record<string, string>): Record<string, unknown> | n
     if (b !== undefined) features[key] = b;
   }
   if (Object.keys(features).length) raw.features = features;
-  if (v.Screenshots || v.DenyApps) {
-    raw.privacy = { screenshots: v.Screenshots || 'screen', denyApps: (v.DenyApps || '').split(/[;,]/).map((a) => a.trim()).filter(Boolean) };
+  if (v.Screenshots || v.DenyApps || v.Masks) {
+    raw.privacy = { screenshots: v.Screenshots || 'screen', denyApps: (v.DenyApps || '').split(/[;,]/).map((a) => a.trim()).filter(Boolean), masks: (v.Masks || '').split('\\0').map((a) => a.trim()).filter(Boolean) };
   }
   if (v.PresenceUrl) raw.presence = { url: v.PresenceUrl, secret: v.PresenceSecret, allowHttp: regBool(v.PresenceAllowHttp) === true };
   if (regBool(v.AiOff)) raw.ai = null;
