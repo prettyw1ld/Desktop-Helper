@@ -288,6 +288,8 @@ export const PUSHIK_EVENTS: PushikEvent[] = [
 export interface PushikApi {
   setIgnoreMouse(ignore: boolean): void;
   getCursor(): Promise<{ x: number; y: number } | null>;
+  /** Секунды без мыши и клавиатуры во всей системе; null — узнать нельзя. */
+  getIdleSec(): Promise<number | null>;
   getSettings(): Promise<PublicSettings>;
   saveSettings(s: Partial<Settings>): Promise<PublicSettings>;
   chat(text: string): Promise<ChatResult | ErrorReply>;

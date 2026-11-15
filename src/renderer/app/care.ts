@@ -1,4 +1,5 @@
 // Забота о человеке: напоминания о перерыве, кот иногда сам что-то говорит, приветствие.
+import { userAway } from '../cat/away';
 import { cat, setState } from '../cat/cat';
 import { showPose } from '../cat/poses';
 import { T } from '../core/i18n';
@@ -15,7 +16,8 @@ export function resetBreakTimer(): void {
   clearInterval(breakTimer);
   if (!settings.breakEvery) return;
   breakTimer = setInterval(() => {
-    if (allReminders().some((r) => r.kind === 'focus') || busyWithPerson() || cat.state === 'trash') return;
+    // человек и так отошёл от компьютера — будить кота ради перерыва незачем
+    if (allReminders().some((r) => r.kind === 'focus') || busyWithPerson() || cat.state === 'trash' || userAway()) return;
     if (cat.state === 'sleep') setState('idle', 8000);
     showPose('coffee', 9000, T('say.break', { min: settings.breakEvery }));
   }, settings.breakEvery * 60_000);

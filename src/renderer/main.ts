@@ -5,6 +5,7 @@ import { greeting, resetBreakTimer, scheduleChatter } from './app/care';
 import { initTrayCommands } from './app/tray-commands';
 import { startLoop } from './cat/behaviour';
 import { cat, floorY, setState, setWorkArea, W } from './cat/cat';
+import { initAwayWatch } from './cat/away';
 import { initCursorWatch } from './cat/cursor-watch';
 import { initTrash } from './cat/trash';
 import { refreshPlatforms, setWindows } from './cat/platforms';
@@ -48,6 +49,7 @@ async function start(): Promise<void> {
   initScamGuard();
   initMouse();
   initCursorWatch();
+  initAwayWatch();
   initTrayCommands();
   afterFirstTraining(startTourOnce);
   api.on('windows', (list) => setWindows(list));

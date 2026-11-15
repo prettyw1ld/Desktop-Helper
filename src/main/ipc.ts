@@ -1,5 +1,5 @@
 // Все запросы из окна кота (preload.ts) к главному процессу.
-import { app, clipboard, dialog, ipcMain, screen, shell, systemPreferences } from 'electron';
+import { app, clipboard, dialog, ipcMain, powerMonitor, screen, shell, systemPreferences } from 'electron';
 import { T } from '../shared/i18n';
 import type { ChatResult, ErrorReply, FilesRequest, LocateQuery, LookRequest, LookResult, Rect, ReminderKind, Settings, Skill } from '../shared/types';
 import { errorDetails, type AiError } from './ai/http';
@@ -62,6 +62,8 @@ function onGlobalClick(): void {
 // Где курсор, в координатах окна кота. Пока окно пропускает клики насквозь,
   // Windows присылает движения мыши не всегда, поэтому кот спрашивает сам.
   ipcMain.handle('cursor:get', cursorInWin);
+  // сколько секунд человек не трогал мышь и клавиатуру: отошёл — кот засыпает
+  ipcMain.handle('idle:get', () => { try { return powerMonitor.getSystemIdleTime(); } catch { return null; } });
   ipcMain.handle('settings:get', () => settings.publicView());
   ipcMain.handle('settings:save', (_e, s: Partial<Settings>) => {
     const res = settings.save(s);
