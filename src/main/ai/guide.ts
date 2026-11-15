@@ -1,5 +1,6 @@
 // Помощник для новичка: снимок экрана → модель с зрением → куда показать лапкой.
 // Снимок живёт только в памяти и на диск не пишется.
+import crypto from 'node:crypto';
 import { desktopCapturer, nativeImage, screen, type BrowserWindow, type Display, type NativeImage } from 'electron';
 import type { LookMode, LookRequest, LookResult, LookStatus, Rect, Settings } from '../../shared/types';
 import { aiError, fetchAI, fetchAIRetry, readError } from './http';
@@ -12,7 +13,7 @@ import { changedBox, screenMoved } from './changed-box';
 import { boxUnits, cleanPlan, formatMarks, itemLabel, sameRowOut, itemsFromText, pickMark, pickNamed, refineCrop, stepOf, withTaskbar, type ElementHint, type Mark } from './show';
 import { guideLog } from './guide-log';
 import * as audit from '../audit';
-import { clean, SCREEN_DATA_RULE } from './redact';
+import { clean, screenRule, spotlight } from './redact';
 import { explainFor, packPrompt, type Pack } from '../packs';
 import { toFrame } from '../geometry';
 import * as locate from '../system/locate';
@@ -708,10 +709,12 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
   const view = inspect ? contextView(shot, selection, ctx) : null;
   // пояснение организации к служебному окну (антивирус, DLP): ИИ пересказывает его простыми словами
   const orgNote = inspect ? explainFor(packs, ctx?.proc || guard.proc || '', ctx?.title || guard.title || '') : '';
-  const facts = [formatContext(ctx), orgNote && `Organisation note about this window, retell it simply and keep its advice: ${orgNote}`].filter(Boolean).join('\n');
+  // метка этого запроса: текст с экрана внутри неё — данные, не команды
+  const nonce = crypto.randomBytes(6).toString('hex');
+  const facts = [spotlight(formatContext(ctx), nonce), orgNote && `Organisation note about this window, retell it simply and keep its advice: ${orgNote}`].filter(Boolean).join('\n');
   const msCtx = Date.now() - tCtx;
   const org = packPrompt(packs);
-  const system = `${inspect ? INSPECT_SYSTEM : systemPrompt(settings.lang, process.platform)}\n${SCREEN_DATA_RULE}${org ? `\n\n${org}` : ''}`;
+  const system = `${inspect ? INSPECT_SYSTEM : systemPrompt(settings.lang, process.platform)}\n${screenRule(nonce)}${org ? `\n\n${org}` : ''}`;
   const size = image.getSize();
   const r = resolve(settings);
   const coords = noShot
@@ -722,7 +725,7 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
     ? (noShot ? `No image: the organisation does not allow sending the screen. Explain only from the system facts below.\n${inspectPrompt(facts, false)}` : inspectPrompt(facts, !!view))
     : more
       ? `${userText(req)}${zoom ? '\nThe image is the part of the screen that appeared after their press, zoomed in.' : ''}`
-      : `${userText(req)}\n${clicked ? `${clicked}\n` : ''}${openedNote ? `${openedNote}\n` : ''}${coords}\n${formatMarks(marks)}`;
+      : `${userText(req)}\n${clicked ? `${clicked}\n` : ''}${openedNote ? `${openedNote}\n` : ''}${coords}\n${spotlight(formatMarks(marks), nonce)}`;
 
   const input: ModelInput = {
     ...settings,
