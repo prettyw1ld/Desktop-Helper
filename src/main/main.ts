@@ -8,6 +8,7 @@ import * as autostart from './autostart';
 import * as ipc from './ipc';
 import * as overlay from './overlay';
 import * as presence from './presence-agent';
+import * as ipcGuard from './ipc-guard';
 import * as protocol from './protocol';
 import * as reminders from './reminders';
 import * as settings from './settings';
@@ -18,6 +19,8 @@ import * as ui from './ui';
 import * as watchers from './watchers';
 
 protocol.register();
+// вызовы в главный процесс — только со страницы кота
+ipcGuard.install();
 ipc.register();
 
 // Что делать, когда человек поменял настройки
