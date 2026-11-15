@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { PolicyPresence } from './policy';
+import { accept, publicKey, scopesFor, type Bundle, type Payload } from './remote-config';
 import { backoff, beat, BEAT_MS, deviceKey, parseMachineGuid, parseSid, type Beat, type Enroll, type Flags, type SleepReason } from './presence';
 
 const flags: Flags = { locked: false, suspended: false };
@@ -17,14 +18,22 @@ let timer: NodeJS.Timeout | null = null;
 let failures = 0;
 let stopped = false;
 let packIds: string[] = [];
+let deviceId = '';
+// настройки с сервера: принятые наборы и их версии (чтобы не откатить на старые)
+let bundles: Bundle[] = [];
+let seen: Record<string, number> = {};
+let onConfig: (p: Payload[]) => void = () => {};
+/** Кому отдавать проверенные настройки с сервера. */
+export const setOnConfig = (fn: (p: Payload[]) => void): void => { onConfig = fn; };
 
 const log = (...a: unknown[]) => console.log('presence:', ...a);
 const tokenFile = () => path.join(app.getPath('userData'), 'presence.json');
 
 function loadToken(url: string): string {
   try {
-    const raw = JSON.parse(fs.readFileSync(tokenFile(), 'utf8')) as { url?: string; tokenEnc?: string };
+    const raw = JSON.parse(fs.readFileSync(tokenFile(), 'utf8')) as { url?: string; tokenEnc?: string; deviceId?: string };
     if (raw.url !== url || !raw.tokenEnc || !safeStorage.isEncryptionAvailable()) return '';
+    deviceId = typeof raw.deviceId === 'string' ? raw.deviceId : '';
     return safeStorage.decryptString(Buffer.from(raw.tokenEnc, 'base64'));
   } catch { return ''; }
 }
@@ -33,8 +42,46 @@ function saveToken(url: string, t: string): void {
   try {
     // без шифрования токен не храним: зарегистрируемся заново при следующем запуске
     if (!safeStorage.isEncryptionAvailable()) return;
-    fs.writeFileSync(tokenFile(), JSON.stringify({ url, tokenEnc: safeStorage.encryptString(t).toString('base64') }));
+    fs.writeFileSync(tokenFile(), JSON.stringify({ url, deviceId, tokenEnc: safeStorage.encryptString(t).toString('base64') }));
   } catch (e) { log('save token', String(e)); }
+}
+
+const configFile = () => path.join(app.getPath('userData'), 'remote-config.json');
+
+/** Проверить наборы и, если что-то принято, отдать настройкам. Подпись проверяется каждый раз, и с диска тоже. */
+function applyBundles(list: Bundle[]): boolean {
+  if (!cfg) return false;
+  const r = accept(list, publicKey(cfg.configKey ?? ''), scopesFor(cfg.group ?? '', deviceId), seen);
+  for (const x of r.rejected) log('config rejected', x.scope, x.error);
+  if (!r.payloads.length) return false;
+  seen = r.seen;
+  bundles = r.bundles;
+  onConfig(r.payloads);
+  return true;
+}
+
+function loadConfig(url: string): void {
+  try {
+    const raw = JSON.parse(fs.readFileSync(configFile(), 'utf8')) as { url?: string; bundles?: Bundle[]; seen?: Record<string, number> };
+    if (raw.url !== url) return;
+    // версии помним даже без наборов: откатить на старый набор нельзя и после перезапуска
+    seen = raw.seen && typeof raw.seen === 'object' ? raw.seen : {};
+    applyBundles(Array.isArray(raw.bundles) ? raw.bundles : []);
+  } catch { /* файла ещё нет */ }
+}
+
+function saveConfig(): void {
+  try { fs.writeFileSync(configFile(), JSON.stringify({ url: cfg?.url, bundles, seen })); } catch (e) { log('save config', String(e)); }
+}
+
+/** Сервер сказал, какие версии у него есть: если новее наших — забираем и проверяем. */
+async function pullConfig(offered: unknown): Promise<void> {
+  if (!cfg?.configKey || !offered || typeof offered !== 'object') return;
+  const newer = Object.entries(offered as Record<string, unknown>).some(([scope, v]) => typeof v === 'number' && v > (seen[scope] ?? 0));
+  if (!newer) return;
+  const r = await request('GET', '/api/config', undefined, token);
+  if (r.status !== 200 || !Array.isArray(r.json.bundles)) return;
+  if (applyBundles(r.json.bundles as Bundle[])) saveConfig();
 }
 
 const run = (cmd: string, args: string[]): Promise<string> =>
@@ -57,12 +104,14 @@ async function identity(): Promise<{ machine: string; sid: string }> {
   return { machine: machine || os.hostname(), sid: String(os.userInfo().uid) };
 }
 
-async function post(pathname: string, body: unknown, auth = '', ms = 10_000): Promise<{ status: number; json: Record<string, unknown> }> {
+const post = (pathname: string, body: unknown, auth = '', ms = 10_000) => request('POST', pathname, body, auth, ms);
+
+async function request(method: 'GET' | 'POST', pathname: string, body: unknown, auth = '', ms = 10_000): Promise<{ status: number; json: Record<string, unknown> }> {
   if (!cfg) return { status: 0, json: {} };
   const res = await net.fetch(`${cfg.url}${pathname}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...(auth ? { authorization: `Bearer ${auth}` } : {}) },
-    body: JSON.stringify(body),
+    method,
+    headers: { ...(body !== undefined ? { 'content-type': 'application/json' } : {}), ...(auth ? { authorization: `Bearer ${auth}` } : {}) },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     signal: AbortSignal.timeout(ms),
   });
   let json: Record<string, unknown> = {};
@@ -87,6 +136,7 @@ async function enroll(): Promise<boolean> {
   const r = await post('/api/enroll', body);
   if (r.status !== 200 || typeof r.json.token !== 'string') { log('enroll failed', r.status); return false; }
   token = r.json.token;
+  deviceId = typeof r.json.deviceId === 'string' ? r.json.deviceId : '';
   saveToken(cfg.url, token);
   log('enrolled');
   return true;
@@ -99,16 +149,20 @@ let helloSent = false;
 async function send(msg: Beat, ms?: number): Promise<boolean> {
   if (!token && !(await enroll())) return false;
   // первое сообщение после запуска несёт подразделение и пакеты: политика могла поменяться, а токен старый
-  const b = helloSent ? msg : { ...msg, group: cfg?.group ?? '', packs: packIds };
-  const r = await post('/api/beat', b, token, ms);
-  if (r.status === 200) helloSent = true;
+  const first = helloSent ? msg : { ...msg, group: cfg?.group ?? '', packs: packIds };
+  // какие версии настроек с сервера применены: админ видит это в карточке
+  const b = { ...first, config: seen };
+  let r = await post('/api/beat', b, token, ms);
   if (r.status === 401) {
     // устройство удалили на сервере или токен устарел: регистрируемся заново
     token = '';
     if (!(await enroll())) return false;
-    return (await post('/api/beat', b, token, ms)).status === 200;
+    r = await post('/api/beat', b, token, ms);
   }
-  return r.status === 200;
+  if (r.status !== 200) return false;
+  helloSent = true;
+  if (msg.kind !== 'bye') void pullConfig(r.json.config).catch((e: unknown) => log('config', String(e)));
+  return true;
 }
 
 function schedule(ms: number): void {
@@ -135,6 +189,7 @@ export function start(p: PolicyPresence | null, packs: string[] = []): void {
   packIds = packs.slice(0, 10);
   stopped = false;
   token = loadToken(p.url);
+  if (p.configKey) loadConfig(p.url);
   powerMonitor.on('lock-screen', () => event({ locked: true }));
   powerMonitor.on('unlock-screen', () => event({ locked: false }));
   powerMonitor.on('suspend', () => event({ suspended: true }));

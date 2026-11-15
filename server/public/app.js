@@ -123,6 +123,8 @@ async function openCard(id) {
   fact('Был в сети', `${ago(c.now - d.lastSeen)} (${new Date(d.lastSeen).toLocaleString('ru-RU')})`);
   fact('Подразделение', d.group || '—');
   fact('Пакеты', d.packs.length ? d.packs.join(', ') : '—');
+  const cfg = Object.entries(d.config || {});
+  fact('Настройки с сервера', cfg.length ? cfg.map(([scope, v]) => `${scope} v${v}`).join(', ') : 'нет');
   fact('Версия Пушика', d.version || '?');
   fact('Система', d.os || '?');
   fact('Подключён с', new Date(d.createdAt).toLocaleDateString('ru-RU'));

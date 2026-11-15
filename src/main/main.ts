@@ -59,6 +59,12 @@ function onReady(): void {
   });
   tray.createTray();
   // админ-панель организации видит, что кот бодрствует; выход из сеанса Windows — «ушёл спать»
+  // подписанные настройки с сервера: только ужесточают политику, окно сразу видит новые запреты
+  presence.setOnConfig((payloads) => {
+    settings.setRemote(payloads);
+    ui.send('settings-changed', settings.publicView());
+    audit.event('config', { scopes: payloads.map((p) => `${p.scope}@${p.version}`).join(',') });
+  });
   presence.start(settings.presence(), settings.packs().map((p) => p.id));
   ui.win()?.on('session-end', () => { void presence.bye('logoff'); });
   globalShortcut.register('CommandOrControl+Shift+P', () => {

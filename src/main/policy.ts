@@ -22,6 +22,7 @@ export interface PolicyPresence {
   url: string;                 // https://pushik.corp — адрес сервера
   secret: string;              // секрет регистрации: по нему устройство получает свой токен
   group?: string;              // подразделение: так коты сгруппированы в админ-панели
+  configKey?: string;          // открытый ключ Ed25519: только подписанные им настройки с сервера принимаются
 }
 
 export interface Policy {
@@ -93,7 +94,8 @@ export function parsePresence(v: unknown): PolicyPresence | null {
   const secret = str(p.secret);
   if (!url || secret.length < 16) return null;
   const group = str(p.group).slice(0, 60);
-  return group ? { url, secret, group } : { url, secret };
+  const configKey = str(p.configKey).slice(0, 400);
+  return { url, secret, ...(group ? { group } : {}), ...(configKey ? { configKey } : {}) };
 }
 
 /** Вывод `reg query` → значения ключа: «    AiUrl    REG_SZ    https://…». */
@@ -124,7 +126,7 @@ export function regToRaw(v: Record<string, string>): Record<string, unknown> | n
   }
   if (v.AllowHosts) raw.answers = { allowHosts: v.AllowHosts.split(/[;,\s]+/).filter(Boolean) };
   if (v.SiemHost) raw.siem = { host: v.SiemHost, port: Number(v.SiemPort) || undefined, proto: v.SiemProto };
-  if (v.PresenceUrl) raw.presence = { url: v.PresenceUrl, secret: v.PresenceSecret, allowHttp: regBool(v.PresenceAllowHttp) === true, ...(v.PresenceGroup ? { group: v.PresenceGroup } : {}) };
+  if (v.PresenceUrl) raw.presence = { url: v.PresenceUrl, secret: v.PresenceSecret, allowHttp: regBool(v.PresenceAllowHttp) === true, ...(v.PresenceGroup ? { group: v.PresenceGroup } : {}), ...(v.ConfigKey ? { configKey: v.ConfigKey } : {}) };
   if (regBool(v.AiOff)) raw.ai = null;
   else if (v.AiUrl || v.AiModel) {
     raw.ai = { kind: v.AiKind, url: v.AiUrl, model: v.AiModel, visionModel: v.AiVisionModel, allowHttp: regBool(v.AiAllowHttp) === true };

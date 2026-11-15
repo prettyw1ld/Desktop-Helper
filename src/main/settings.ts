@@ -12,6 +12,7 @@ import * as stt from './ai/stt';
 import * as locate from './system/locate';
 import { ROOT, VOSK_MODEL } from './paths';
 import { packsDir, readPacks, type Pack } from './packs';
+import { tighten, type Payload, type Tunable } from './remote-config';
 import { ALL_FEATURES, allowedOrigin, enforce, LOCKED, policyFile, readPolicy, type Policy } from './policy';
 
 export const DEFAULTS: Settings = {
@@ -77,10 +78,21 @@ let team: Team = {};
 // Политика организации (корпоративный режим). Есть политика — team.json и ключи человека не действуют.
 let policy: Policy | null = null;
 export const managed = (): boolean => !!policy;
-export const features = () => policy?.features ?? ALL_FEATURES;
-export const privacy = () => policy?.privacy ?? OPEN_PRIVACY;
+// наборы настроек с сервера организации: только ужесточают политику (remote-config.ts)
+let remote: Payload[] = [];
+const tuned = (): Tunable | null => (policy
+  ? tighten({ features: policy.features, privacy: policy.privacy, answers: policy.answers ?? OPEN_ANSWERS }, remote)
+  : null);
+export const features = () => tuned()?.features ?? ALL_FEATURES;
+export const privacy = () => tuned()?.privacy ?? OPEN_PRIVACY;
 export const presence = () => policy?.presence ?? null;
-export const answers = () => policy?.answers ?? OPEN_ANSWERS;
+export const answers = () => tuned()?.answers ?? OPEN_ANSWERS;
+/** Применить проверенные наборы с сервера. Вне корпоративного режима ничего не делает. */
+export function setRemote(p: Payload[]): void {
+  if (!policy) return;
+  remote = p;
+  setMasks(parseMasks(privacy().masks));
+}
 export const siem = () => policy?.siem ?? null;
 export const org = () => policy?.org ?? '';
 export const policyProblem = () => policy?.problem ?? '';

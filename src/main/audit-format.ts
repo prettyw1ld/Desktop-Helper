@@ -18,6 +18,7 @@ export const EVENTS: Record<string, string> = {
   'hint.wrong': 'User marked a hint as wrong',
   pause: 'Screenshots paused by user',
   resume: 'Screenshots resumed by user',
+  config: 'Signed settings from the server applied',
 };
 
 const head = (s: string): string => s.replace(/\\/g, '\\\\').replace(/\|/g, '\\|');

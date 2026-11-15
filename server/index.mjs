@@ -2,6 +2,7 @@
 //   ENROLL_SECRET   секрет регистрации, тот же, что presence.secret в политике (от 16 знаков)
 //   ADMIN_PASSWORD  пароль входа в админ-панель, пользователь admin (от 12 знаков)
 //   DATABASE_URL    postgres://… ; без него всё хранится в памяти до перезапуска
+//   CONFIG_PUBLIC_KEY  открытый ключ подписи настроек (base64 из tools/config-sign.mjs keygen); с ним сервер не примет неподписанное
 //   PORT            8443 по умолчанию
 //   TLS_CERT, TLS_KEY  пути к сертификату и ключу; без них — обычный http за nginx
 import fs from 'node:fs';
@@ -13,7 +14,7 @@ import { memoryStore } from './store-memory.mjs';
 const env = process.env;
 const store = env.DATABASE_URL ? await (await import('./store-pg.mjs')).pgStore(env.DATABASE_URL) : memoryStore();
 if (!env.DATABASE_URL) console.warn('DATABASE_URL не задан: устройства хранятся в памяти до перезапуска');
-const handle = createApp({ store, enrollSecret: env.ENROLL_SECRET || '', adminPassword: env.ADMIN_PASSWORD || '' });
+const handle = createApp({ store, enrollSecret: env.ENROLL_SECRET || '', adminPassword: env.ADMIN_PASSWORD || '', configKey: env.CONFIG_PUBLIC_KEY || '' });
 const tls = env.TLS_CERT && env.TLS_KEY ? { cert: fs.readFileSync(env.TLS_CERT), key: fs.readFileSync(env.TLS_KEY) } : null;
 const server = tls ? https.createServer(tls, handle) : http.createServer(handle);
 server.requestTimeout = 15_000;

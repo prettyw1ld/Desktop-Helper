@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 export function memoryStore() {
   const devices = new Map();   // id → устройство
   const history = [];          // смены состояния: { deviceId, at, mood, reason }
+  const configs = new Map();   // адресат → подписанный набор настроек { scope, version, payload, sig, at }
   return {
     async enroll({ deviceKey, host, user, os, version, group = '', packs = [], tokenHash, now }) {
       let d = [...devices.values()].find((x) => x.deviceKey === deviceKey);
@@ -19,10 +20,11 @@ export function memoryStore() {
       const d = [...devices.values()].find((x) => x.tokenHash === tokenHash);
       return d ? { ...d } : null;
     },
-    async beat(id, { mood, reason, idleSec, version, now, info = null }) {
+    async beat(id, { mood, reason, idleSec, version, now, info = null, applied = null }) {
       const d = devices.get(id);
       if (!d) return;
       if (info) Object.assign(d, { group: info.group, packs: info.packs });
+      if (applied) d.applied = applied;
       if (d.mood !== mood || d.reason !== reason) history.push({ deviceId: id, at: now, mood, reason });
       Object.assign(d, { mood, reason, idleSec, version, lastSeen: now });
     },
@@ -37,6 +39,14 @@ export function memoryStore() {
       for (let i = history.length - 1; i >= 0; i--) if (history[i].deviceId === id) history.splice(i, 1);
       return devices.delete(id);
     },
+    // версия набора только растёт: старый подписанный набор нельзя выложить снова
+    async putConfig({ scope, version, payload, sig, now }) {
+      const cur = configs.get(scope);
+      if (cur && cur.version >= version) return false;
+      configs.set(scope, { scope, version, payload, sig, at: now });
+      return true;
+    },
+    async configs() { return [...configs.values()].map((c) => ({ ...c })); },
     async close() {},
   };
 }
