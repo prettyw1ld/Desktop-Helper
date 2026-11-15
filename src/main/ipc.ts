@@ -127,6 +127,7 @@ function registerGuide(): void {
       return await guide.look({ ...req, settings: settings.forAi(), overlay: ui.win() });
     } catch (err) {
       if ((err as AiError).code === 'noShot') return { error: T('err.screen') };
+      if ((err as AiError).code === 'emptySelection') return { error: T('err.emptySelection'), empty: true };
       return aiFailure(err, 'guide:look', 'err.look');
     }
   });
