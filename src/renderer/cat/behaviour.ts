@@ -32,7 +32,8 @@ const ACTS: Act[] = [
   { anim: () => 'hopF', ms: 1800 },
 ];
 
-export function goSleep(ms: number): void {
+/** Уснуть на ms миллисекунд; без ms — пока не разбудят. */
+export function goSleep(ms?: number): void {
   const kind = pick(['sleep1', 'sleep2', 'sleep3', 'sleep4', 'sleep5', 'sleepBack'] as const);
   cat.sleepKind = dirAnim(`${kind}Z`, cat.dir); // со Zzz над головой
   setState('sleep', ms);

@@ -5,6 +5,7 @@ import { PUSHIK_EVENTS, type PushikApi } from '../shared/types';
 const api: PushikApi = {
   setIgnoreMouse: (ignore) => ipcRenderer.send('ignore-mouse', ignore),
   getCursor: () => ipcRenderer.invoke('cursor:get'),
+  getIdleSec: () => ipcRenderer.invoke('idle:get'),
   getSettings: () => ipcRenderer.invoke('settings:get'),
   saveSettings: (s) => ipcRenderer.invoke('settings:save', s),
   chat: (text) => ipcRenderer.invoke('chat:send', text),

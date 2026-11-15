@@ -43,6 +43,7 @@ export function mockApi(): PushikApi {
   return {
     setIgnoreMouse() {},
     getCursor: async () => null,
+    getIdleSec: async () => null,
     getSettings: async () => s,
     saveSettings: async (next) => Object.assign(s, next),
     chat: async (t) => (/^(как|покажи)/i.test(t)
