@@ -3,9 +3,11 @@
 import { app, globalShortcut, session } from 'electron';
 import { I18N } from '../shared/i18n';
 import * as guide from './ai/guide';
+import * as audit from './audit';
 import * as autostart from './autostart';
 import * as ipc from './ipc';
 import * as overlay from './overlay';
+import * as presence from './presence-agent';
 import * as protocol from './protocol';
 import * as reminders from './reminders';
 import * as settings from './settings';
@@ -32,6 +34,12 @@ function onReady(): void {
   if (process.platform === 'darwin') app.dock?.hide();
   const s = settings.load();
   I18N.setLang(s.lang);
+  // журнал событий для службы ИБ — только в корпоративном режиме
+  if (settings.managed()) {
+    audit.init({ dir: app.getPath('userData'), siem: settings.siem(), version: app.getVersion() });
+    audit.event('start');
+    audit.event('policy', { org: settings.org(), reason: settings.policyProblem() }, settings.policyProblem() ? 6 : 3);
+  }
   // Сверяем автозапуск с настройкой при каждом старте: путь к приложению мог поменяться
   // (обновление, перенос папки), а старые версии записывали его только при сохранении настроек.
   autostart.apply(s.autostart);
@@ -50,6 +58,9 @@ function onReady(): void {
     },
   });
   tray.createTray();
+  // админ-панель организации видит, что кот бодрствует; выход из сеанса Windows — «ушёл спать»
+  presence.start(settings.presence(), settings.packs().map((p) => p.id));
+  ui.win()?.on('session-end', () => { void presence.bye('logoff'); });
   globalShortcut.register('CommandOrControl+Shift+P', () => {
     ui.show();
     ui.send('open', 'chat');
@@ -60,7 +71,21 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', () => ui.showInactive());
+  // Окно кота показывает только свою страницу: никаких переходов, новых окон и встроенных страниц
+  app.on('web-contents-created', (_e, wc) => {
+    wc.on('will-navigate', (e) => e.preventDefault());
+    wc.on('will-attach-webview', (e) => e.preventDefault());
+    wc.setWindowOpenHandler(() => ({ action: 'deny' }));
+  });
   app.whenReady().then(onReady);
+  let quitLogged = false;
+  // перед выходом успеваем сказать серверу «сплю» (не дольше 1,5 с)
+  app.on('before-quit', (e) => {
+    if (!quitLogged) { quitLogged = true; audit.event('quit'); }
+    if (!presence.active()) return;
+    e.preventDefault();
+    void presence.bye('quit').finally(() => app.quit());
+  });
   app.on('will-quit', () => {
     globalShortcut.unregisterAll();
     guide.unwatch();

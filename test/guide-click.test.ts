@@ -90,7 +90,7 @@ test('a click anywhere outside the cat checks the step by itself', async () => {
   assert.deepEqual(calls[1]?.click, { onTarget: true }, 'the model is told the press hit the highlighted button');
   endGuide(false);
   assert.deepEqual(clicks.at(-1), [false, 'guide']);
-  assert.deepEqual(focus, [false, true]);
+  assert.deepEqual(focus, [false], 'after the guide the cat still leaves keyboard focus to the program');
 });
 
 test('clicks on the cat or its bubble do not count as an action', async () => {

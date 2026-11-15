@@ -21,6 +21,7 @@ const api: PushikApi = {
   guideLook: (req) => ipcRenderer.invoke('guide:look', req),
   guideWatch: (masks, focus) => ipcRenderer.send('guide:watch', masks, focus),
   guideUnwatch: () => ipcRenderer.send('guide:unwatch'),
+  guideWrong: (info) => ipcRenderer.send('guide:wrong', info),
   transcribe: (audio, mime) => ipcRenderer.invoke('stt:transcribe', { audio, mime }),
   askMic: () => ipcRenderer.invoke('mic:ask'),
   addSkill: (name) => ipcRenderer.invoke('skills:add', name),
@@ -28,6 +29,7 @@ const api: PushikApi = {
   openUri: (uri) => ipcRenderer.invoke('open:uri', uri),
   filesAction: (req) => ipcRenderer.invoke('files:action', req),
   openDrive: (letter) => ipcRenderer.invoke('open:drive', letter),
+  copyText: (text) => ipcRenderer.invoke('clipboard:write', text),
   on: (channel, cb) => {
     if (PUSHIK_EVENTS.includes(channel)) ipcRenderer.on(channel, (_e, data) => cb(data));
   },

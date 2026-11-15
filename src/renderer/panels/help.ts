@@ -3,14 +3,15 @@
 // а если нет микрофона, видно поле, куда можно написать задачу.
 import { $ } from '../core/dom';
 import { T } from '../core/i18n';
-import { settings } from '../core/settings';
+import { can, settings } from '../core/settings';
 import { routeGoal } from '../guide/router';
-import { registerPanel, showPanel, isPanel } from '../ui/panels';
+import { setTyping } from '../ui/focus';
+import { openPanel, registerPanel, showPanel, isPanel } from '../ui/panels';
 import { initMic, micState, refreshMic } from './mic';
 
 /** Без ИИ «Объясни, что это» не сработает, поэтому на её месте — вход в уроки. */
 export function firstButton(): HTMLElement {
-  const ai = settings.aiReady;
+  const ai = can('inspect');
   const b = $('#inspect-element');
   b.dataset.mode = ai ? 'inspect' : 'lessons';
   b.textContent = T(ai ? 'help.inspect' : 'help.lessons');
@@ -24,11 +25,13 @@ function showAskIfNoMic(): void {
   const form = $('#ask-form');
   form.classList.toggle('hidden', !noMic);
   form.setAttribute('aria-hidden', String(!noMic));
+  // без микрофона задачу пишут: тогда окно кота берёт фокус
+  if (isPanel('help') && openPanel() === 'help') setTyping(noMic);
 }
 
 function renderHelp(): void {
   micState('');
-  $('.extras [data-act="chat"]').classList.toggle('hidden', !settings.aiReady);
+  $('.extras [data-act="chat"]').classList.toggle('hidden', !can('chat'));
   firstButton();
   void refreshMic().then(showAskIfNoMic);
 }

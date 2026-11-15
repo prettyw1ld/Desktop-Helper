@@ -1,12 +1,13 @@
 // «Объясни, что это»: текст для модели — правила и сведения от системы о программе и элементе.
 // Без Electron, чтобы проверять тестами.
 import type { InspectContext, UiNode } from '../../shared/types';
+import { stripHidden } from './redact';
 
 // ---------- Сведения от системы для подсказки модели ----------
 
 /** Убрать из подписей то, что модели знать незачем: почту, телефоны, номера карт и длинные числа. */
 export function scrub(s: unknown, max = 90): string {
-  return String(s ?? '')
+  return stripHidden(String(s ?? ''))
     .replace(/[\r\n\t]+/g, ' ')
     .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '[почта]')
     .replace(/(?:\+?\d[\s()-]*){10,}/g, '[номер]')

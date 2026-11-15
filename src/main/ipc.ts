@@ -1,13 +1,17 @@
 // Все запросы из окна кота (preload.ts) к главному процессу.
-import { app, dialog, ipcMain, screen, shell, systemPreferences } from 'electron';
+import { app, clipboard, dialog, ipcMain, screen, shell, systemPreferences } from 'electron';
 import { T } from '../shared/i18n';
 import type { ChatResult, ErrorReply, FilesRequest, LocateQuery, LookRequest, LookResult, Rect, ReminderKind, Settings, Skill } from '../shared/types';
 import { errorDetails, type AiError } from './ai/http';
 import * as guide from './ai/guide';
+import { guideLog } from './ai/guide-log';
+import { guardAnswer } from './ai/answer-guard';
+import * as audit from './audit';
 import { ask, type ChatMessage, type ChatTools } from './ai/llm';
 import * as stt from './ai/stt';
 import * as clicks from './system/clicks';
 import { createFileActions } from './system/files';
+import { packPrompt } from './packs';
 import * as locate from './system/locate';
 import { toOverlayRect } from './overlay';
 import * as reminders from './reminders';
@@ -27,6 +31,7 @@ function screenAccess(): string {
 function aiFailure(err: unknown, what: string, fallbackKey: string): ErrorReply {
   const e = err as AiError;
   const s = settings.get();
+  if (e.code === 'policy') return { error: T('err.policy') };
   if (e.offline && s.provider === 'ollama') return { error: T('err.ollama', { url: s.ollamaUrl }) };
   console.error(what, errorDetails(err));
   return { error: T(e.network ? 'err.net' : fallbackKey) };
@@ -106,8 +111,13 @@ function registerSystem(): void {
   // только безопасные адреса (настройки Windows, WhatsApp, Telegram, сайты) и флешка
   ipcMain.handle('open:uri', (_e, uri: unknown) => {
     const u = String(uri || '');
-    if (!/^(ms-settings:|whatsapp:|tg:|https:\/\/)/.test(u)) return false;
+    // mailto: черновик письма (отчёт об инциденте); отправляет человек сам
+    if (!/^(ms-settings:|whatsapp:|tg:|https:\/\/|mailto:)/.test(u)) return false;
     shell.openExternal(u);
+    return true;
+  });
+  ipcMain.handle('clipboard:write', (_e, text: unknown) => {
+    clipboard.writeText(String(text ?? '').slice(0, 20000));
     return true;
   });
   ipcMain.handle('open:drive', (_e, letter: unknown) => {
@@ -118,14 +128,40 @@ function registerSystem(): void {
   });
 }
 
+// ---------- Проверка ответов ИИ ----------
+/** Ответ ИИ к показу: опасный — отказ, лишние ссылки — убрать. Что сделали — в журнал. */
+function guarded(text: string, where: string): { text: string; danger: boolean } {
+  if (!text) return { text, danger: false };
+  const g = guardAnswer(text, settings.answers(), T('ai.unsafe'), T('ai.linkRemoved'));
+  if (g.danger) { audit.event('answer.blocked', { where, reason: g.danger }, 7); console.warn('answer blocked:', where, g.danger); }
+  if (g.removedLinks) audit.event('answer.links', { where, cnt: g.removedLinks }, 4);
+  return { text: g.text, danger: !!g.danger };
+}
+
+function guardLook(res: LookResult): LookResult {
+  const say = guarded(res.say, 'guide');
+  const explain = guarded(res.explain, 'guide');
+  // опасный совет: ни показа лапкой, ни плана — только отказ
+  if (say.danger || explain.danger) return { ...res, say: T('ai.unsafe'), explain: '', target: null, plan: [] };
+  return { ...res, say: say.text, explain: explain.text };
+}
+
 // ---------- Помощник: снимок экрана и подсказка ----------
 function registerGuide(): void {
   ipcMain.handle('guide:look', async (_e, req: LookRequest): Promise<LookResult | ErrorReply> => {
-    if (noAi()) return { error: T('err.noKey') };
+    if (noAi()) return { error: T(settings.managed() ? 'err.policy' : 'err.noKey') };
+    const f = settings.features();
+    // «Подробнее» бывает и после объяснения элемента, и в показе по шагам
+    const allowed = req.mode === 'inspect' ? f.inspect : req.mode === 'more' ? f.inspect || f.guide : f.guide;
+    if (!allowed) return { error: T('err.policy') };
     if (screenAccess() === 'denied') return { error: T('err.screen') };
     try {
-      return await guide.look({ ...req, settings: settings.forAi(), overlay: ui.win() });
+      const res = await guide.look({ ...req, settings: settings.forAi(), privacy: settings.privacy(), packs: settings.packs(), overlay: ui.win() });
+      return guardLook(res);
     } catch (err) {
+      const code = (err as AiError).code;
+      if (code === 'privatePassword' || code === 'privateApp') return { error: T(code === 'privatePassword' ? 'err.privatePassword' : 'err.privateApp') };
+      if (code === 'privatePaused') return { error: T('err.privatePaused') };
       if ((err as AiError).code === 'noShot') return { error: T('err.screen') };
       return aiFailure(err, 'guide:look', 'err.look');
     }
@@ -152,6 +188,15 @@ function registerGuide(): void {
     guide.watch({ masks, focus, onChange: () => ui.send('screen-changed') });
   });
   ipcMain.on('guide:unwatch', () => guide.unwatch());
+  // «Не то»: человек отметил подсказку как неверную. В журнал — только режим, номер шага и программа, без текста
+  ipcMain.on('guide:wrong', (_e, v: unknown) => {
+    const o = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
+    const mode = typeof o.mode === 'string' ? o.mode.slice(0, 20) : '';
+    const step = Number.isInteger(o.step) ? Number(o.step) : 0;
+    const info = { mode, step, pointed: o.pointed === true, app: guide.lastLookApp() };
+    guideLog('wrong', info);
+    audit.event('hint.wrong', info, 4);
+  });
 }
 
 // ---------- Голос ----------
@@ -226,12 +271,16 @@ function registerChat(): void {
   ipcMain.handle('chat:reset', () => { chatHistory = []; return true; });
   ipcMain.handle('chat:send', async (_e, text: string): Promise<ChatResult | ErrorReply> => {
     const s = settings.get();
-    if (noAi()) return { error: T('err.noKey') };
+    if (noAi()) return { error: T(settings.managed() ? 'err.policy' : 'err.noKey') };
+    if (!settings.features().chat) return { error: T('err.policy') };
     const locale = s.lang === 'en' ? 'en-US' : 'ru-RU';
     try {
-      const { reply, history, actions, show } = await ask({ ...settings.forAi(s), history: chatHistory, text, tools: chatTools(locale) });
+      const { reply, history, actions, show } = await ask({ ...settings.forAi(s), history: chatHistory, text, tools: chatTools(locale), orgPrompt: packPrompt(settings.packs()) });
       chatHistory = history.slice(-30);
-      return show ? { reply, actions, show } : { reply, actions };
+      audit.event('chat', { cnt: text.length });
+      const g = guarded(reply, 'chat');
+      if (g.danger) return { reply: g.text, actions: [] };
+      return show ? { reply: g.text, actions, show } : { reply: g.text, actions };
     } catch (err) {
       return aiFailure(err, 'chat:send', 'err.ask');
     }

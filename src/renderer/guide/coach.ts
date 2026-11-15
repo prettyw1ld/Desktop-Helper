@@ -7,7 +7,7 @@ import { celebrate, happy } from '../cat/poses';
 import { api } from '../core/api';
 import { $ } from '../core/dom';
 import { I18N, T } from '../core/i18n';
-import { isMac, setSkills, settings } from '../core/settings';
+import { can, isMac, setSkills, settings } from '../core/settings';
 import { Sound } from '../core/sound';
 import { pick } from '../core/util';
 import { micState } from '../panels/mic';
@@ -15,6 +15,7 @@ import { hideBubble, say, type Action } from '../ui/bubble';
 import { closePanels, showPanel } from '../ui/panels';
 import { hideRing, showRing } from '../ui/ring';
 import { speak } from '../ui/speech';
+import { startGuide } from './ai-guide';
 import { endGuide, onGuideEnd } from './control';
 import { goPoint } from './pointing';
 import * as Scenarios from './scenarios';
@@ -172,6 +173,9 @@ export function coachStepActions(step: Step): Action[] {
     }]);
   }
   if (step.open) acts.push([T('coach.open'), () => { void openForMe(step); }]);
+  // урок организации: если кнопку так и не нашли, ИИ покажет путь по снимку экрана
+  const goal = sc?.goal;
+  if (goal && can('guide')) acts.push([T('pack.showAi'), () => { endGuide(false); startGuide(goal); }]);
   acts.push([T('g.stop'), () => endGuide(true)]);
   return acts;
 }
@@ -355,7 +359,7 @@ function pointToLessons(): void {
   if (guide.active || trainer.step) return;
   hideBubble();
   showPanel('help');
-  const b = settings.aiReady ? $('.extras [data-act="lessons"]') : $('#inspect-element');
+  const b = can('inspect') ? $('.extras [data-act="lessons"]') : $('#inspect-element');
   b.classList.add('pulse');
   micState(T('les.here'));
   speak(T('les.here'));

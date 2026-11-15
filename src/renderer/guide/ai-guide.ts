@@ -10,6 +10,7 @@ import { Sound } from '../core/sound';
 import { hideBubble, placeBubble, say, setBubbleAvoid, type Action, type SayOptions } from '../ui/bubble';
 import { openedZone, targetZones } from '../ui/bubble-spot';
 import { closePanels, showPanel } from '../ui/panels';
+import { setHold } from '../ui/focus';
 import { hideRing, showRing } from '../ui/ring';
 import { speak, stopSpeaking } from '../ui/speech';
 import { endGuide, onGuideEnd } from './control';
@@ -51,7 +52,7 @@ function holdScreen(on: boolean): void {
   if (on === holding) return;
   holding = on;
   if (!on) api.watchClicks(false, 'guide');
-  api.setFocusable(!on);
+  setHold(on);
 }
 
 function stopWatching(): void {
@@ -104,11 +105,22 @@ export function aiStepActions(): Action[] {
   const actions: Action[] = [
     [T('g.done'), () => look('check'), true],
     [T('g.again'), () => { if (guide.last) showStep(guide.last); }],
+    [T('g.wrong'), wrongHint],
     [T('g.stop'), () => endGuide(true)],
   ];
   const changed = guide.last?.whatChanged;
   if (changed) actions.splice(1, 0, [WHAT_HAPPENED, () => showChange(changed, () => { if (guide.last) showStep(guide.last); })]);
   return actions;
+}
+
+/** «Не то»: отмечаем подсказку как неверную (в журнал, без текста) и смотрим на экран заново. */
+function wrongHint(): void {
+  if (guide.busy) return;
+  api.guideWrong({ mode: guide.mode, step: guide.stepIndex, pointed: !!guide.last?.target });
+  // ИИ узнаёт, что прошлая подсказка не подошла, и не повторяет её
+  const n = guide.history.length;
+  if (n) guide.history[n - 1] = `${guide.history[n - 1]} (WRONG: the person says this hint was wrong or pointed at the wrong place; they have NOT done it. Look again and give a different, correct hint)`;
+  void look('check');
 }
 
 function showChange(text: string, back: () => void): void {
@@ -220,7 +232,7 @@ function showAll(text: string, res: LookResult): void {
   const actions: Action[] = [];
   // на первом уровне «Подробнее» есть всегда: модель часто говорит «больше нечего», хотя рассказала про 3 пункта из 20
   if ((tour.level <= 1 || res.hasMore !== false) && tour.level < MAX_LEVEL) actions.push([tour.level <= 1 ? 'Подробнее' : 'Ещё подробнее', () => void look('more'), true]);
-  const practice = res.practiceGoal;
+  const practice = settings.features.guide ? res.practiceGoal : '';
   if (practice) actions.push(['Попробовать', () => startGuide(practice, 'practice')]);
   actions.push(['Понятно', finishTour, !actions.length]);
   tell(text, { guide: true, actions });
@@ -254,7 +266,7 @@ const inside = (a: Rect, b: Rect) => {
 function showItem(text: string, res: LookResult, item: string): void {
   hideRing();
   const actions: Action[] = [];
-  const practice = res.practiceGoal;
+  const practice = settings.features.guide ? res.practiceGoal : '';
   // меню ещё открыто: первый шаг — нажать этот пункт в нём
   if (practice) actions.push(['Покажи, как', () => startGuide(practice, 'practice', item), true]);
   actions.push(['Другой пункт', () => showChooser(0)]);
@@ -401,6 +413,14 @@ export function initAiGuide(): void {
   api.on('global-click', onScreenClick);
   // бесплатный ИИ попросил подождать: кот говорит, что думает, вместо тишины
   api.on('ai-wait', (sec) => say(T('ai.wait', { sec }), (sec + 1) * 1000, { guide: true }));
+  // снимок экрана всегда видно: над котом надпись «смотрю на экран»
+  let lookTimer: ReturnType<typeof setTimeout> | null = null;
+  api.on('looking', () => {
+    dom.fx.dataset.looking = T('cat.looking');
+    dom.cat.classList.add('looking');
+    if (lookTimer) clearTimeout(lookTimer);
+    lookTimer = setTimeout(() => dom.cat.classList.remove('looking'), 2500);
+  });
   // Экран заметно поменялся после подсказки: сами проверяем, получилось ли.
   // Не больше одного раза на шаг и не раньше чем через 3 с:
   // иначе любое движение на экране (видео, прокрутка) заставляет кота говорить без спроса.

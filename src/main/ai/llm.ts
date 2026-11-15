@@ -5,6 +5,10 @@ import { aiError, fetchAI, fetchAIRetry, readError } from './http';
 import { extraFor, fallbackModel, resolve } from './providers';
 import { goalFromHowTo, isHowTo, vagueGoal } from '../../shared/howto';
 import { SHOW_MARK, showGoal } from './show';
+import { clean } from './redact';
+
+/** Заголовок с ключом; у внутреннего сервера ключа может не быть. */
+export const bearer = (apiKey: string): Record<string, string> => (apiKey ? { authorization: `Bearer ${apiKey}` } : {});
 
 export const CLAUDE_URL = 'https://api.anthropic.com/v1/messages';
 export { extraFor, OPENAI_PRESETS, resolve, type Resolved } from './providers';
@@ -15,7 +19,7 @@ async function listModels(url: string, apiKey: string): Promise<string[] | null>
   const cached = modelCache.get(url);
   if (cached) return cached;
   try {
-    const res = await fetchAI(`${url}/models`, { headers: { authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(8000) });
+    const res = await fetchAI(`${url}/models`, { headers: bearer(apiKey), signal: AbortSignal.timeout(8000) });
     if (!res.ok) return null;
     const data = await res.json() as { data?: { id: string }[] };
     const ids = (data.data || []).map((m) => m.id).filter((id) => !/whisper|tts|orpheus|guard|embed/i.test(id));
@@ -77,7 +81,7 @@ const TOOLS: ToolDef[] = [
   },
 ];
 
-export function systemPrompt({ userName, lang }: { userName?: string; lang?: string }): string {
+export function systemPrompt({ userName, lang, orgPrompt }: { userName?: string; lang?: string; orgPrompt?: string }): string {
   const locale = lang === 'en' ? 'en-US' : 'ru-RU';
   const now = new Date().toLocaleString(locale, { dateStyle: 'full', timeStyle: 'short' });
   const ru = [
@@ -109,7 +113,9 @@ export function systemPrompt({ userName, lang }: { userName?: string; lang?: str
     userName ? `The user's name is ${userName}.` : '',
     `Now: ${now}.`,
   ];
-  return (lang === 'en' ? en : ru).filter(Boolean).join(' ');
+  const base = (lang === 'en' ? en : ru).filter(Boolean).join(' ');
+  // правила организации из ролевых пакетов — отдельным абзацем после своих
+  return orgPrompt ? `${base}\n\n${orgPrompt}` : base;
 }
 
 async function runTool(tools: ChatTools, name: string, input: unknown): Promise<string> {
@@ -175,7 +181,7 @@ async function askOpenAI({ apiKey, url, model, history, text, system }: AskInput
   const use = await pickModel({ url, apiKey, want: model });
   const res = await fetchAIRetry(`${url}/chat/completions`, {
     method: 'POST',
-    headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
+    headers: { ...bearer(apiKey), 'content-type': 'application/json' },
     body: JSON.stringify({
       model: use, max_tokens: 1500, ...extraFor(use, url),
       messages: [{ role: 'system', content: system }, ...history, { role: 'user', content: text }],
@@ -243,10 +249,12 @@ function howToGoal(text: string, history: ChatMessage[]): string {
   return prev ? goalFromHowTo(prev.content) : '';
 }
 
-export type AskOptions = Settings & { history: ChatMessage[]; text: string; tools: ChatTools };
+export type AskOptions = Settings & { history: ChatMessage[]; text: string; tools: ChatTools; orgPrompt?: string };
 
 /** Вызовы инструментов живут внутри одного запроса; в историю попадает только текст. */
-export async function ask(opts: AskOptions): Promise<AskOutput & { history: ChatMessage[] }> {
+export async function ask(raw: AskOptions): Promise<AskOutput & { history: ChatMessage[] }> {
+  // номера карт, ИНН, СНИЛС, паспорт и ключи в чат-модель не уходят
+  const opts = { ...raw, text: clean(raw.text) };
   const system = systemPrompt(opts);
   const r = resolve(opts);
   const input: AskInput = {

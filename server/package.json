@@ -1,0 +1,15 @@
+{
+  "name": "pushik-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Сервер присутствия Пушика: кто из котов бодрствует, дремлет или спит",
+  "type": "module",
+  "main": "index.mjs",
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "engines": { "node": ">=20" },
+  "optionalDependencies": {
+    "pg": "^8.13.1"
+  }
+}

@@ -46,6 +46,12 @@
     <ul id="les-list" class="les-list"></ul>
   </section>
 
+  <!-- Сообщить об инциденте (пакет организации) -->
+  <section id="panel-report" class="panel help report hit hidden">
+    <header><b id="rep-title"></b><button class="icon" data-close data-i18n-title="close">✕</button></header>
+    <div id="rep-body" class="rep-body"></div>
+  </section>
+
   <!-- Чат -->
   <section id="panel-chat" class="panel hit hidden">
     <header><b>Пуш</b>
@@ -106,6 +112,8 @@
       <label class="check"><input name="sound" type="checkbox" /> <span data-i18n="set.sound"></span></label>
       <label class="check"><input name="autostart" type="checkbox" /> <span data-i18n="set.autostart"></span></label>
       <label class="check"><input name="glass" type="checkbox" /> <span data-i18n="set.glass"></span></label>
+      <label class="check"><input name="shotConsent" type="checkbox" /> <span data-i18n="set.shotConsent"></span></label>
+      <p id="ai-managed" class="ai-hint hidden"></p>
       <details class="more" id="ai-settings">
         <summary data-i18n="set.ai"></summary>
         <label><span data-i18n="set.aiModel"></span>
