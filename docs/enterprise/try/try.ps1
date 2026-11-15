@@ -37,10 +37,16 @@ $policy = [ordered]@{
 }
 [IO.File]::WriteAllText((Join-Path $dir 'policy.json'), ($policy | ConvertTo-Json -Depth 5), (New-Object Text.UTF8Encoding $false))
 
-$sayArg = if ($Say) { " `"$Say`"" } else { '' }
-Start-Process powershell -ArgumentList '-NoExit', '-Command', "node '$here\fake-ai.mjs'$sayArg"
-Start-Process powershell -ArgumentList '-NoExit', '-Command', "cd '$repo\server'; `$env:ENROLL_SECRET='enroll-secret-0123456789'; `$env:ADMIN_PASSWORD='admin-password-42'; `$env:PORT='8899'; node index.mjs"
-Start-Process powershell -ArgumentList '-NoExit', '-Command', "node '$here\siem-listen.mjs'"
+# окна запускаем прямо через node с рабочей папкой: так русские буквы в пути не ломаются
+$env:ENROLL_SECRET = 'enroll-secret-0123456789'; $env:ADMIN_PASSWORD = 'admin-password-42'; $env:PORT = '8899'
+$aiArgs = @("`"$here\fake-ai.mjs`"") + $(if ($Say) { @("`"$Say`"") } else { @() })
+Start-Process node -ArgumentList $aiArgs -WorkingDirectory $here
+Start-Process node -ArgumentList 'index.mjs' -WorkingDirectory (Join-Path $repo 'server')
+Start-Process node -ArgumentList "`"$here\siem-listen.mjs`"" -WorkingDirectory $here
+Start-Sleep 2
+try { Invoke-WebRequest -UseBasicParsing http://localhost:8899/api/devices -TimeoutSec 3 | Out-Null } catch {
+  if (-not $_.Exception.Response) { Write-Host 'Сервер админ-панели не запустился: посмотри окно node с index.mjs.' -ForegroundColor Yellow }
+}
 
 Stop-Pushik
 Start-Sleep 2
