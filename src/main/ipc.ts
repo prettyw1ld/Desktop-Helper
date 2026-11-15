@@ -163,6 +163,7 @@ function registerGuide(): void {
       if (code === 'privatePassword' || code === 'privateApp') return { error: T(code === 'privatePassword' ? 'err.privatePassword' : 'err.privateApp') };
       if (code === 'privatePaused') return { error: T('err.privatePaused') };
       if ((err as AiError).code === 'noShot') return { error: T('err.screen') };
+      if ((err as AiError).code === 'emptySelection') return { error: T('err.emptySelection'), empty: true };
       return aiFailure(err, 'guide:look', 'err.look');
     }
   });

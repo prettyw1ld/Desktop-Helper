@@ -119,7 +119,7 @@ export interface PackLesson {
   done: string;
 }
 
-export interface ErrorReply { error: string }
+export interface ErrorReply { error: string; empty?: boolean } // empty: «Объясни это» по пустому месту
 export const isError = (r: unknown): r is ErrorReply =>
   typeof r === 'object' && r !== null && typeof (r as ErrorReply).error === 'string' && !!(r as ErrorReply).error;
 

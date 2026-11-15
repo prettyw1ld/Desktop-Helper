@@ -7,6 +7,7 @@ import { bearer, CLAUDE_URL, cleanReply, extraFor, pickModel, resolve } from './
 import { cropSelection, formatContext, inspectPrompt, INSPECT_SYSTEM, scrub, selectionBox, windowView } from './screen-region';
 import { blockReason, maskOutside, OPEN_PRIVACY, shotsPaused, type Guard, type Privacy } from './privacy';
 import { clickFact } from './inspect-text';
+import { edgeShare, isBlank } from './blank';
 import { changedBox, screenMoved } from './changed-box';
 import { boxUnits, cleanPlan, formatMarks, itemLabel, sameRowOut, itemsFromText, pickMark, pickNamed, refineCrop, stepOf, withTaskbar, type ElementHint, type Mark } from './show';
 import { guideLog } from './guide-log';
@@ -524,6 +525,22 @@ async function inspectContext(shot: Shot, selection: Rect | undefined): Promise<
   return res.ctx ?? null;
 }
 
+/** Пустое место под выделением: говорим об этом сами и не шлём снимок ИИ. */
+function blankGuard(shot: Shot, selection: Rect | undefined, ctx: InspectContext | null): void {
+  let edges = 1;
+  try {
+    const crop = shot.image.crop(selectionBox(shot, selection));
+    const { width, height } = crop.getSize();
+    edges = edgeShare(crop.toBitmap(), width, height);
+  } catch (e) {
+    guideLog('inspect-blank', { error: String(e) });
+    return;
+  }
+  if (!isBlank(edges, ctx)) return;
+  guideLog('inspect-blank', { edges: Math.round(edges * 10000) / 10000, element: ctx?.element?.name ?? null });
+  throw aiError('empty selection', { code: 'emptySelection' });
+}
+
 /** Снимок окна (или экрана) с рамкой вокруг выделения; null, если не получилось. */
 function contextView(shot: Shot, selection: Rect | undefined, ctx: InspectContext | null): NativeImage | null {
   try {
@@ -687,6 +704,7 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
   // «Объясни, что это»: ещё снимок всего окна с рамкой вокруг выделения и сведения от системы
   const tCtx = Date.now();
   const ctx = inspect ? await inspectContext(shot, selection) : null;
+  if (inspect) blankGuard(shot, selection, ctx);
   const view = inspect ? contextView(shot, selection, ctx) : null;
   // пояснение организации к служебному окну (антивирус, DLP): ИИ пересказывает его простыми словами
   const orgNote = inspect ? explainFor(packs, ctx?.proc || guard.proc || '', ctx?.title || guard.title || '') : '';

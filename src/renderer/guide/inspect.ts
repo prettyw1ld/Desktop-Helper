@@ -1,6 +1,6 @@
 // «Объясни, что это»: человек обводит мышкой кнопку или строку, кот объясняет, что это такое.
 // Пока человек обводит, окно кота ловит мышь, чтобы клик не ушёл в программу под ним.
-import { isError, type LookResult, type Rect } from '../../shared/types';
+import { isError, type ErrorReply, type LookResult, type Rect } from '../../shared/types';
 import { cat, setState, startFall } from '../cat/cat';
 import { api } from '../core/api';
 import { $, dom, el } from '../core/dom';
@@ -91,7 +91,7 @@ async function explain(): Promise<void> {
   hideRing();
   dom.cat.classList.add('thinking');
   say('Смотрю на выбранную область…', Infinity, { guide: true, actions: [['Отмена', stopInspect]] });
-  let result: LookResult | { error: string };
+  let result: LookResult | ErrorReply;
   try {
     result = await api.guideLook({ mode: 'inspect', selection: { ...area }, history: [], goal: '' });
   } catch {
@@ -99,6 +99,11 @@ async function explain(): Promise<void> {
   }
   if (token !== epoch || !active) return;
   dom.cat.classList.remove('thinking');
+  if (isError(result) && result.empty) {
+    // пустое место: ничего не объясняем, сразу предлагаем выделить заново
+    say(result.error, Infinity, { guide: true, actions: [['Выбрать другое', choose, true], ['Закрыть', stopInspect]] });
+    return;
+  }
   if (isError(result)) {
     say(result.error, Infinity, { guide: true, actions: [['Повторить', () => { void explain(); }], ['Выбрать другое', choose], ['Закрыть', stopInspect]] });
     return;
