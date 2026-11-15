@@ -52,6 +52,8 @@ export interface Step {
   skipIf?: Cond;
   optional?: boolean;
   open?: string;
+  autoOpen?: boolean;   // открыть open сразу, без кнопки «Открой за меня»
+  copy?: string;        // кнопка «Скопировать …»
   btn?: string;
   hint?: string;
   allowConfirm?: boolean;
@@ -70,6 +72,7 @@ export interface Scenario {
   done?: string;
   goal?: string;   // урок из пакета: цель для ИИ, если шагов нет или кнопку не нашли
   pack?: string;   // название пакета организации
+  reply?: string;  // что кот говорит, когда урок запустили словами
 }
 
 const BROWSERS = 'msedge|chrome|firefox|browser|yandex|opera|Safari|Google Chrome|Яндекс';
@@ -335,7 +338,7 @@ export function match(text: string): Scenario | typeof LOST | null {
   const t = String(text || '');
   if (/запута|не понима|lost|confused/i.test(t)) return LOST;
   // уроки организации знают её программы лучше общих
-  const own = SCENARIOS.find((s) => s.pack && s.match.test(t));
+  const own = matchPack(t);
   if (own) return own;
   // уроки про файлы точнее общего «найти в интернете»: «найти скачанный файл» — это файлы
   return SCENARIOS.find((s) => s.fileLesson && s.match.test(t)) || SCENARIOS.find((s) => s.match.test(t)) || null;
@@ -358,13 +361,20 @@ export function packScenario(l: PackLesson): Scenario {
     ...(st.find ? { find: { scope: st.find.scope, name: st.find.name, ...(st.find.types ? { types: st.find.types } : {}) } } : {}),
     wait: st.wait,
     ...(st.open ? { open: st.open } : {}),
+    ...(st.autoOpen ? { autoOpen: true } : {}),
+    ...(st.copy ? { copy: st.copy } : {}),
+    ...(st.optional ? { optional: true } : {}),
+    ...(st.confirm ? { allowConfirm: true } : {}),
     ...(st.hint ? { hint: st.hint } : {}),
   }));
   return {
     id: l.id, match: re, skill: l.title, words: l.words, win: steps, mac: steps, pack: l.pack,
-    ...(l.done ? { done: l.done } : {}), ...(l.goal ? { goal: l.goal } : {}),
+    ...(l.done ? { done: l.done } : {}), ...(l.goal ? { goal: l.goal } : {}), ...(l.reply ? { reply: l.reply } : {}),
   };
 }
+
+/** Урок организации, который подходит к фразе человека («мне пришло странное письмо»), или null. */
+export const matchPack = (text: string): Scenario | null => SCENARIOS.find((s) => s.pack && s.match.test(String(text || ''))) ?? null;
 
 /** Уроки организации в общий список: старые убираем, новые — после встроенных. */
 export function setPackLessons(lessons: readonly PackLesson[]): void {

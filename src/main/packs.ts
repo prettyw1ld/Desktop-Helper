@@ -21,7 +21,9 @@ export interface PackSet {
   problems: string[];   // что пропущено и почему: в журнал, человеку не показываем
 }
 
-export const LIMITS = { packs: 10, prompt: 2000, lessons: 30, steps: 20, say: 160, hint: 400, explain: 50, regex: 200, text: 600, questions: 12, options: 6 };
+export const LIMITS = { packs: 10, prompt: 2000, lessons: 30, steps: 20, say: 160, hint: 400, explain: 50, regex: 200, text: 600, questions: 12, options: 6, vars: 30, varValue: 200, copy: 200 };
+const VAR = /\{([a-z][a-zA-Z0-9]{0,30})\}/g;
+const VAR_NAME = /^[a-z][a-zA-Z0-9]{0,30}$/;
 const EMAIL = /^[^\s@<>"]{1,64}@[\w.-]{1,190}\.[a-z]{2,}$/i;
 const ID = /^[a-z0-9][a-z0-9-]{0,39}$/;
 const SCOPE = /^(top|taskbar|start|proc:.{1,80})$/;
@@ -42,6 +44,38 @@ export function safeRegex(v: unknown, where: string): RegExp | null {
   // вложенные кванторы вроде (a+)+ — классический путь к зависанию
   if (/\\\d|\([^)]*[+*][^)]*\)[+*{]/.test(src)) fail(`${where}: regex too complex`);
   try { return new RegExp(src, 'i'); } catch { return fail(`${where}: bad regex`); }
+}
+
+/** Переменные пакета: адрес SOC, мессенджер, название чата… Задаются один раз, в шагах пишутся как {soc}. */
+function readVars(v: unknown, where: string): Record<string, string> {
+  if (v === undefined || v === null) return {};
+  if (typeof v !== 'object' || Array.isArray(v)) return fail(`${where}: must be an object`);
+  const entries = Object.entries(v as Record<string, unknown>);
+  if (entries.length > LIMITS.vars) fail(`${where}: more than ${LIMITS.vars} vars`);
+  const out: Record<string, string> = {};
+  for (const [k, x] of entries) {
+    if (!VAR_NAME.test(k)) fail(`${where}.${k}: name must start with a letter, then letters and digits`);
+    if (typeof x !== 'string' || !x.trim() || x.length > LIMITS.varValue || /[\r\n]/.test(x)) fail(`${where}.${k}: one line up to ${LIMITS.varValue} chars`);
+    out[k] = (x as string).trim();
+  }
+  return out;
+}
+
+const escRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// где значение подставляется в регулярку: там его экранируем, чтобы «ИБ (новости)» искалось буквально
+const REGEX_AT = ['lessons/match', 'find/name', 'wait/top', 'explain/proc', 'explain/title'];
+
+/** Подставить {имя} во все строки пакета. Неизвестные {имя} остаются как есть. */
+function applyVars(v: unknown, vars: Record<string, string>, path: string[] = []): unknown {
+  if (typeof v === 'string') {
+    const asRe = REGEX_AT.includes(path.slice(-2).join('/'));
+    return v.replace(VAR, (m, name: string) => (name in vars ? (asRe ? escRe(vars[name]!) : vars[name]!) : m));
+  }
+  if (Array.isArray(v)) return v.map((x) => applyVars(x, vars, path));
+  if (v && typeof v === 'object') {
+    return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, k === 'vars' ? x : applyVars(x, vars, [...path, k])]));
+  }
+  return v;
 }
 
 function title(v: unknown, where: string): { ru: string; en: string } {
@@ -98,6 +132,17 @@ function step(v: unknown, where: string): PackStep {
     if (!OPEN.test(open)) fail(`${where}.open: only ms-settings: or https:// addresses`);
     res.open = open;
   }
+  if (o.autoOpen === true) {
+    if (!res.open) fail(`${where}.autoOpen: needs open`);
+    res.autoOpen = true;
+  }
+  const copy = str(o.copy, LIMITS.copy);
+  if (copy) res.copy = copy;
+  if (o.optional === true) {
+    if (!res.find) fail(`${where}.optional: needs find`);
+    res.optional = true;
+  }
+  if (o.confirm === true) res.confirm = true;
   const hint = str(o.hint, LIMITS.hint);
   if (hint) res.hint = hint;
   return res;
@@ -114,6 +159,7 @@ function lesson(v: unknown, packId: string, packTitle: string, where: string): P
   const goal = str(o.goal, 300);
   if (!steps.length && !goal) fail(`${where}: needs steps or goal`);
   safeRegex(o.match, `${where}.match`);
+  const reply = str(o.reply, LIMITS.say);
   return {
     id: `pack:${packId}:${id}`,
     pack: packTitle,
@@ -123,6 +169,7 @@ function lesson(v: unknown, packId: string, packTitle: string, where: string): P
     goal,
     steps,
     done: str(o.done, LIMITS.say),
+    ...(reply ? { reply } : {}),
   };
 }
 
@@ -149,7 +196,8 @@ function report(v: unknown, packId: string, where: string): PackReport | null {
 /** Пакет из разобранного JSON; ошибка — исключение с понятным текстом. */
 export function parsePack(raw: unknown, file = 'pack'): Pack {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) fail(`${file}: not an object`);
-  const o = raw as Record<string, unknown>;
+  const vars = readVars((raw as Record<string, unknown>).vars, `${file}.vars`);
+  const o = applyVars(raw, vars) as Record<string, unknown>;
   const id = str(o.id, 40);
   if (!ID.test(id)) fail(`${file}: id must be lowercase letters, digits and dashes`);
   const name = title(o.title, `${file}.title`).ru;

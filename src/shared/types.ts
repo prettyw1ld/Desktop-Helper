@@ -104,6 +104,10 @@ export interface PackStep {
   find?: { scope: string; name: string; types?: string[] };
   wait: { manual?: boolean; next?: boolean; gone?: boolean; focus?: boolean; titleChange?: boolean; top?: string };
   open?: string;
+  autoOpen?: boolean;    // кот открывает open сам, без кнопки «Открой за меня»
+  copy?: string;         // кнопка «Скопировать»: адрес, текст для поиска
+  optional?: boolean;    // кнопки нет на экране — шаг пропускается (например, «Войти», если уже вошли)
+  confirm?: boolean;     // «Сделал(а)» засчитывает шаг без проверки
   hint?: string;
 }
 
@@ -117,6 +121,7 @@ export interface PackLesson {
   goal: string;          // цель для ИИ: урок без шагов или запасной путь, когда кнопку не нашли
   steps: PackStep[];
   done: string;
+  reply?: string;        // что кот отвечает, когда урок запустили словами («Ничего не открывай, давай отправим в SOC»)
 }
 
 export interface ErrorReply { error: string; empty?: boolean } // empty: «Объясни это» по пустому месту

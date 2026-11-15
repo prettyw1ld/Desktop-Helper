@@ -172,7 +172,9 @@ export function coachStepActions(step: Step): Action[] {
       else void showCoachStep(true);
     }]);
   }
-  if (step.open) acts.push([T('coach.open'), () => { void openForMe(step); }]);
+  const copy = step.copy;
+  if (copy) acts.push([T('pack.copy'), () => { void copyForMe(step, copy); }]);
+  if (step.open && !step.autoOpen) acts.push([T('coach.open'), () => { void openForMe(step); }]);
   // урок организации: если кнопку так и не нашли, ИИ покажет путь по снимку экрана
   const goal = sc?.goal;
   if (goal && can('guide')) acts.push([T('pack.showAi'), () => { endGuide(false); startGuide(goal); }]);
@@ -197,10 +199,22 @@ function coachText(step: Step): string {
 const sayStep = (step: Step, missing = false) =>
   say(coachText(step), Infinity, { actions: coachStepActions(step), guide: true, explain: coachExplanation(step, missing) });
 
+// «Скопировать»: адрес SOC или текст для поиска в буфер обмена, потом снова подсказка шага
+async function copyForMe(step: Step, text: string): Promise<void> {
+  const run = coach.run;
+  await api.copyText(text);
+  if (!still(step, run)) return;
+  Sound.meow();
+  say(T('pack.copied', { text }), 2200, { guide: true });
+  setTimeout(() => { if (still(step, run)) sayStep(step); }, 2200);
+}
+
 export async function showCoachStep(repeat = false): Promise<void> {
   const run = coach.run;
   const step = current();
   if (!step || !coach.active || coach.advancing || isDragged()) return;
+  // урок организации: мессенджер или сервис секретов кот открывает сам
+  if (step.autoOpen && step.open && !repeat) { void openForMe(step); return; }
   coach.keepPosition = false;
   const top = step.wait?.titleChange ? await api.locate({ op: 'top' }) : {};
   if (!still(step, run)) return;
@@ -407,6 +421,14 @@ export function runScenario(sc: Scenario): void {
   if (sc.id === 'volume') {
     // запоминаем громкость в начале, чтобы потом самому заметить, что стало громче
     void readVolume().then((v) => { if (coach.sc === sc && coach.active) { coach.ctx.vol0 = v; void nextStep(); } });
+    return;
+  }
+  // урок организации запустили словами: сначала ответ («Ничего не открывай, давай отправим в SOC»), потом первый шаг
+  if (sc.reply) {
+    const run = coach.run;
+    say(sc.reply, Infinity, { guide: true });
+    speak(sc.reply);
+    setTimeout(() => { if (coach.active && coach.run === run) void nextStep(); }, 2600);
     return;
   }
   void nextStep();

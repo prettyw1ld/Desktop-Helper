@@ -2,10 +2,11 @@
 import { isError } from '../../shared/types';
 import { happy } from '../cat/poses';
 import { goalFromHowTo, isHowTo, vagueGoal } from '../../shared/howto';
-import { routeGoal } from '../guide/router';
+import { routeGoal, startScenario } from '../guide/router';
+import { matchPack } from '../guide/scenarios';
 import { api } from '../core/api';
 import { $, dom, el } from '../core/dom';
-import { T } from '../core/i18n';
+import { I18N, T } from '../core/i18n';
 import { registerPanel } from '../ui/panels';
 import { refreshReminders } from './reminders';
 
@@ -27,6 +28,14 @@ export function initChat(): void {
     if (!text) return;
     input.value = '';
     addMsg('me', text);
+    // Урок организации на эту фразу («мне пришло странное письмо», «где чат ИБ») ведём сами, без запроса к ИИ:
+    // так ответ всегда тот, что задал отдел безопасности, и ничего с экрана не уходит наружу
+    const own = matchPack(text);
+    if (own) {
+      addMsg('from-cat', own.reply || T('chat.showing', { goal: own.skill[I18N.lang] || own.skill.ru }));
+      setTimeout(() => startScenario(own), 700);
+      return;
+    }
     // «Покажи, как…» узнаём сами и сразу ведём по экрану: ИИ не всегда слушается и пишет шаги текстом
     // «как это сделать?» без самой задачи: пусть ИИ вспомнит задачу из прошлых сообщений
     if (isHowTo(text) && !vagueGoal(goalFromHowTo(text))) {

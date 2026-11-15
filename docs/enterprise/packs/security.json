@@ -4,9 +4,171 @@
     "ru": "Безопасность для сотрудника",
     "en": "Security for employees"
   },
-  "version": 1,
-  "prompt": "You help employees of a company with information security. If the person shows a suspicious e-mail, a request for a password or an unexpected file, tell them not to open links or attachments and to report it to the security team (security@company.example, phone 1234). Never help to switch off the antivirus, the VPN or disk encryption. Answer in plain words.",
+  "version": 2,
+  "vars": {
+    "soc": "soc@company.example",
+    "phone": "1234",
+    "messenger": "https://messenger.company.example",
+    "ibChat": "ИБ: новости",
+    "ibSearch": "ИБ",
+    "secrets": "https://secrets.company.example"
+  },
+  "prompt": "You help employees of a company with information security. If the person shows a suspicious e-mail, a request for a password or an unexpected file, tell them not to open links or attachments and to report it to the security team ({soc}, phone {phone}). Suspicious e-mails are forwarded as an attachment to {soc} without opening links or attachments. Files are never sent to colleagues in a chat: they are uploaded to the secrets service {secrets} and only the link is sent. Security news are in the messenger chat \"{ibChat}\". Never help to switch off the antivirus, the VPN or disk encryption. Answer in plain words.",
   "lessons": [
+    {
+      "id": "soc-forward",
+      "title": {
+        "ru": "Отправь подозрительное письмо в SOC",
+        "en": "Send a suspicious e-mail to the SOC"
+      },
+      "words": "странное подозрительное письмо отправить в сок soc безопасность",
+      "match": "странн.{0,15}письм|подозрительн.{0,15}письм|письм.{0,30}(soc|сок|безопасник)|(переслать|отправить).{0,20}(soc|сок)|suspicious e-?mail|strange e-?mail",
+      "reply": "Мяу! Ничего в нём не открывай, давай отправим его в SOC.",
+      "goal": "Forward the selected suspicious e-mail as an attachment to {soc} without opening its links or attachments",
+      "steps": [
+        {
+          "say": "Нажми на письмо в списке один раз, чтобы выделить. Ссылки и вложения не открывай.",
+          "hint": "Если письмо уже открыто, ничего в нём не нажимай: просто переходи к следующему шагу."
+        },
+        {
+          "say": "Нажми «Ещё» рядом с «Переслать».",
+          "find": {
+            "name": "^(Ещё|Другие действия ответа|Дополнительные действия|More|More respond actions|More actions)$",
+            "types": ["Button", "SplitButton", "MenuItem"]
+          },
+          "optional": true,
+          "hint": "В Outlook то же самое делают клавиши Ctrl+Alt+F."
+        },
+        {
+          "say": "Нажми «Переслать как вложение».",
+          "find": {
+            "name": "Переслать как вложение|Forward as attachment",
+            "types": ["MenuItem", "Button", "SplitButton"]
+          },
+          "wait": "gone",
+          "hint": "Так SOC получит письмо целиком, со всеми служебными заголовками, а ты ничего в нём не откроешь."
+        },
+        {
+          "say": "Нажми в поле «Кому» и впиши адрес SOC: {soc}",
+          "find": {
+            "name": "^(Кому|To)",
+            "types": ["Edit"]
+          },
+          "wait": "focus",
+          "copy": "{soc}",
+          "hint": "Нажми «Скопировать», потом в поле «Кому» нажми Ctrl+V."
+        },
+        {
+          "say": "Проверь адрес: {soc}. Теперь нажми «Отправить».",
+          "find": {
+            "name": "^(Отправить|Send)$",
+            "types": ["Button"]
+          },
+          "wait": "gone",
+          "copy": "{soc}"
+        }
+      ],
+      "done": "Готово! Письмо ушло в SOC. Само письмо больше не открывай, безопасники разберутся."
+    },
+    {
+      "id": "ib-chat",
+      "title": {
+        "ru": "Найди чат ИБ в мессенджере",
+        "en": "Find the security chat in the messenger"
+      },
+      "words": "где найти чат иб канал новости безопасности мессенджер",
+      "match": "(чат|канал|новост).{0,15}(иб(?![а-яё])|безопасност)|(?<![а-яё])иб.{0,15}(чат|канал|новост)|security (chat|channel|news)",
+      "reply": "Сейчас найдём!",
+      "goal": "Open the messenger and find the chat «{ibChat}» with security news",
+      "steps": [
+        {
+          "say": "Открываю мессенджер.",
+          "open": "{messenger}",
+          "autoOpen": true
+        },
+        {
+          "say": "Нажми в строку поиска и впиши: {ibSearch}",
+          "find": {
+            "name": "Поиск|Найти|Search",
+            "types": ["Edit", "ComboBox"]
+          },
+          "copy": "{ibSearch}",
+          "hint": "Строка поиска обычно сверху, со значком лупы."
+        },
+        {
+          "say": "Вот он! Нажми на чат «{ibChat}».",
+          "find": {
+            "name": "{ibChat}",
+            "types": ["ListItem", "TreeItem", "Hyperlink", "Button", "Text"]
+          },
+          "wait": "titleChange",
+          "confirm": true,
+          "hint": "Здесь отдел безопасности пишет новости и предупреждает о новых мошенниках."
+        }
+      ],
+      "done": "Нашли! Здесь новости отдела безопасности. Можно закрепить чат, чтобы не терять."
+    },
+    {
+      "id": "secret-share",
+      "title": {
+        "ru": "Передай файл через сервис секретов",
+        "en": "Share a file through the secrets service"
+      },
+      "words": "как безопасно скинуть передать отправить файл коллеге сервис секретов",
+      "match": "безопасн.{0,20}(скин|переда|отправ|пересл|подел).{0,20}файл|(скин|переда|отправ|пересл).{0,10}файл.{0,20}(безопасн|коллег)|сервис секретов|share a file safely",
+      "reply": "В чат не кидай, давай через сервис секретов!",
+      "goal": "Upload the file to the secrets service {secrets}, create a link, copy it and send only the link to the colleague in the messenger",
+      "steps": [
+        {
+          "say": "Открываю сервис секретов.",
+          "open": "{secrets}",
+          "autoOpen": true
+        },
+        {
+          "say": "Нажми «Войти» и войди рабочей учётной записью.",
+          "find": {
+            "name": "^(Войти|Вход|Sign in|Log in|Login)",
+            "types": ["Button", "Hyperlink"]
+          },
+          "optional": true,
+          "wait": "gone",
+          "hint": "Логин и пароль те же, что для входа в компьютер. Я их не спрашиваю и не вижу."
+        },
+        {
+          "say": "Нажми «Загрузить файл» и выбери файл, который нужно передать.",
+          "find": {
+            "name": "Загрузить|Выбрать файл|Upload|Choose file",
+            "types": ["Button", "Hyperlink"]
+          },
+          "hint": "Можно поставить срок жизни ссылки и пароль: так файл не откроет никто, кроме коллеги."
+        },
+        {
+          "say": "Нажми «Создать ссылку».",
+          "find": {
+            "name": "Создать ссылку|Получить ссылку|Create link|Get link",
+            "types": ["Button", "Hyperlink"]
+          }
+        },
+        {
+          "say": "Нажми «Скопировать», чтобы ссылка попала в буфер.",
+          "find": {
+            "name": "Скопировать|Копировать|Copy",
+            "types": ["Button"]
+          },
+          "wait": "manual"
+        },
+        {
+          "say": "Теперь открою мессенджер.",
+          "open": "{messenger}",
+          "autoOpen": true
+        },
+        {
+          "say": "Найди коллегу, вставь ссылку (Ctrl+V) и отправь. Сам файл в чат не прикладывай.",
+          "hint": "Коллега откроет файл по ссылке. В чате останется только ссылка, а не сам файл."
+        }
+      ],
+      "done": "Готово! Коллега получит файл по ссылке, а самого файла в чате нет."
+    },
     {
       "id": "phishing",
       "title": {
@@ -14,7 +176,7 @@
         "en": "Check a suspicious e-mail"
       },
       "words": "проверь письмо подозрительное фишинг",
-      "match": "провер.{0,10}письм|подозрительн.{0,10}письм|фишинг|phishing|suspicious e-?mail",
+      "match": "провер.{0,10}письм|фишинг|phishing|is this e-?mail",
       "goal": "Check whether the e-mail open on the screen is phishing and show where the report button is",
       "steps": [
         {
@@ -34,7 +196,7 @@
           "hint": "Опасны .zip, .rar, .exe, .js и документы, которые просят «включить содержимое»."
         },
         {
-          "say": "Сомневаешься? Перешли письмо в отдел безопасности: security@company.example."
+          "say": "Сомневаешься? Перешли письмо в SOC: {soc}. Скажи мне «странное письмо», и я покажу как."
         }
       ],
       "done": "Молодец! Подозрительные письма лучше показать безопасникам."
@@ -111,11 +273,11 @@
   "explain": [
     {
       "proc": "^(SecHealthUI|MsMpEng|SecurityHealthSystray)$",
-      "text": "Это Защитник Windows, антивирус компании. Он нашёл что-то опасное или просит внимания. Ничего не выключай и не разрешай; если не понятно, позвони в отдел безопасности (1234)."
+      "text": "Это Защитник Windows, антивирус компании. Он нашёл что-то опасное или просит внимания. Ничего не выключай и не разрешай; если не понятно, позвони в отдел безопасности ({phone})."
     },
     {
       "proc": "^(avp|avpui)$",
-      "text": "Это антивирус Касперского. Если он ругается на файл, файл не открывай и сообщи в отдел безопасности (1234)."
+      "text": "Это антивирус Касперского. Если он ругается на файл, файл не открывай и сообщи в отдел безопасности ({phone})."
     },
     {
       "title": "DLP|утечк|конфиденциальн",
@@ -128,7 +290,7 @@
       "en": "Report an incident"
     },
     "intro": "Не выключай компьютер и не удаляй письмо или файл. Ответь на несколько вопросов, я соберу текст для отдела безопасности.",
-    "to": "security@company.example",
+    "to": "{soc}",
     "questions": [
       {
         "ask": "Что случилось?",
