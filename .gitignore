@@ -10,3 +10,6 @@ team.json
 # Compiled by prestart / predist on macOS; included in packaged apps.
 assets/mac/locator-*
 docs/enterprise/try/requests/
+server/deploy/.env
+server/deploy/tls/
+*.pem

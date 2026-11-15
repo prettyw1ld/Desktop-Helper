@@ -1,0 +1,49 @@
+# Сервер присутствия + PostgreSQL + nginx с TLS. Запуск: см. docs/enterprise/server.md
+#   cp .env.example .env   # заполнить секреты
+#   docker compose up -d
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pushik
+      POSTGRES_USER: pushik
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD}
+    volumes: [db:/var/lib/postgresql/data]
+    networks: [back]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pushik -d pushik"]
+      interval: 10s
+
+  server:
+    build: ..
+    restart: unless-stopped
+    depends_on: { db: { condition: service_healthy } }
+    environment:
+      DATABASE_URL: postgres://pushik:${DB_PASSWORD}@db:5432/pushik
+      ENROLL_SECRET: ${ENROLL_SECRET:?ENROLL_SECRET}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD}
+      CONFIG_PUBLIC_KEY: ${CONFIG_PUBLIC_KEY:-}
+      PORT: "8443"
+    # наружу сервер не смотрит: только через nginx
+    networks: [back, front]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on: [server]
+    ports: ["443:443"]
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${TLS_DIR:-./tls}:/etc/nginx/tls:ro
+    networks: [front]
+
+networks:
+  back: { internal: true }
+  front: {}
+
+volumes:
+  db: {}
