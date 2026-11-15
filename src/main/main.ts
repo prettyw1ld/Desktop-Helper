@@ -24,12 +24,6 @@ ipc.register();
 settings.onChange((s, prev) => {
   autostart.apply(s.autostart);
   I18N.setLang(s.lang);
-  // журнал событий для службы ИБ — только в корпоративном режиме
-  if (settings.managed()) {
-    audit.init({ dir: app.getPath('userData'), siem: settings.siem(), version: app.getVersion() });
-    audit.event('start');
-    audit.event('policy', { org: settings.org(), reason: settings.policyProblem() }, settings.policyProblem() ? 6 : 3);
-  }
   if (prev.lang !== s.lang || prev.autostart !== s.autostart || settings.hasAi(prev) !== settings.hasAi(s)) tray.rebuildMenu();
   if (prev.catColor !== s.catColor) tray.refreshIcon();
   if (prev.calendarUrl !== s.calendarUrl || prev.calendarBefore !== s.calendarBefore) watchers.startCalendar();
@@ -40,6 +34,12 @@ function onReady(): void {
   if (process.platform === 'darwin') app.dock?.hide();
   const s = settings.load();
   I18N.setLang(s.lang);
+  // журнал событий для службы ИБ — только в корпоративном режиме
+  if (settings.managed()) {
+    audit.init({ dir: app.getPath('userData'), siem: settings.siem(), version: app.getVersion() });
+    audit.event('start');
+    audit.event('policy', { org: settings.org(), reason: settings.policyProblem() }, settings.policyProblem() ? 6 : 3);
+  }
   // Сверяем автозапуск с настройкой при каждом старте: путь к приложению мог поменяться
   // (обновление, перенос папки), а старые версии записывали его только при сохранении настроек.
   autostart.apply(s.autostart);
