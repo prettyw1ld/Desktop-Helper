@@ -158,6 +158,35 @@ def hang_frames(sitF, closed):
     return [hang_frame(closed if i == 4 else sitF, col, sw) for i, sw in enumerate(HANG_SWING)]
 
 
+# ---------- Carried by the scruff: Damir's poses (front with tucked paws, back, side), cut to 64×64 ----------
+# design/cats/carry.png, ginger colours, four frames: front body without the head, back, facing right, facing left.
+# The front head is the scruffF head (rows above CARRY_HEAD), so it blinks the same way.
+CARRY_HEAD = 21
+
+
+def carry_frames(scruff, sitF, ginger_sitF):
+    src = Image.open(ROOT / 'design' / 'cats' / 'carry.png').convert('RGBA')
+    gpx, px = ginger_sitF.load(), sitF.load()
+    remap = {gpx[p]: px[p] for p in LOOK_KEYS.values()}
+
+    def recolor(img):
+        out = img.copy()
+        o = out.load()
+        for y in range(SIZE):
+            for x in range(SIZE):
+                if o[x, y][3]:
+                    o[x, y] = remap.get(o[x, y], o[x, y])
+        return out
+
+    body, back, right, left = (recolor(frame(src, 0, c)) for c in range(4))
+    front = []
+    for s in scruff:
+        img = body.copy()
+        img.alpha_composite(s.crop((0, 0, SIZE, CARRY_HEAD)), (0, 0))
+        front.append(img)
+    return front + [back, right, left]
+
+
 # ---------- Lying in wait for the cursor: the hand-drawn lieL with a blink, a moving tail and a paw swipe ----------
 # Patches on lieL: (first row, first column, rows). '.' keeps the pixel, '_' clears it,
 # A outline, B fur, C shade, D light (same letters as the head-turn grids).
@@ -516,7 +545,8 @@ def build(sheet, ginger):
             rows.append((f'{name}Z{side}', f'{label} + Zzz ({side_label})', rr, frames))
 
     # Held by the scruff while being dragged (base None: the frame sets its own bottom, see sprites.ts).
-    rows.append(('scruffF', 'Held by the scruff, swinging (front)', None, hang_frames(sitF, blink(sitF))))
+    scruff = hang_frames(sitF, blink(sitF))
+    rows.append(('scruffF', 'Held by the scruff, swinging (front)', None, scruff))
 
     # Following the cursor: head turned L3..R3, then the same blinking (lookUpSitF: eyes raised).
     gsit = frame(ginger, 0, 0)
@@ -530,6 +560,8 @@ def build(sheet, ginger):
     rows.append(('lieWatchR', 'Lying in wait, tail and blink (right)', None, mirror(watch)))
     rows.append(('lieSwipeL', 'Lying, paw swipe (left)', None, swipe))
     rows.append(('lieSwipeR', 'Lying, paw swipe (right)', None, mirror(swipe)))
+    rows.append(('carry', 'Carried by the scruff: front (blink), back, right, left', None,
+                 carry_frames(scruff, sitF, frame(ginger, 0, 0))))
     return rows
 
 

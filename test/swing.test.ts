@@ -46,3 +46,19 @@ test('отпустили — качание быстро гаснет; подн�
   const b = run(s, [400, 400, 400]);
   assert.ok(b.some((v) => Math.abs(v) > 0.5));
 });
+
+test('несут быстро — боком мордой вперёд, остановились — снова анфас, поза не мигает', async () => {
+  const { carryFacing } = await import('../src/renderer/cat/swing');
+  const s = newSwing();
+  let t = 0;
+  const go = (xs: number[]): number[] => xs.map((x) => { swingStep(s, x, DT); t += DT * 1000; return carryFacing(s, t); });
+  assert.deepEqual(go([500, 500, 500]), [0, 0, 0]);
+  const right = go(Array.from({ length: 10 }, (_, i) => 520 + i * 30)); // 900 px/с
+  assert.equal(right.at(-1), 1);
+  assert.ok(go([800, 808, 816]).every((f) => f === 1), 'медленнее, но ещё движется — остаётся боком');
+  assert.equal(go(Array(15).fill(816)).at(-1), 0);
+  const left = go(Array.from({ length: 10 }, (_, i) => 800 - i * 30));
+  assert.equal(left.at(-1), -1);
+  swingPickUp(s, 1);
+  assert.equal(carryFacing(s, t), 0);
+});
