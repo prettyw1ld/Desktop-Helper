@@ -47,6 +47,9 @@ export const cat = {
   introRun: false,
   act: 'sitF' as AnimName,                           // поза в состоянии act
   idlePose: 'wagSitF' as AnimName,
+  pose: '' as AnimName | '',                         // какая анимация сейчас на экране (для переходов)
+  getUpUntil: 0,
+  sleepFromLying: false,                             // засыпает из лёжа: не садится зевать, а сразу устраивается                                     // встаёт из лёжа перед тем, как пойти: стоит на месте до этого времени
   sleepKind: 'sleep1ZL' as AnimName,
   happyAnim: 'hind' as AnimName,
   lookPose: 'standF' as AnimName,                    // быстрый взгляд на кнопку перед прыжком
@@ -113,10 +116,16 @@ export const isDragged = (): boolean => cat.state === 'drag';
 
 export const inAir = (): boolean => ['drag', 'fall', 'jump', 'perch'].includes(cat.state);
 
+/** Лежит или спит: из такой позы кот сначала садится и встаёт, а потом идёт. */
+export const lyingPose = (name: string): boolean => /lie|Lie|sleep/.test(name);
+export const GET_UP_MS = 500;
+
 export function walkTo(centerX: number, run = false, onArrive: (() => void) | null = null): void {
   cat.targetX = centerX - CAT_W / 2;
   cat.dir = cat.targetX > cat.x ? 1 : -1;
+  const wasLying = cat.state !== 'walk' && lyingPose(cat.pose);
   setState('walk');
+  cat.getUpUntil = wasLying ? now() + GET_UP_MS : 0;
   cat.running = run;
   cat.onArrive = onArrive;
 }
