@@ -13,6 +13,7 @@ import { allPlatforms, currentPlat, groundY } from './platforms';
 import { showPose } from './poses';
 import { renderCat } from './render';
 import { dirAnim, type AnimName } from './sprites';
+import { swing, swingStep } from './swing';
 
 // Чем кот занимается сам, когда ему скучно. Все анимации из листа.
 interface Act { anim: () => AnimName; text?: string; ms?: number }
@@ -108,6 +109,10 @@ let onTrainerLanding: () => void = () => {};
 export function setTrainerLanding(fn: () => void): void { onTrainerLanding = fn; }
 
 function land(): void {
+  // приземлился: на миг приседает
+  dom.cat.classList.remove('landed');
+  void dom.cat.offsetWidth;
+  dom.cat.classList.add('landed');
   if (cat.afterLand) {
     const f = cat.afterLand;
     cat.afterLand = null;
@@ -222,6 +227,9 @@ function tickFrame(): void {
   }
 
   renderCat(t);
+  // за шкирку тело качается от движения мыши; в остальное время кот стоит ровно
+  const angle = swingStep(swing, cat.state === 'drag' ? cat.x : null, dt);
+  dom.sprite.style.rotate = angle ? `${angle.toFixed(1)}deg` : '';
 
   const pad = (CAT_W * (1 - size())) / 2;
   cat.x = clamp(cat.x, -pad, W() - CAT_W + pad);
