@@ -17,7 +17,7 @@ exports.default = async function afterPack(ctx) {
     [FuseV1Options.EnableNodeCliInspectArguments]: false,
     [FuseV1Options.OnlyLoadAppFromAsar]: true,
     [FuseV1Options.EnableCookieEncryption]: true,
-    // проверка целостности app.asar: на Windows нужна поддержка в electron-builder 26, включим вместе с его обновлением
-    [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: mac,
+    // проверка целостности app.asar: хеш вшивает electron-builder (на Windows — ресурс Integrity/ElectronAsar в exe)
+    [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: mac || ctx.electronPlatformName === 'win32',
   });
 };
