@@ -120,7 +120,7 @@ try { Invoke-WebRequest -UseBasicParsing http://localhost:8899/api/devices -Time
 Stop-Pushik
 Start-Sleep 2
 $exe = Get-ChildItem (Join-Path $repo 'dist\win-unpacked\*.exe') -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch 'Uninstall' } | Select-Object -First 1
-if ($exe) { Start-Process $exe.FullName } else { Write-Host 'Сборки нет: выполни npx electron-builder --win --dir в папке проекта и запусти dist\win-unpacked\Пушик.exe' -ForegroundColor Yellow }
+if ($exe) { Start-Process $exe.FullName } else { Write-Host 'Сборки нет: выполни npm run build, затем npx electron-builder --win --dir в папке проекта и запусти dist\win-unpacked\Пушик.exe' -ForegroundColor Yellow }
 Start-Sleep 3
 Start-Process 'http://localhost:8899/'
 Write-Host ''

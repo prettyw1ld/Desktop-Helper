@@ -80,7 +80,7 @@ flowchart LR
 
 ```powershell
 git clone https://github.com/prettyw1ld/desktop-helper -b enterprise; cd desktop-helper
-npm install; npx electron-builder --win --dir
+npm install; npm run build; npx electron-builder --win --dir   # build обязателен: --dir только упаковывает готовую папку build
 .\docs\enterprise\try\try.ps1          # Windows спросит права администратора один раз — чтобы записать политику
 .\docs\enterprise\try\try.ps1 -Off     # вернуть обычного Пушика
 ```
