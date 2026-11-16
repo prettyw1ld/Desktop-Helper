@@ -1,6 +1,7 @@
 // Мышь: клики сквозь окно, перенос кота за шкирку, клики, двойные клики и поглаживание кота.
 import { cat, CAT_H, CAT_W, floorY, setState, size, startFall, SCRUFF_Y } from '../cat/cat';
 import { pet, petMore, happy, showPose } from '../cat/poses';
+import { swing, swingPickUp } from '../cat/swing';
 import { dropIntoTrash, trashDragStart } from '../cat/trash';
 import { api } from '../core/api';
 import { dom } from '../core/dom';
@@ -40,6 +41,7 @@ function pickUp(p: Press): void {
   cat.climb = null;
   cat.jump = null;
   setState('drag');
+  swingPickUp(swing, cat.dir);
   trashDragStart();
 }
 
