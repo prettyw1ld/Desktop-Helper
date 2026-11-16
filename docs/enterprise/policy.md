@@ -162,13 +162,10 @@ icacls $d /setowner '*S-1-5-32-544' /T
 
 ## Тихая установка
 
-```
-"Пушик Setup 0.9.0.exe" /S
-```
+Для компании — корпоративный установщик на всю машину (`npm run dist:win:corp`): `Pushik-Setup-<версия>.exe /S` или `msiexec /i Pushik-Setup-<версия>.msi /qn`, ставится в `%ProgramFiles%`. Таблица для Intune, MECM, GPO и KSC — [README.md](README.md#5-установка-на-парк).
 
 Перед установкой или после неё положите `policy.json` в `%ProgramData%\Pushik\` (GPO «Файлы», KSC или SCCM)
 либо задайте значения в `HKLM\Software\Policies\Pushik`. Политика читается при запуске Пушика.
-Установка идёт в профиль пользователя и не требует прав администратора.
 
 ## Ответы ИИ и журнал событий
 

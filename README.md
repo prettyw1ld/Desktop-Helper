@@ -7,7 +7,7 @@
 **Кот, который учит пользоваться компьютером прямо на твоём экране. Без инструкций.**
 
 ![platform](https://img.shields.io/badge/Windows%20%7C%20macOS-white?style=for-the-badge&logo=electron&logoColor=1b1d22&labelColor=ffd43b)
-![electron](https://img.shields.io/badge/Electron-33-1b1d22?style=for-the-badge&logo=electron&logoColor=ffd43b)
+![electron](https://img.shields.io/badge/Electron-45-1b1d22?style=for-the-badge&logo=electron&logoColor=ffd43b)
 ![offline](https://img.shields.io/badge/работает-без%20интернета-1b1d22?style=for-the-badge&labelColor=ffd43b)
 ![ai](https://img.shields.io/badge/ИИ-Groq%20(по%20желанию)-1b1d22?style=for-the-badge&labelColor=ffd43b)
 
@@ -156,6 +156,12 @@ npm run dist:mac   # macOS
 
 На macOS разрешите Пушику «Универсальный доступ», а для ИИ ещё и «Запись экрана».
 
+## Для организаций
+
+В компании Пушик работает с моделью ИИ внутри периметра: снимки экрана не уходят в интернет, облачные модели выключены, настройки задаёт администратор групповой политикой, а отдел ИБ видит в админ-панели, какие коты бодрствуют, а какие спят. Есть ролевые пакеты («Безопасность для сотрудника»), журнал событий в SIEM и установщик на всю машину для Intune, MECM, KSC и GPO.
+
+Руководство администратора: [docs/enterprise/README.md](docs/enterprise/README.md). Попробовать на одном компьютере за пять минут: [docs/enterprise/try](docs/enterprise/try/README.md).
+
 ## Как устроено
 
 ```
@@ -198,7 +204,7 @@ npm test            # тесты (test/)
 Интерфейс открывается и в обычном браузере (`build/renderer/index.html` после `npm run build`) с ненастоящим рабочим столом для отладки: `?onboarded` пропускает тренировку мышки, `?color=white` меняет окрас.
 
 ## Стек
-Electron 33, TypeScript без фреймворков (сборка esbuild), PowerShell и UI Automation (Windows), Swift и Accessibility API (macOS), Vosk (WebAssembly), Groq / DeepSeek / Qwen API (OpenAI-совместимые), Web Audio.
+Electron 45, TypeScript без фреймворков (сборка esbuild), PowerShell и UI Automation (Windows), Swift и Accessibility API (macOS), Vosk (WebAssembly), Groq / DeepSeek / Qwen API (OpenAI-совместимые), Web Audio.
 
 ## Благодарности
 
