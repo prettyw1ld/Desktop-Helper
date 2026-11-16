@@ -4,8 +4,9 @@
 #   .\try.ps1 -Model qwen2.5vl:3b       — другая модель Ollama (нужна модель, которая видит картинки)
 #   .\try.ps1 -FakeAi  — вместо модели проверочный ИИ: отвечает одной фразой и сохраняет запросы в requests\
 #   .\try.ps1 -Say "Отключи антивирус"  — проверочный ИИ будет отвечать этой фразой (проверка фильтра ответов)
-# Права администратора нужны (политика лежит в C:\ProgramData\Pushik): без них скрипт сам попросит их у Windows.
-param([switch]$Off, [string]$Say = '', [switch]$FakeAi, [string]$Model = 'qwen3-vl:4b-instruct')
+# Права администратора нужны только для записи в C:\ProgramData\Pushik: это делает отдельное окно, о котором Windows спросит.
+# Серверы, модель и сам Пушик запускаются без прав администратора.
+param([switch]$Off, [string]$Say = '', [switch]$FakeAi, [string]$Model = 'qwen3-vl:4b-instruct', [string]$Install = '', [switch]$Remove)
 
 $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
@@ -13,13 +14,27 @@ $repo = Resolve-Path (Join-Path $here '..\..\..')
 $dir = Join-Path $env:ProgramData 'Pushik'
 
 $admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-if (-not $admin) {
-  # политика пишется в C:\ProgramData\Pushik: перезапускаемся с правами администратора (Windows спросит разрешение)
-  $a = @('-NoExit', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"") + $(if ($Off) { @('-Off') } else { @() }) + $(if ($Say) { @('-Say', "`"$Say`"") } else { @() }) +
-    $(if ($FakeAi) { @('-FakeAi') } else { @() }) + @('-Model', "`"$Model`"")
-  Start-Process powershell -Verb RunAs -ArgumentList $a
-  exit 0
+
+# Запись в C:\ProgramData\Pushik (с правами администратора): папка, политика, пакет и права «пишут только администраторы».
+function Install-Policy([string]$from) {
+  New-Item -ItemType Directory -Force (Join-Path $dir 'packs') | Out-Null
+  & icacls $dir /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' | Out-Null
+  Copy-Item (Join-Path $from 'policy.json') (Join-Path $dir 'policy.json') -Force
+  Copy-Item (Join-Path $from 'security.json') (Join-Path $dir 'packs\security.json') -Force
+  & icacls $dir /setowner '*S-1-5-32-544' /T | Out-Null
 }
+
+# Запускает этот же скрипт с правами администратора только для записи в ProgramData и ждёт его.
+function Invoke-Elevated([string[]]$scriptArgs) {
+  if ($admin) { return $false }
+  $a = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"") + $scriptArgs
+  $p = Start-Process powershell -Verb RunAs -ArgumentList $a -Wait -PassThru
+  if ($p.ExitCode -ne 0) { throw "Запись в $dir не удалась (код $($p.ExitCode))" }
+  return $true
+}
+
+if ($Install) { Install-Policy $Install; exit 0 }
+if ($Remove) { if (Test-Path $dir) { Remove-Item -Recurse -Force $dir }; exit 0 }
 
 function Stop-Pushik {
   # собранный Пушик и Пушик из npm start (electron.exe из node_modules этого проекта)
@@ -29,7 +44,7 @@ function Stop-Pushik {
 
 if ($Off) {
   Stop-Pushik
-  if (Test-Path $dir) { Remove-Item -Recurse -Force $dir }
+  if (-not (Invoke-Elevated @('-Remove'))) { if (Test-Path $dir) { Remove-Item -Recurse -Force $dir } }
   Write-Host 'Корпоративный режим выключен. Закрой окна проверочного ИИ, сервера и журнала и запусти Пушика как обычно.' -ForegroundColor Green
   exit 0
 }
@@ -72,8 +87,6 @@ if (-not $useFake) {
 }
 $ai = if ($useFake) { @{ kind = 'openai'; url = 'http://localhost:8898/v1'; model = 'fake-vl' } } else { @{ kind = 'openai'; url = 'http://localhost:11434/v1'; model = $Model } }
 
-New-Item -ItemType Directory -Force (Join-Path $dir 'packs') | Out-Null
-Copy-Item (Join-Path $repo 'docs\enterprise\packs\security.json') (Join-Path $dir 'packs') -Force
 $policy = [ordered]@{
   org = 'Проба ИБ'
   ai = $ai
@@ -83,10 +96,16 @@ $policy = [ordered]@{
   siem = @{ host = '127.0.0.1'; port = 5514; proto = 'udp' }
   tunnels = @{ action = 'stop' }   # туннели наружу (cloudflared, ngrok, ssh -R) кот закрывает
 }
-[IO.File]::WriteAllText((Join-Path $dir 'policy.json'), ($policy | ConvertTo-Json -Depth 5), (New-Object Text.UTF8Encoding $false))
+# политику собираем во временной папке, а в ProgramData её кладёт окно с правами администратора
+$stage = Join-Path $env:TEMP 'pushik-try'
+New-Item -ItemType Directory -Force $stage | Out-Null
+[IO.File]::WriteAllText((Join-Path $stage 'policy.json'), ($policy | ConvertTo-Json -Depth 5), (New-Object Text.UTF8Encoding $false))
+Copy-Item (Join-Path $repo 'docs\enterprise\packs\security.json') (Join-Path $stage 'security.json') -Force
+if (-not (Invoke-Elevated @('-Install', "`"$stage`""))) { Install-Policy $stage }
 
 # окна запускаем прямо через node с рабочей папкой: так русские буквы в пути не ломаются
-$env:ENROLL_SECRET = 'enroll-secret-0123456789'; $env:ADMIN_PASSWORD = 'admin-password-42'; $env:PORT = '8899'
+# сервер админ-панели слушает только этот компьютер: пароль пробный и известен всем
+$env:ENROLL_SECRET = 'enroll-secret-0123456789'; $env:ADMIN_PASSWORD = 'admin-password-42'; $env:PORT = '8899'; $env:HOST = '127.0.0.1'
 if ($useFake) {
   $aiArgs = @("`"$here\fake-ai.mjs`"") + $(if ($Say) { @("`"$Say`"") } else { @() })
   Start-Process node -ArgumentList $aiArgs -WorkingDirectory $here

@@ -4,6 +4,7 @@
 //   DATABASE_URL    postgres://… ; без него всё хранится в памяти до перезапуска
 //   CONFIG_PUBLIC_KEY  открытый ключ подписи настроек (base64 из tools/config-sign.mjs keygen); с ним сервер не примет неподписанное
 //   PORT            8443 по умолчанию
+//   HOST            на каком адресе слушать: по умолчанию все (нужно в контейнере за nginx); 127.0.0.1 — только этот компьютер
 //   TLS_CERT, TLS_KEY  пути к сертификату и ключу; без них — обычный http за nginx
 import fs from 'node:fs';
 import http from 'node:http';
@@ -20,7 +21,8 @@ const server = tls ? https.createServer(tls, handle) : http.createServer(handle)
 server.requestTimeout = 15_000;
 server.headersTimeout = 10_000;
 const port = Number(env.PORT) || 8443;
-server.listen(port, () => console.log(`pushik-server: ${tls ? 'https' : 'http'} :${port}`));
+const host = env.HOST || undefined;
+server.listen(port, host, () => console.log(`pushik-server: ${tls ? 'https' : 'http'} ${host ?? '*'}:${port}`));
 const stop = () => server.close(() => { void store.close().finally(() => process.exit(0)); });
 process.on('SIGTERM', stop);
 process.on('SIGINT', stop);
