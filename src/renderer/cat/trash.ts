@@ -90,7 +90,7 @@ function throwIn(r: Rect): void {
   clearTimers();
   trashed = true;
   hideBubble();
-  // Кот поворачивается спиной (кадр того же размера, что и «за шкирку», поэтому не «вырастает») и уменьшается в значок.
+  // Кот остаётся в том же кадре «за шкирку» и уменьшается в значок: без смены позы он не «вырастает».
   cat.trashIn = true;
   setState('trash');
   const [tx, ty] = mouth(r);
