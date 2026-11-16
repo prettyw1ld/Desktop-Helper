@@ -114,3 +114,35 @@ test('the head does not twitch while the cursor hovers near the border of two po
     assert.equal(cat.head.gaze, 1, `cursor wants ${want}`);
   }
 });
+
+test('a lying cat sits up and stands before it walks, and does not slide while getting up', async () => {
+  const { walkTo, setState, GET_UP_MS } = await import('../src/renderer/cat/cat');
+  const { pickAnim } = await import('../src/renderer/cat/render');
+  setState('act', 5000);
+  cat.act = 'lieL';
+  cat.pose = 'lieL';
+  cat.x = 400;
+  walkTo(100);
+  const t0 = now();
+  assert.equal(pickAnim(t0 + 50), 'sitL');
+  assert.equal(pickAnim(t0 + GET_UP_MS - 50), 'standL');
+  assert.equal(pickAnim(t0 + GET_UP_MS + 50), 'walkL');
+  // уже стоял: идёт сразу
+  setState('idle', 5000);
+  cat.pose = 'standL';
+  cat.x = 400;
+  walkTo(1000);
+  assert.equal(pickAnim(now() + 10), 'walkR');
+});
+
+test('a happy jump is not shown while the cat is carried or falling', async () => {
+  const { setState } = await import('../src/renderer/cat/cat');
+  const { pickAnim } = await import('../src/renderer/cat/render');
+  dom.cat.classList.add('happy');
+  cat.happyAnim = 'hind';
+  setState('drag');
+  assert.equal(pickAnim(now()), 'scruffF');
+  setState('idle', 5000);
+  assert.equal(pickAnim(now()), 'hind');
+  dom.cat.classList.remove('happy');
+});

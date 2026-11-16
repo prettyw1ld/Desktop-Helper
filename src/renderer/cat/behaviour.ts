@@ -6,7 +6,7 @@ import { clamp, now, pick, rand } from '../core/util';
 import { busyWithPerson, trainer } from '../guide/state';
 import { bubbleShown, placeBubble, say } from '../ui/bubble';
 import { openPanel } from '../ui/panels';
-import { cat, CAT_H, CAT_W, cx, floorY, G, inAir, jumpTo, setState, size, startFall, W, walkTo } from './cat';
+import { cat, CAT_H, CAT_W, cx, floorY, G, inAir, jumpTo, lyingPose, setState, size, startFall, W, walkTo } from './cat';
 import { mouseMoving, startCursorWatch, updateCursorWatch } from './cursor-watch';
 import { between, LIFE } from './pacing';
 import { allPlatforms, currentPlat, groundY } from './platforms';
@@ -24,11 +24,11 @@ const ACTS: Act[] = [
   { anim: () => pick<AnimName>(['eatF', 'eatB', dirAnim('eat', cat.dir)]), text: 'act.eating' },
   { anim: () => dirAnim('wagLie', cat.dir), text: 'act.rolling' },
   { anim: () => pick<AnimName>(['swipeSitF', 'swipeSitF2', dirAnim('swipeSit', cat.dir), `${dirAnim('swipeSit', cat.dir)}2`]), text: 'act.playing' },
-  { anim: () => pick<AnimName>([dirAnim('swipeStand', cat.dir), `${dirAnim('swipeStand', cat.dir)}2`, 'swipeStandF', 'swipeStandF2']), text: 'act.tailChasing' },
+  { anim: () => pick<AnimName>([dirAnim('swipeStand', cat.dir), `${dirAnim('swipeStand', cat.dir)}2`, 'swipeStandF', 'swipeStandF2']), text: 'act.pouncing' },
   { anim: () => pick<AnimName>(['swipeSitB', 'swipeStandB']), text: 'act.knocking' },
   { anim: () => 'hind', text: 'act.birdWatching' },
   { anim: () => 'meowLie' },
-  { anim: () => pick<AnimName>(['lieL', 'lieR', 'blinkLieL', 'blinkLieR']) },
+  { anim: () => pick<AnimName>([dirAnim('lie', cat.dir), dirAnim('blinkLie', cat.dir)]) }, // ложится туда, куда смотрел
   { anim: () => 'hopF', ms: 1800 },
 ];
 
@@ -36,6 +36,7 @@ const ACTS: Act[] = [
 export function goSleep(ms?: number): void {
   const kind = pick(['sleep1', 'sleep2', 'sleep3', 'sleep4', 'sleep5', 'sleepBack'] as const);
   cat.sleepKind = dirAnim(`${kind}Z`, cat.dir); // со Zzz над головой
+  cat.sleepFromLying = lyingPose(cat.pose);
   setState('sleep', ms);
 }
 
@@ -129,6 +130,7 @@ let last = now();
 function step(t: number, dt: number): void {
   switch (cat.state) {
     case 'walk': {
+      if (t < cat.getUpUntil) break; // ещё встаёт
       const speed = (cat.running ? 190 : 75) * (settings.speed || 1);
       cat.x += cat.dir * speed * dt;
       if ((cat.dir > 0 && cat.x >= cat.targetX) || (cat.dir < 0 && cat.x <= cat.targetX)) {

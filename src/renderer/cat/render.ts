@@ -1,6 +1,6 @@
 // Какую анимацию показывать в каждый момент, и сама отрисовка спрайта.
 import { dom } from '../core/dom';
-import { cat } from './cat';
+import { cat, GET_UP_MS } from './cat';
 import { LIFE } from './pacing';
 import { watchingCursor, watchPose } from './cursor-watch';
 import { ANIM, CatSprite, dirAnim, type AnimName, type Frame, type HeadTurn } from './sprites';
@@ -45,20 +45,27 @@ export function drawCatPic(canvas: HTMLCanvasElement, color: string): void {
   img.src = `${SHEETS}${color}.png`;
 }
 
+const MOVING: string[] = ['walk', 'jump', 'fall', 'drag', 'trash', 'intro', 'outro'];
+
 const thinking = () => dom.cat.classList.contains('thinking');
 
 /** Имя анимации, конкретный кадр или поза спиной с повёрнутой головой. */
 export function pickAnim(t: number): AnimName | Frame | HeadTurn {
   const d = cat.dir;
-  if (dom.cat.classList.contains('happy')) return cat.happyAnim;
+  // радость (прыжок на месте, стойка) — только когда кот стоит на месте: не в полёте, не на ходу и не за шкирку
+  if (dom.cat.classList.contains('happy') && !MOVING.includes(cat.state)) return cat.happyAnim;
   if (cat.lookUntil && t < cat.lookUntil) return cat.lookPose;
   const talking = t < cat.meowUntil;
   switch (cat.state) {
-    case 'walk': return dirAnim(cat.running ? 'run' : 'walk', d);
+    case 'walk':
+      // вставал из лёжа: сначала садится, потом встаёт, и только потом идёт
+      if (t < cat.getUpUntil) return dirAnim(cat.getUpUntil - t > GET_UP_MS / 2 ? 'sit' : 'stand', d);
+      return dirAnim(cat.running ? 'run' : 'walk', d);
     case 'intro': return cat.introRun ? 'runDown' : 'walkDown';
     case 'outro': return 'walkUp';
     case 'sleep': {
-      const e = t - cat.since;
+      // сидел или стоял: зевает, ложится и засыпает; уже лежал — сразу устраивается спать
+      const e = t - cat.since + (cat.sleepFromLying ? 1200 : 0);
       if (e < 1200) return 'yawn';
       if (e < 2400) return d < 0 ? 'lieF_L' : 'lieF_R';
       return cat.sleepKind;
@@ -97,6 +104,7 @@ export function pickAnim(t: number): AnimName | Frame | HeadTurn {
 
 export function renderCat(t: number): void {
   const a = pickAnim(t);
+  cat.pose = typeof a === 'string' ? a : 'gaze' in a ? 'wagSitF' : '';
   if (typeof a !== 'string' && 'gaze' in a) {
     // смотрит на курсор: хвост виляет как в wagSitF, голова повёрнута к мышке
     if (animName !== 'wagSitF') {
