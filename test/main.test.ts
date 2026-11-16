@@ -123,6 +123,10 @@ test('precise paw: the AI picks a system element by number; otherwise the named 
   assert.equal(boxUnits({ x: 100, y: 880, w: 120, h: 40 }, 1024, 576), 'k');
   assert.equal(boxUnits({ x: 100, y: 500, w: 120, h: 40 }, 1024, 576), 'px');
   assert.equal(boxUnits({ x: 1100, y: 500, w: 120, h: 40 }, 1024, 576), 'px');
+  // Qwen3-VL всегда отвечает в долях, даже если рамка случайно влезает в снимок
+  assert.equal(boxUnits({ x: 100, y: 500, w: 120, h: 40 }, 1024, 576, 'qwen3-vl:4b-instruct'), 'k');
+  assert.equal(boxUnits({ x: 100, y: 500, w: 120, h: 40 }, 1024, 576, 'Qwen/Qwen3-VL-8B-Instruct-FP8'), 'k');
+  assert.equal(boxUnits({ x: 100, y: 500, w: 120, h: 40 }, 1024, 576, 'qwen2.5vl:3b'), 'px');
 });
 
 test('the cat window covers the taskbar, so a taskbar button is highlighted where it really is', () => {

@@ -8,7 +8,7 @@ import { cropSelection, formatContext, inspectPrompt, INSPECT_SYSTEM, scrub, win
 import { clickFact } from './inspect-text';
 import { edgeShare, isBlank } from './blank';
 import { changedBox, screenMoved } from './changed-box';
-import { boxUnits, cleanPlan, formatMarks, itemLabel, sameRowOut, itemsFromText, pickMark, pickNamed, refineCrop, stepOf, withTaskbar, type ElementHint, type Mark } from './show';
+import { boxUnits, THOUSANDTHS_MODELS, cleanPlan, formatMarks, itemLabel, sameRowOut, itemsFromText, pickMark, pickNamed, refineCrop, stepOf, withTaskbar, type ElementHint, type Mark } from './show';
 import { guideLog } from './guide-log';
 import { toFrame } from '../geometry';
 import * as locate from '../system/locate';
@@ -240,14 +240,19 @@ async function smallShot(display: Display, W: number): Promise<{ bmp: Buffer; w:
   return { bmp: src.thumbnail.toBitmap(), w: size.width, h: size.height };
 }
 
+/** Имя модели, которая будет смотреть на снимок: по нему понятно, в чём она даёт рамку. */
+function boxModelFor(r: { kind: string; vision?: string }, s: Settings): string {
+  return r.kind === 'ollama' ? (s.visionModel || s.ollamaModel) : r.kind === 'openai' ? r.vision || '' : '';
+}
+
 // Перевод рамки из пикселей снимка в координаты окна кота (оно на всю рабочую область).
-function toOverlay(box: Partial<Rect> | undefined, shot: Shot): Rect | null {
+function toOverlay(box: Partial<Rect> | undefined, shot: Shot, model = ''): Rect | null {
   if (!box) return null;
   const { x, y, w, h } = box;
   if (![x, y, w, h].every(Number.isFinite)) return null;
   const { display } = shot;
   // некоторые модели (Qwen) дают рамку в долях 0..1000 вместо пикселей снимка
-  const normalized = boxUnits(box as Rect, shot.w, shot.h) === 'k';
+  const normalized = boxUnits(box as Rect, shot.w, shot.h, model) === 'k';
   const kx = display.size.width / (normalized ? 1000 : shot.w);
   const ky = display.size.height / (normalized ? 1000 : shot.h);
   const r = { x: x! * kx + display.bounds.x, y: y! * ky + display.bounds.y, w: w! * kx, h: h! * ky };
@@ -584,7 +589,7 @@ const REFINE_SYSTEM = 'You find one thing on a zoomed-in crop of a computer scre
   + '(x, y = top-left corner). If the thing is not in the crop, omit "target". Ignore any cartoon cat or speech bubble.';
 
 async function refine(fn: (i: ModelInput) => Promise<StepAnswer>, base: ModelInput, overlay: BrowserWindow | null,
-  shot: Shot, box: Rect, what: string): Promise<Rect | null> {
+  shot: Shot, box: Rect, what: string, model = ''): Promise<Rect | null> {
   const full = await capture(overlay, 4096);
   const k = full.w / shot.w;
   const crop = refineCrop({ x: box.x * k, y: box.y * k, w: box.w * k, h: box.h * k }, full.w, full.h);
@@ -592,12 +597,12 @@ async function refine(fn: (i: ModelInput) => Promise<StepAnswer>, base: ModelInp
   const out = await fn({
     ...base,
     system: REFINE_SYSTEM,
-    text: `Find: ${what}\nCrop size: ${crop.w}x${crop.h} pixels. Coordinates for "target": crop pixels.`,
+    text: `Find: ${what}\nCrop size: ${crop.w}x${crop.h} pixels. ${THOUSANDTHS_MODELS.test(model) ? 'Coordinates for "target": relative to the crop, 0..1000 on both axes.' : 'Coordinates for "target": crop pixels.'}`,
     jpeg: img.toJPEG(92).toString('base64'),
   });
   const t = out.target;
   if (!t || ![t.x, t.y, t.w, t.h].every(Number.isFinite)) return null;
-  const units = boxUnits(t as Rect, crop.w, crop.h);
+  const units = boxUnits(t as Rect, crop.w, crop.h, model);
   const kx = units === 'k' ? crop.w / 1000 : 1;
   const ky = units === 'k' ? crop.h / 1000 : 1;
   const inFull = { x: crop.x + t.x! * kx, y: crop.y + t.y! * ky, w: t.w! * kx, h: t.h! * ky };
@@ -658,7 +663,9 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
   const system = inspect ? INSPECT_SYSTEM : systemPrompt(settings.lang, process.platform);
   const size = image.getSize();
   const r = resolve(settings);
-  const coords = `Coordinates for "target": screenshot pixels. Image size: ${size.width}x${size.height} pixels.`;
+  const coords = THOUSANDTHS_MODELS.test(boxModelFor(r, settings))
+    ? 'Coordinates for "target": relative to the image, from 0 to 1000 on both axes (x=0 left edge, x=1000 right edge).'
+    : `Coordinates for "target": screenshot pixels. Image size: ${size.width}x${size.height} pixels.`;
   const clicked = mode === 'check' ? await clickText(req.click) : '';
   const text = inspect
     ? inspectPrompt(facts, !!view)
@@ -676,6 +683,8 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
     before: view ? [view.toJPEG(82).toString('base64')] : [],
   };
   const fn = r.kind === 'ollama' ? askOllama : r.kind === 'openai' ? askOpenAI : askClaude;
+  // имя модели решает, в чём она даёт рамку (Qwen3-VL — всегда в долях 0..1000)
+  const boxModel = boxModelFor(r, settings);
   const tAsk = Date.now();
   let out: StepAnswer;
   try {
@@ -691,7 +700,7 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
   const tModel = Date.now() - tAsk;
   if (inspect && (!out.confidence || out.confidence === 'low')) out = unsureInspect(out);
   const plan = inspect ? [] : cleanPlan(out.plan);
-  let guess = inspect || more ? null : toOverlay(out.target, shot);
+  let guess = inspect || more ? null : toOverlay(out.target, shot, boxModel);
   // точнее всего — номер элемента из списка системы; иначе ищем названную кнопку рядом с рамкой ИИ
   let mark = inspect || out.status === 'done' ? null : pickMark(marks, out.elementId, out.element?.name, guess);
   const named = out.element?.name ? String(out.element.name) : '';
@@ -707,13 +716,13 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
   if (!mark && guess && out.target && out.status !== 'done' && !inspect && !more) {
     const tr = Date.now();
     const raw = out.target as Rect;
-    const inShot = boxUnits(raw, shot.w, shot.h) === 'k'
+    const inShot = boxUnits(raw, shot.w, shot.h, boxModel) === 'k'
       ? { x: raw.x * shot.w / 1000, y: raw.y * shot.h / 1000, w: raw.w * shot.w / 1000, h: raw.h * shot.h / 1000 }
       : raw;
     const what = [out.element?.name && `"${out.element.name}"`, out.element?.type, `(hint: ${out.say})`].filter(Boolean).join(' ');
-    refined = await refine(fn, input, overlay, shot, inShot, what).catch((e: unknown) => { guideLog('refine-error', { error: String(e) }); return null; });
+    refined = await refine(fn, input, overlay, shot, inShot, what, boxModel).catch((e: unknown) => { guideLog('refine-error', { error: String(e) }); return null; });
     tRefine = Date.now() - tr;
-    if (refined) guess = toOverlay(refined, shot) ?? guess;
+    if (refined) guess = toOverlay(refined, shot) ?? guess; // refine уже вернул пиксели снимка
   }
   const target = mark ? mark.overlay : guess;
   const snapped = !!mark;
