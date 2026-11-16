@@ -85,4 +85,24 @@ curl -k https://localhost/healthz   # {"ok":true}
 
 Резервная копия: `docker compose exec db pg_dump -U pushik pushik > pushik-$(date +%F).sql`.
 
-Чего пока нет: входа админов через Keycloak/AD и ролей (E-35) — сейчас один пароль `admin`. До E-35 держите админ-панель закрытой подсетью.
+### Вход администраторов: пароль или единый вход компании
+
+Без настройки вход один — пользователь `admin` с паролем `ADMIN_PASSWORD`, у него все права.
+
+Единый вход (Keycloak, AD FS, любой OIDC) делается через [oauth2-proxy](https://oauth2-proxy.github.io/oauth2-proxy/) перед nginx: `docker-compose.sso.yml` и `nginx-sso.conf.template`.
+
+```sh
+# в .env: PUBLIC_URL, OIDC_ISSUER, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET, COOKIE_SECRET, PROXY_SECRET, ADMIN_VIEW_GROUPS, ADMIN_CONFIG_GROUPS
+docker compose -f docker-compose.yml -f docker-compose.sso.yml up -d
+```
+
+- В Keycloak: клиент `pushik-admin` (confidential), Valid redirect URI `https://pushik.corp/oauth2/callback`, маппер «Group Membership» с именем claim `groups` (без полного пути). Группы AD приходят через User Federation (LDAP).
+- Роли по группам: `ADMIN_VIEW_GROUPS` — смотреть котов, карточки, настройки и журнал; `ADMIN_CONFIG_GROUPS` — ещё выкладывать подписанные настройки и забывать устройства. Пользователь вне этих групп получает 403.
+- nginx добавляет к запросам админ-панели общий секрет `X-Pushik-Proxy-Secret`; без него сервер не верит заголовкам с именем и группами, поэтому подставить их в обход nginx нельзя. С путей для Пушиков (`/api/beat`, `/api/enroll`, `/api/config`) заголовок снимается.
+- `ADMIN_PASSWORD` остаётся запасным входом напрямую к контейнеру (через nginx при едином входе пароль не принимается).
+
+### Журнал администраторов и история настроек
+
+Каждое действие администратора (выложил настройки, забыл устройство) пишется в таблицу `admin_log` (видно в панели: «Настройки и журнал») и строкой JSON `{"event":"admin",…}` в вывод сервера — оттуда его забирает сборщик логов в SIEM (`docker compose logs server`).
+
+Все версии подписанных настроек хранятся (`config_versions`). В панели видна разница каждой версии с предыдущей. Откат: «Скачать vN для отката» → подписать этот файл заново с версией выше текущей (`node tools/config-sign.mjs sign …`, команда показана рядом) → «Выложить подписанный набор». Старый подписанный набор нельзя выложить повторно: Пушики не принимают версию ниже уже применённой ([ADR-0001](adr/0001-signed-remote-config.md)).

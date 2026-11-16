@@ -1,0 +1,71 @@
+# Вариант nginx с единым входом компании (Keycloak, AD FS или другой OIDC) через oauth2-proxy.
+# Используется из docker-compose.sso.yml: образ nginx сам подставляет ${PROXY_SECRET} из окружения.
+# Сервер Пушика верит заголовкам X-Auth-Request-* только вместе с X-Pushik-Proxy-Secret, который ставит здесь nginx.
+limit_req_zone $binary_remote_addr zone=enroll:10m rate=20r/m;
+limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
+
+server {
+  listen 443 ssl;
+  http2 on;
+  server_name _;
+  ssl_certificate     /etc/nginx/tls/server.crt;
+  ssl_certificate_key /etc/nginx/tls/server.key;
+  ssl_protocols TLSv1.2 TLSv1.3;
+  ssl_prefer_server_ciphers off;
+  add_header Strict-Transport-Security "max-age=31536000" always;
+  client_max_body_size 32k;
+  server_tokens off;
+
+  # вход и выход: страницы oauth2-proxy
+  location /oauth2/ {
+    allow 10.0.0.0/8; deny all;
+    proxy_pass http://oauth2-proxy:4180;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Auth-Request-Redirect $request_uri;
+  }
+  location = /oauth2/auth {
+    internal;
+    proxy_pass http://oauth2-proxy:4180;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header Content-Length "";
+    proxy_pass_request_body off;
+  }
+
+  # админ-панель: только из сети ИБ (впишите свои подсети) и только после входа
+  location @admin {
+    allow 10.0.0.0/8; deny all;
+    auth_request /oauth2/auth;
+    error_page 401 = /oauth2/sign_in;
+    auth_request_set $au_user   $upstream_http_x_auth_request_user;
+    auth_request_set $au_email  $upstream_http_x_auth_request_email;
+    auth_request_set $au_name   $upstream_http_x_auth_request_preferred_username;
+    auth_request_set $au_groups $upstream_http_x_auth_request_groups;
+    proxy_set_header X-Auth-Request-User $au_user;
+    proxy_set_header X-Auth-Request-Email $au_email;
+    proxy_set_header X-Auth-Request-Preferred-Username $au_name;
+    proxy_set_header X-Auth-Request-Groups $au_groups;
+    proxy_set_header X-Pushik-Proxy-Secret "${PROXY_SECRET}";
+    proxy_set_header Authorization "";
+    proxy_pass http://server:8443;
+  }
+  location = /                   { try_files /nonexistent @admin; }
+  location = /app.js             { try_files /nonexistent @admin; }
+  location /api/devices          { try_files /nonexistent @admin; }
+  location /api/configs          { try_files /nonexistent @admin; }
+  location = /api/config-history { try_files /nonexistent @admin; }
+  location = /api/admin-log      { try_files /nonexistent @admin; }
+  location = /api/me             { try_files /nonexistent @admin; }
+  location /api/admin/           { try_files /nonexistent @admin; }   # выложить настройки из панели
+  # устройства забирают настройки по своему токену; выкладывать — только через /api/admin/config
+  location = /api/config { limit_except GET { deny all; } limit_req zone=api burst=20; proxy_set_header X-Pushik-Proxy-Secret ""; proxy_pass http://server:8443; }
+
+  # остальное — для Пушиков; заголовки входа отсюда до сервера не доходят
+  location = /api/enroll { limit_req zone=enroll burst=10; proxy_set_header X-Pushik-Proxy-Secret ""; proxy_pass http://server:8443; }
+  location = /api/beat   { limit_req zone=api burst=20; proxy_set_header X-Pushik-Proxy-Secret ""; proxy_pass http://server:8443; }
+  location = /healthz    { proxy_pass http://server:8443; }
+  location / { return 404; }
+}

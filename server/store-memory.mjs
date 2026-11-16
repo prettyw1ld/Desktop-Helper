@@ -5,6 +5,8 @@ export function memoryStore() {
   const devices = new Map();   // id → устройство
   const history = [];          // смены состояния: { deviceId, at, mood, reason }
   const configs = new Map();   // адресат → подписанный набор настроек { scope, version, payload, sig, at }
+  const versions = [];         // все выложенные наборы: история для просмотра разницы и отката
+  const admins = [];           // журнал действий администраторов
   return {
     async enroll({ deviceKey, host, user, os, version, group = '', packs = [], tokenHash, now }) {
       let d = [...devices.values()].find((x) => x.deviceKey === deviceKey);
@@ -44,9 +46,13 @@ export function memoryStore() {
       const cur = configs.get(scope);
       if (cur && cur.version >= version) return false;
       configs.set(scope, { scope, version, payload, sig, at: now });
+      versions.push({ scope, version, payload, sig, at: now });
       return true;
     },
     async configs() { return [...configs.values()].map((c) => ({ ...c })); },
+    async configHistory(scope) { return versions.filter((c) => c.scope === scope).sort((a, b) => b.version - a.version).map((c) => ({ ...c })); },
+    async logAdmin(e) { admins.push({ ...e }); if (admins.length > 10_000) admins.shift(); },
+    async adminLog(limit) { return admins.slice(-limit).reverse().map((e) => ({ ...e })); },
     async close() {},
   };
 }

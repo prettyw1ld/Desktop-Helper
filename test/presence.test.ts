@@ -159,3 +159,57 @@ test('policy presence carries the department', () => {
   assert.deepEqual(parsePresence({ url: 'https://p.corp', secret: SECRET, group: 'Отдел ИБ' }), { url: 'https://p.corp', secret: SECRET, group: 'Отдел ИБ' });
   assert.deepEqual(regToRaw({ PresenceUrl: 'https://p.corp', PresenceSecret: SECRET, PresenceGroup: 'ИБ' })?.presence, { url: 'https://p.corp', secret: SECRET, allowHttp: false, group: 'ИБ' });
 });
+
+// ---------- единый вход через прокси, роли и журнал администраторов ----------
+
+const PROXY = 'proxy-secret-0123456789';
+async function ssoServer(): Promise<{ base: string; close: () => void; logged: unknown[] }> {
+  const root = path.join(__dirname, '../../server');
+  const { createApp } = await import(pathToFileURL(path.join(root, 'app.mjs')).href) as { createApp: (o: object) => App };
+  const { memoryStore } = await import(pathToFileURL(path.join(root, 'store-memory.mjs')).href) as { memoryStore: () => Store };
+  const logged: unknown[] = [];
+  const srv = http.createServer(createApp({
+    store: memoryStore(), enrollSecret: SECRET, now: () => 1_000_000, log: (e: unknown) => logged.push(e),
+    proxyAuth: { secret: PROXY, viewGroups: 'soc-view', configGroups: 'soc-admins' },
+  }));
+  await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
+  return { base: `http://127.0.0.1:${(srv.address() as { port: number }).port}`, close: () => srv.close(), logged };
+}
+const sso = (user: string, groups: string, secret = PROXY) => ({ 'x-pushik-proxy-secret': secret, 'x-auth-request-preferred-username': user, 'x-auth-request-groups': groups });
+
+test('server: single sign-on through the proxy with view and config roles', async () => {
+  const s = await ssoServer();
+  try {
+    // без прокси (пароля нет) и с чужим секретом — не пускает; подставить заголовки в обход nginx нельзя
+    assert.equal((await fetch(`${s.base}/api/devices`)).status, 401);
+    assert.equal((await fetch(`${s.base}/api/devices`, { headers: sso('ivan', 'soc-admins', 'wrong-secret-000000000') })).status, 401);
+    assert.equal((await fetch(`${s.base}/api/devices`, { headers: sso('petr', 'accounting') })).status, 403);
+    assert.deepEqual(await (await fetch(`${s.base}/api/me`, { headers: sso('anna', 'domain users,soc-view') })).json(), { name: 'anna', role: 'view' });
+    assert.equal((await fetch(`${s.base}/api/devices`, { headers: sso('anna', 'soc-view') })).status, 200);
+    // смотреть может, менять — нет
+    const bundle = { payload: JSON.stringify({ v: 1, scope: 'global', version: 1, settings: {} }), sig: 'x' };
+    const put = (h: Record<string, string>) => fetch(`${s.base}/api/config`, { method: 'PUT', headers: { ...h, 'content-type': 'application/json' }, body: JSON.stringify(bundle) });
+    assert.equal((await put(sso('anna', 'soc-view'))).status, 403);
+    assert.equal((await put(sso('ivan', 'soc-admins'))).status, 200);
+    const log = await (await fetch(`${s.base}/api/admin-log`, { headers: sso('anna', 'soc-view') })).json() as { entries: { who: string; action: string; target: string; detail: string }[] };
+    assert.deepEqual(log.entries.map((e) => [e.who, e.action, e.target, e.detail]), [['ivan', 'config.put', 'global', 'v1']]);
+    assert.deepEqual(s.logged.map((e) => (e as { event: string; who: string }).who), ['ivan']);
+  } finally { s.close(); }
+});
+
+test('server: every config version is kept for diff and rollback', async () => {
+  const s = await server(() => 5_000);
+  try {
+    const put = (version: number, settings: object) => fetch(`${s.base}/api/config`, {
+      method: 'PUT', headers: { ...basic(ADMIN).headers, 'content-type': 'application/json' },
+      body: JSON.stringify({ payload: JSON.stringify({ v: 1, scope: 'group:ИБ', version, settings }), sig: 's' }),
+    });
+    assert.equal((await put(1, { screenshots: 'window' })).status, 200);
+    assert.equal((await put(2, { screenshots: 'off' })).status, 200);
+    assert.equal((await put(2, { screenshots: 'screen' })).status, 409);
+    const h = await (await fetch(`${s.base}/api/config-history?scope=${encodeURIComponent('group:ИБ')}`, basic(ADMIN))).json() as { versions: { version: number; settings: { screenshots: string }; payload: string }[] };
+    assert.deepEqual(h.versions.map((v) => [v.version, v.settings.screenshots]), [[2, 'off'], [1, 'window']]);
+    assert.ok(h.versions[1]!.payload.includes('"version":1'));
+    assert.equal((await fetch(`${s.base}/api/config-history?scope=bad`, basic(ADMIN))).status, 400);
+  } finally { s.close(); }
+});

@@ -9,6 +9,7 @@ let data = null;
 let only = '';
 let board = location.hash === '#board';
 let timer = 0;
+let role = 'view';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
@@ -163,6 +164,7 @@ async function openCard(id) {
   }
   if (!c.history.length) log.append(el('li', 'sub', 'За 7 дней состояние не менялось'));
 
+  $('card-forget').hidden = role !== 'config';
   $('card-forget').onclick = async () => {
     if (!confirm(`Забыть ${d.host}? Пушик на нём зарегистрируется заново при следующем запуске.`)) return;
     await fetch(`api/devices/${d.id}`, { method: 'DELETE' });
@@ -170,6 +172,77 @@ async function openCard(id) {
     void load();
   };
   $('card').showModal();
+}
+
+// ---------- настройки с сервера: версии, разница, откат; журнал администраторов ----------
+
+/** Разница двух наборов настроек по ключам верхнего уровня: что добавлено, убрано, изменено. */
+function diff(prev, cur) {
+  const out = [];
+  const keys = [...new Set([...Object.keys(prev || {}), ...Object.keys(cur || {})])].sort();
+  for (const k of keys) {
+    const a = prev ? JSON.stringify(prev[k]) : undefined;
+    const b = JSON.stringify(cur[k]);
+    if (a === b) continue;
+    if (a === undefined) out.push(['add', `+ ${k}: ${b}`]);
+    else if (b === undefined) out.push(['del', `− ${k}: ${a}`]);
+    else out.push(['chg', `~ ${k}: ${a} → ${b}`]);
+  }
+  return out;
+}
+
+function download(name, text) {
+  const a = el('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+const ACTION = { 'config.put': 'выложил настройки', 'device.forget': 'забыл устройство' };
+
+async function openConfigs() {
+  const list = $('cfg-list');
+  $('cfg-upload-row').hidden = role !== 'config';
+  list.replaceChildren(el('div', 'sub', 'Загрузка…'));
+  $('cfg').showModal();
+  const r = await fetch('api/configs', { cache: 'no-store' });
+  const { configs = [] } = r.ok ? await r.json() : {};
+  list.replaceChildren();
+  if (!configs.length) list.append(el('div', 'sub', 'Настроек с сервера пока нет: Пушики работают по своей политике.'));
+  for (const c of configs) {
+    list.append(el('h3', '', `${c.scope} — сейчас версия ${c.version}`));
+    const h = await (await fetch(`api/config-history?scope=${encodeURIComponent(c.scope)}`, { cache: 'no-store' })).json();
+    h.versions.forEach((v, i) => {
+      const box = el('div', 'ver');
+      box.append(el('b', '', `v${v.version}`), ` · ${new Date(v.at).toLocaleString('ru-RU')}`);
+      const prev = h.versions[i + 1];
+      const ul = el('ul', 'diff');
+      const changes = diff(prev?.settings, v.settings);
+      for (const [kind, text] of changes) ul.append(el('li', kind, text));
+      if (!changes.length) ul.append(el('li', '', prev ? 'без изменений' : 'пустой набор'));
+      box.append(ul);
+      if (i > 0) {
+        const file = `settings-${c.scope.replace(/[^\w-]+/g, '_')}-v${v.version}.json`;
+        const b = el('button', 'btn', `Скачать v${v.version} для отката`);
+        b.type = 'button';
+        b.addEventListener('click', () => download(file, JSON.stringify(v.settings, null, 2)));
+        box.append(b, el('code', 'cmd', `node tools/config-sign.mjs sign <ключ> ${file} '${c.scope}' ${c.version + 1} > bundle.json`));
+      }
+      list.append(box);
+    });
+  }
+  const log = $('cfg-log');
+  log.replaceChildren();
+  const lr = await fetch('api/admin-log', { cache: 'no-store' });
+  const entries = lr.ok ? (await lr.json()).entries : [];
+  for (const e of entries.slice(0, 100)) {
+    const li = el('li');
+    li.append(el('time', '', new Date(e.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })),
+      el('span', '', `${e.who} ${ACTION[e.action] || e.action}: ${e.action === 'config.put' ? `${e.target} ${e.detail}` : e.detail || e.target}`));
+    log.append(li);
+  }
+  if (!entries.length) log.append(el('li', 'sub', 'Действий пока не было'));
 }
 
 // ---------- загрузка и табло ----------
@@ -198,6 +271,26 @@ function setBoard(on) {
 $('q').addEventListener('input', render);
 $('board').addEventListener('click', () => setBoard(!board));
 $('card-close').addEventListener('click', () => $('card').close());
+$('cfg-open').addEventListener('click', () => void openConfigs());
+$('cfg-close').addEventListener('click', () => $('cfg').close());
+$('cfg-upload').addEventListener('change', async (ev) => {
+  const f = ev.target.files?.[0];
+  ev.target.value = '';
+  if (!f) return;
+  const msg = $('cfg-upload-msg');
+  const ERR = { signature: 'подпись не сходится с ключом сервера', version: 'версия не выше текущей', payload: 'это не набор настроек Пушика', bundle: 'это не bundle.json из config-sign', 'view only': 'у вас только просмотр' };
+  try {
+    const r = await fetch('api/admin/config', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: await f.text() });
+    const b = await r.json().catch(() => ({}));
+    msg.textContent = r.ok ? `Выложено: ${b.scope} v${b.version}` : `Не выложено: ${ERR[b.error] || b.error || r.status}`;
+    if (r.ok) void openConfigs();
+  } catch { msg.textContent = 'Не выложено: сеть'; }
+});
+void fetch('api/me', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((me) => {
+  if (!me) return;
+  role = me.role;
+  $('me').textContent = `${me.name} · ${me.role === 'config' ? 'администратор' : 'просмотр'}`;
+});
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && board && !$('card').open) setBoard(false); });
 void load();
 schedule();

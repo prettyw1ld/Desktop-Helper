@@ -42,6 +42,13 @@
   .log { list-style: none; margin: 0; padding: 0; max-height: 200px; overflow: auto; font-size: 13px; }
   .log li { padding: 3px 0; border-top: 1px solid var(--none); display: flex; gap: 10px; }
   .log time { color: var(--muted); min-width: 96px; }
+  #cfg { max-width: 760px; }
+  #cfg h3 { margin: 14px 0 4px; font-size: 15px; }
+  .diff { margin: 4px 0 8px; padding: 0; list-style: none; font-family: ui-monospace, monospace; font-size: 13px; }
+  .diff .add { color: var(--awake); } .diff .del { color: var(--lost); } .diff .chg { color: var(--dozing); }
+  .ver { border-top: 1px solid var(--none); padding: 6px 0; }
+  code.cmd { display: block; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--none); padding: 6px 8px; border-radius: 8px; font-size: 12px; }
+  body.board #cfg-open, body.board #me { display: none; }
   .row { display: flex; justify-content: space-between; gap: 8px; margin-top: 16px; }
   .danger { border-color: var(--lost); color: var(--lost); }
 
@@ -68,6 +75,8 @@
     <span id="clock"></span>
     <input type="search" id="q" placeholder="Поиск: компьютер, человек, отдел" aria-label="Поиск">
     <button type="button" class="btn" id="board">Табло</button>
+    <button type="button" class="btn" id="cfg-open">Настройки и журнал</button>
+    <span class="sub" id="me"></span>
   </div>
   <div class="counts" id="counts"></div>
 </header>
@@ -85,6 +94,15 @@
     <button type="button" class="btn danger" id="card-forget">Забыть устройство</button>
     <button type="button" class="btn" id="card-close">Закрыть</button>
   </div>
+</dialog>
+<dialog id="cfg" aria-labelledby="cfg-title">
+  <h2 id="cfg-title">Настройки с сервера</h2>
+  <div class="sub">Каждая версия подписана ключом администратора. Откат — это та же настройка, подписанная заново с версией выше текущей: скачайте нужную версию и подпишите её командой ниже.</div>
+  <div class="row" id="cfg-upload-row"><label class="btn">Выложить подписанный набор (bundle.json)<input type="file" id="cfg-upload" accept=".json,application/json" hidden></label><span class="sub" id="cfg-upload-msg"></span></div>
+  <div id="cfg-list"></div>
+  <h2>Журнал администраторов</h2>
+  <ul class="log" id="cfg-log"></ul>
+  <div class="row"><button type="button" class="btn" id="cfg-close">Закрыть</button></div>
 </dialog>
 <script src="app.js"></script>
 </body>

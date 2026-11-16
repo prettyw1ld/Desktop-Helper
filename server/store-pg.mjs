@@ -34,6 +34,23 @@ create table if not exists configs (
   sig text not null,
   at timestamptz not null default now()
 );
+create table if not exists config_versions (
+  scope text not null,
+  version integer not null,
+  payload text not null,
+  sig text not null,
+  at timestamptz not null default now(),
+  primary key (scope, version)
+);
+insert into config_versions (scope, version, payload, sig, at) select scope, version, payload, sig, at from configs on conflict do nothing;
+create table if not exists admin_log (
+  at timestamptz not null,
+  who text not null,
+  action text not null,
+  target text not null default '',
+  detail text not null default ''
+);
+create index if not exists admin_log_at on admin_log (at);
 `;
 
 const row = (r) => r && ({
@@ -90,7 +107,22 @@ export async function pgStore(url) {
         `insert into configs (scope, version, payload, sig, at) values ($1, $2, $3, $4, to_timestamp($5 / 1000.0))
          on conflict (scope) do update set version = $2, payload = $3, sig = $4, at = to_timestamp($5 / 1000.0) where configs.version < $2`,
         [scope, version, payload, sig, now]);
+      if (r.rowCount > 0) {
+        await pool.query('insert into config_versions (scope, version, payload, sig, at) values ($1, $2, $3, $4, to_timestamp($5 / 1000.0)) on conflict do nothing',
+          [scope, version, payload, sig, now]);
+      }
       return r.rowCount > 0;
+    },
+    async configHistory(scope) {
+      return (await pool.query('select * from config_versions where scope = $1 order by version desc', [scope])).rows
+        .map((c) => ({ scope: c.scope, version: c.version, payload: c.payload, sig: c.sig, at: +c.at }));
+    },
+    async logAdmin({ at, who, action, target, detail }) {
+      await pool.query('insert into admin_log (at, who, action, target, detail) values (to_timestamp($1 / 1000.0), $2, $3, $4, $5)', [at, who, action, target, detail]);
+    },
+    async adminLog(limit) {
+      return (await pool.query('select * from admin_log order by at desc limit $1', [limit])).rows
+        .map((e) => ({ at: +e.at, who: e.who, action: e.action, target: e.target, detail: e.detail }));
     },
     async configs() {
       return (await pool.query('select * from configs order by scope')).rows.map((c) => ({ scope: c.scope, version: c.version, payload: c.payload, sig: c.sig, at: +c.at }));

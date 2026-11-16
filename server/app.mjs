@@ -4,10 +4,18 @@
 //   GET  /api/devices  список для админ-панели (пароль администратора)
 //   GET  /api/devices/<id>  карточка: устройство и смены состояния за 7 дней
 //   DELETE /api/devices/<id>  забыть устройство: его токен перестанет работать
-//   PUT  /api/config   выложить подписанный набор настроек (пароль администратора)
+//   PUT  /api/config   выложить подписанный набор настроек (пароль администратора); /api/admin/config — то же для входа через прокси
 //   GET  /api/configs  какие наборы выложены (пароль администратора)
 //   GET  /api/config   наборы для этого устройства: общий, его подразделения и его собственный (токен устройства)
+//   GET  /api/config-history?scope=…  все версии набора: просмотр разницы и откат (новой подписью той же настройки)
+//   GET  /api/me       кто вошёл в админ-панель и что ему можно
+//   GET  /api/admin-log  журнал действий администраторов
 //   GET  /             сама админ-панель
+//
+// Вход администраторов: либо пароль (ADMIN_PASSWORD, пользователь admin, все права), либо единый вход компании
+// через прокси (oauth2-proxy перед nginx: Keycloak, AD FS, любой OIDC). Прокси передаёт имя и группы в заголовках
+// X-Auth-Request-*, а nginx — общий секрет X-Pushik-Proxy-Secret, чтобы заголовки нельзя было подставить в обход.
+// Роли: view — смотреть; config — ещё выкладывать настройки и забывать устройства.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -98,19 +106,49 @@ function limiter(n) {
   };
 }
 
-export function createApp({ store, enrollSecret, adminPassword, configKey = '', now = () => Date.now() }) {
+/** Группы из заголовка прокси: через запятую или пробел. */
+const groupsOf = (v) => String(v || '').split(/[,\s]+/).map((g) => g.trim()).filter(Boolean);
+const list = (v) => (Array.isArray(v) ? v : groupsOf(v));
+
+export function createApp({ store, enrollSecret, adminPassword = '', proxyAuth = null, configKey = '', now = () => Date.now(), log = (e) => console.log(JSON.stringify(e)) }) {
   if (!enrollSecret || enrollSecret.length < 16) throw new Error('ENROLL_SECRET must be at least 16 characters');
-  if (!adminPassword || adminPassword.length < 12) throw new Error('ADMIN_PASSWORD must be at least 12 characters');
+  const sso = proxyAuth && proxyAuth.secret ? { secret: String(proxyAuth.secret), view: list(proxyAuth.viewGroups), config: list(proxyAuth.configGroups) } : null;
+  if (sso && sso.secret.length < 16) throw new Error('PROXY_SECRET must be at least 16 characters');
+  if (sso && !sso.view.length && !sso.config.length) throw new Error('ADMIN_VIEW_GROUPS or ADMIN_CONFIG_GROUPS must be set for single sign-on');
+  if (adminPassword && adminPassword.length < 12) throw new Error('ADMIN_PASSWORD must be at least 12 characters');
+  if (!adminPassword && !sso) throw new Error('set ADMIN_PASSWORD or single sign-on (PROXY_SECRET and admin groups)');
   const enrollOk = limiter(20);
   // открытый ключ подписи настроек: если задан, сервер сразу отклоняет неподписанное (Пушик проверяет в любом случае)
   const verifyKey = configKey ? edKey(configKey) : null;
   if (configKey && !verifyKey) throw new Error('CONFIG_PUBLIC_KEY is not an Ed25519 public key');
 
-  function admin(req) {
-    const m = /^Basic\s+(.+)$/i.exec(req.headers.authorization || '');
-    const [user, ...rest] = m ? Buffer.from(m[1], 'base64').toString('utf8').split(':') : [];
-    if (user === 'admin' && same(rest.join(':'), adminPassword)) return;
-    throw new HttpError(401, 'admin');
+  /** Кто пришёл в админ-панель: { name, role }. need — какая роль нужна (view или config). */
+  function admin(req, need = 'view') {
+    let who = null;
+    const h = req.headers;
+    if (sso && h['x-pushik-proxy-secret'] !== undefined) {
+      if (!same(h['x-pushik-proxy-secret'], sso.secret)) throw new HttpError(401, 'proxy');
+      const name = str(h['x-auth-request-preferred-username'] || h['x-auth-request-user'] || h['x-auth-request-email'], 128);
+      if (!name) throw new HttpError(401, 'proxy');
+      const groups = groupsOf(h['x-auth-request-groups']);
+      const role = groups.some((g) => sso.config.includes(g)) ? 'config' : groups.some((g) => sso.view.includes(g)) ? 'view' : '';
+      if (!role) throw new HttpError(403, 'not an admin');
+      who = { name, role };
+    } else if (adminPassword) {
+      const m = /^Basic\s+(.+)$/i.exec(h.authorization || '');
+      const [user, ...rest] = m ? Buffer.from(m[1], 'base64').toString('utf8').split(':') : [];
+      if (user === 'admin' && same(rest.join(':'), adminPassword)) who = { name: 'admin', role: 'config' };
+    }
+    if (!who) throw new HttpError(401, 'admin');
+    if (need === 'config' && who.role !== 'config') throw new HttpError(403, 'view only');
+    return who;
+  }
+
+  /** Действие администратора: в журнал сервера (для SIEM) и в таблицу, которую видно в панели. */
+  async function audit(who, action, target, detail = '') {
+    const e = { at: now(), who: who.name, action, target: String(target).slice(0, 120), detail: String(detail).slice(0, 300) };
+    log({ event: 'admin', ...e });
+    await store.logAdmin(e);
   }
 
   async function device(req) {
@@ -206,18 +244,39 @@ export function createApp({ store, enrollSecret, adminPassword, configKey = '', 
       if (req.method === 'POST' && p === '/api/enroll') return send(res, 200, await enroll(req));
       if (req.method === 'POST' && p === '/api/beat') return send(res, 200, await beat(req));
       if (req.method === 'GET' && p === '/api/devices') { admin(req); return send(res, 200, await devices()); }
-      if (req.method === 'PUT' && p === '/api/config') { admin(req); return send(res, 200, await putConfig(req)); }
+      if (req.method === 'GET' && p === '/api/me') return send(res, 200, admin(req));
+      if (req.method === 'PUT' && (p === '/api/config' || p === '/api/admin/config')) {
+        const who = admin(req, 'config');
+        const r = await putConfig(req);
+        await audit(who, 'config.put', r.scope, `v${r.version}`);
+        return send(res, 200, r);
+      }
       if (req.method === 'GET' && p === '/api/configs') {
         admin(req);
         return send(res, 200, { configs: (await store.configs()).map(({ scope, version, payload, at }) => ({ scope, version, at, settings: JSON.parse(payload).settings ?? {} })) });
       }
+      if (req.method === 'GET' && p === '/api/config-history') {
+        admin(req);
+        const scope = url.searchParams.get('scope') || '';
+        if (!SCOPE.test(scope)) throw new HttpError(400, 'scope');
+        // payload и подпись тоже: по ним администратор подписывает старую настройку заново, это и есть откат
+        const versions = (await store.configHistory(scope)).map(({ version, payload, sig, at }) => ({ version, at, settings: JSON.parse(payload).settings ?? {}, payload, sig }));
+        return send(res, 200, { scope, versions });
+      }
+      if (req.method === 'GET' && p === '/api/admin-log') { admin(req); return send(res, 200, { entries: await store.adminLog(200) }); }
       if (req.method === 'GET' && p === '/api/config') {
         const d = await device(req);
         return send(res, 200, { bundles: (await configsFor(d)).map(({ payload, sig }) => ({ payload, sig })) });
       }
       const del = /^\/api\/devices\/([0-9a-f-]{36})$/.exec(p);
       if (req.method === 'GET' && del) { admin(req); return send(res, 200, await card(del[1])); }
-      if (req.method === 'DELETE' && del) { admin(req); return send(res, (await store.remove(del[1])) ? 200 : 404, { ok: true }); }
+      if (req.method === 'DELETE' && del) {
+        const who = admin(req, 'config');
+        const gone = (await store.list()).find((x) => x.id === del[1]);
+        const ok = await store.remove(del[1]);
+        if (ok) await audit(who, 'device.forget', del[1], gone ? `${gone.host} ${gone.user}` : '');
+        return send(res, ok ? 200 : 404, { ok: true });
+      }
       if (req.method === 'GET' && (p === '/' || p === '/index.html')) {
         admin(req);
         return send(res, 200, PAGE, {
