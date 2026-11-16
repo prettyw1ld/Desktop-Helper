@@ -18,7 +18,8 @@
     "dist:win": "npm run predist && electron-builder --win",
     "dist:mac": "npm run predist && electron-builder --mac",
     "postinstall": "node tools/fetch-vosk-model.mts",
-    "vosk": "node tools/fetch-vosk-model.mts"
+    "vosk": "node tools/fetch-vosk-model.mts",
+    "dist:win:corp": "npm run predist && electron-builder --win --config electron-builder.corp.yml"
   },
   "devDependencies": {
     "@electron/fuses": "^2.1.3",

@@ -1,0 +1,40 @@
+# Корпоративная сборка установщика: на всю машину (Program Files), для Intune/MECM/KSC/GPO.
+# Остальное берётся из раздела "build" в package.json. Сборка: npm run dist:win:corp
+extends: null
+appId: com.prettyw1ld.pushik          # не менять: из него получается GUID удаления, по нему Intune/MECM находят установку
+productName: Пушик
+files:
+  - build/**/*
+  - "!build/test/**"
+  - "!build/**/*.map"
+  - assets/**/*
+  - package.json
+asarUnpack:
+  - assets/mac/**
+directories:
+  buildResources: build-resources
+  output: dist-corp
+afterPack: tools/fuses.cjs
+win:
+  icon: assets/icon.png
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: msiWrapped
+      arch: [x64]
+  artifactName: Pushik-Setup-${version}.${ext}
+nsis:
+  oneClick: false
+  perMachine: true                    # всегда в %ProgramFiles%, для всех пользователей; тихо: /S
+  allowElevation: true
+  allowToChangeInstallationDirectory: false
+  createDesktopShortcut: false
+  createStartMenuShortcut: true
+  deleteAppDataOnUninstall: false
+  artifactName: Pushik-Setup-${version}.${ext}
+msiWrapped:
+  # MSI-обёртка над тем же NSIS для GPO Software Installation и KSC; NSIS выполняется от SYSTEM
+  impersonate: false
+  wrappedInstallerArgs: /S
+  # upgradeCode не менять между версиями: по нему MSI понимает, что это обновление
+  upgradeCode: 6a1f4e8c-2d7b-5c3e-9b41-7f0d2a6c8e15
