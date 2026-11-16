@@ -129,11 +129,16 @@ function typeFits(asked: string, sys: string): boolean {
   return !rule || rule[1].test(sys);
 }
 
+/** Модели, которые всегда дают рамку в долях 0..1000 от снимка (Qwen3-VL так обучен, см. его технический отчёт). Qwen2.5-VL — в пикселях. */
+export const THOUSANDTHS_MODELS = /qwen3[-_.]?vl/i;
+
 /**
  * В чём модель дала рамку. Просим пиксели снимка, но Qwen и некоторые другие по привычке
- * отвечают в долях 0..1000. Если рамка вылезает за снимок, но влезает в 1000×1000, это доли.
+ * отвечают в долях 0..1000. Для известных моделей решает имя модели; иначе: если рамка вылезает
+ * за снимок, но влезает в 1000×1000, это доли.
  */
-export function boxUnits(box: Box, shotW: number, shotH: number): 'px' | 'k' {
+export function boxUnits(box: Box, shotW: number, shotH: number, model = ''): 'px' | 'k' {
+  if (THOUSANDTHS_MODELS.test(model)) return 'k';
   const outside = box.x + box.w > shotW * 1.02 || box.y + box.h > shotH * 1.02;
   const fitsK = box.x >= 0 && box.y >= 0 && box.x + box.w <= 1000 && box.y + box.h <= 1000;
   return outside && fitsK ? 'k' : 'px';
