@@ -158,10 +158,22 @@ def hang_frames(sitF, closed):
     return [hang_frame(closed if i == 4 else sitF, col, sw) for i, sw in enumerate(HANG_SWING)]
 
 
-# ---------- Carried by the scruff: Damir's poses (front with tucked paws, back, side), cut to 64×64 ----------
-# design/cats/carry.png, ginger colours, four frames: front body without the head, back, facing right, facing left.
-# The front head is the scruffF head (rows above CARRY_HEAD), so it blinks the same way.
+# ---------- Carried by the scruff: Damir's front pose with tucked paws, cut to 64×64 ----------
+# design/cats/carry.png, ginger colours: the body without the head. The head is the scruffF head
+# (rows above CARRY_HEAD): frame 0 has open eyes, frame 4 closed, so it blinks the same way.
+# Six frames: eyes open, then closed; each with the tail tip in the middle, 1px right, 1px left.
 CARRY_HEAD = 21
+CARRY_TAIL = 50  # tail rows from here down sway; the hind paws and the tail root stay put
+CARRY_SWAY = (0, 1, -1)
+
+
+def sway_tail(body, dx):
+    if not dx:
+        return body.copy()
+    out = body.copy()
+    out.paste((0, 0, 0, 0), (0, CARRY_TAIL, SIZE, SIZE))
+    out.alpha_composite(body.crop((0, CARRY_TAIL, SIZE, SIZE)), (dx, CARRY_TAIL))
+    return out
 
 
 def carry_frames(scruff, sitF, ginger_sitF):
@@ -178,13 +190,14 @@ def carry_frames(scruff, sitF, ginger_sitF):
                     o[x, y] = remap.get(o[x, y], o[x, y])
         return out
 
-    body, back, right, left = (recolor(frame(src, 0, c)) for c in range(4))
-    front = []
-    for s in scruff:
-        img = body.copy()
-        img.alpha_composite(s.crop((0, 0, SIZE, CARRY_HEAD)), (0, 0))
-        front.append(img)
-    return front + [back, right, left]
+    body = recolor(frame(src, 0, 0))
+    frames = []
+    for head in (scruff[0], scruff[4]):
+        for dx in CARRY_SWAY:
+            img = sway_tail(body, dx)
+            img.alpha_composite(head.crop((0, 0, SIZE, CARRY_HEAD)), (0, 0))
+            frames.append(img)
+    return frames
 
 
 # ---------- Lying in wait for the cursor: the hand-drawn lieL with a blink, a moving tail and a paw swipe ----------
@@ -560,7 +573,7 @@ def build(sheet, ginger):
     rows.append(('lieWatchR', 'Lying in wait, tail and blink (right)', None, mirror(watch)))
     rows.append(('lieSwipeL', 'Lying, paw swipe (left)', None, swipe))
     rows.append(('lieSwipeR', 'Lying, paw swipe (right)', None, mirror(swipe)))
-    rows.append(('carry', 'Carried by the scruff: front (blink), back, right, left', None,
+    rows.append(('carryF', 'Carried by the scruff: tail sway, then the same blinking (front)', None,
                  carry_frames(scruff, sitF, frame(ginger, 0, 0))))
     return rows
 

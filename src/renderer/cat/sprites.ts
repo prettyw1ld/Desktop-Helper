@@ -74,6 +74,12 @@ const XBASE: (number | { feet: number })[] = [0, 19, 6, 6, 1, 0, 0, 0, 1, 20, 44
 XBASE.forEach((r, i) => { FEET[XROW + i] = typeof r === 'number' ? FEET[r] ?? 48 : r.feet; });
 const x = (row: number, frames: number[], fps?: number, extra: Partial<Anim> = {}): Anim => ({ row: XROW + row, frames, fps, ...extra });
 const blinkSeq = (open: number, closed: number, n = 18): number[] => [...Array(n).fill(open), closed, open, open, closed];
+// Кот за шкирку: кадры 0–2 — глаза открыты, хвост посередине, вправо, влево; 3–5 — то же с закрытыми глазами.
+// 40 кадров при 6 в секунду: хвост туда-сюда за 1,3 с, моргает на 11, 23 и дважды на 35 и 37 кадре.
+const CARRY_TAIL = [0, 0, 1, 1, 0, 0, 2, 2];
+const CARRY_BLINKS = [11, 23, 35, 37];
+export const carryLoop = (): number[] =>
+  Array.from({ length: 40 }, (_, i) => CARRY_TAIL[i % CARRY_TAIL.length]! + (CARRY_BLINKS.includes(i) ? 3 : 0));
 const EXTRA = {
   // моргание: сидит, сидит виляя хвостом, лежит, стоит
   blinkSitF: x(0, blinkSeq(0, 1), 8),
@@ -100,8 +106,9 @@ const EXTRA = {
   // лежит мордой к курсору: хвост то налево, то вверх, то направо, раз моргает; удар передней лапой
   lieWatchL: x(25, seq(14), 5), lieWatchR: x(26, seq(14), 5),
   lieSwipeL: x(27, seq(6), 10), lieSwipeR: x(28, seq(6), 10),
-  // несут за шкирку (позы Дамира, design/cats/carry.png): анфас с поджатыми лапами и морганием, спиной, боком
-  carryF: x(29, blinkSeq(0, 4), 6), carryB: x(29, [8], 1), carryR: x(29, [9], 1), carryL: x(29, [10], 1),
+  // несут за шкирку (поза Дамира, design/cats/carry.png): анфас с поджатыми лапами, кончик хвоста покачивается,
+  // моргает раз в 2 секунды, иногда дважды подряд
+  carryF: x(29, carryLoop(), 6),
 } satisfies Record<string, Anim>;
 
 export const ANIM = { ...BASE, ...EXTRA };

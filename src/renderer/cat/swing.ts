@@ -10,14 +10,11 @@ export const SWING = {
   maxLean: 12,
   maxAngle: 30,
   maxDv: 2500,       // один кадр рывка не больше: дрожащая мышь не должна закручивать кота
-  sideOn: 450,       // несут быстрее, px/с — кот поворачивается боком, мордой туда, куда несут
-  sideOff: 150,      // медленнее этого дольше calmMs — снова висит анфас
-  calmMs: 350,
 };
 
-export interface Swing { angle: number; vel: number; x: number | null; v: number; face: -1 | 0 | 1; calm: number }
+export interface Swing { angle: number; vel: number; x: number | null; v: number }
 
-export const newSwing = (): Swing => ({ angle: 0, vel: 0, x: null, v: 0, face: 0, calm: 0 });
+export const newSwing = (): Swing => ({ angle: 0, vel: 0, x: null, v: 0 });
 
 /** Маятник кота на экране. */
 export const swing = newSwing();
@@ -51,18 +48,8 @@ export function swingStep(s: Swing, x: number | null, dt: number): number {
   return s.angle;
 }
 
-/** Куда кот смотрит, пока его несут: 0 — анфас, 1 — боком вправо, -1 — влево. С запасом, чтобы поза не мигала. */
-export function carryFacing(s: Swing, t: number): -1 | 0 | 1 {
-  const v = s.x === null ? 0 : s.v;
-  if (Math.abs(v) > SWING.sideOn) { s.face = v > 0 ? 1 : -1; s.calm = t; }
-  else if (Math.abs(v) > SWING.sideOff) s.calm = t;
-  else if (s.face && t - s.calm > SWING.calmMs) s.face = 0;
-  return s.face;
-}
-
 /** Кота только что подняли: он слегка качнётся, как от рывка вверх. */
 export function swingPickUp(s: Swing, dir: number): void {
   s.x = null;
-  s.face = 0;
   s.vel = 70 * (dir < 0 ? 1 : -1);
 }

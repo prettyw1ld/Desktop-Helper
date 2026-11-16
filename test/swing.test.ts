@@ -47,18 +47,17 @@ test('отпустили — качание быстро гаснет; подн�
   assert.ok(b.some((v) => Math.abs(v) > 0.5));
 });
 
-test('несут быстро — боком мордой вперёд, остановились — снова анфас, поза не мигает', async () => {
-  const { carryFacing } = await import('../src/renderer/cat/swing');
-  const s = newSwing();
-  let t = 0;
-  const go = (xs: number[]): number[] => xs.map((x) => { swingStep(s, x, DT); t += DT * 1000; return carryFacing(s, t); });
-  assert.deepEqual(go([500, 500, 500]), [0, 0, 0]);
-  const right = go(Array.from({ length: 10 }, (_, i) => 520 + i * 30)); // 900 px/с
-  assert.equal(right.at(-1), 1);
-  assert.ok(go([800, 808, 816]).every((f) => f === 1), 'медленнее, но ещё движется — остаётся боком');
-  assert.equal(go(Array(15).fill(816)).at(-1), 0);
-  const left = go(Array.from({ length: 10 }, (_, i) => 800 - i * 30));
-  assert.equal(left.at(-1), -1);
-  swingPickUp(s, 1);
-  assert.equal(carryFacing(s, t), 0);
+test('за шкирку кот всегда анфас: моргает раз в пару секунд, иногда дважды, кончик хвоста покачивается', async () => {
+  const { ANIM, carryLoop } = await import('../src/renderer/cat/sprites');
+  const frames = carryLoop();
+  const fps = ANIM.carryF.fps!;
+  assert.deepEqual(ANIM.carryF.frames, frames);
+  assert.ok(frames.every((f) => f >= 0 && f <= 5), 'в строке шесть кадров');
+  const blinks = frames.flatMap((f, i) => (f >= 3 ? [i] : []));
+  assert.ok(blinks.length >= 3, 'моргает не раз за круг');
+  // с учётом перехода через конец круга паузы между морганиями не дольше 2,5 с
+  const gaps = blinks.map((b, i) => ((blinks[i + 1] ?? blinks[0]! + frames.length) - b) / fps);
+  assert.ok(Math.max(...gaps) <= 2.5, `пауза ${Math.max(...gaps)} с`);
+  assert.ok(gaps.some((g) => g <= 0.4), 'иногда моргает дважды подряд');
+  assert.deepEqual(new Set(frames.map((f) => f % 3)), new Set([0, 1, 2]), 'хвост посередине, вправо и влево');
 });

@@ -4,7 +4,6 @@ import { cat, GET_UP_MS } from './cat';
 import { LIFE } from './pacing';
 import { watchingCursor, watchPose } from './cursor-watch';
 import { ANIM, CatSprite, dirAnim, type AnimName, type Frame, type HeadTurn } from './sprites';
-import { carryFacing, swing } from './swing';
 
 const SHEETS = '../../assets/cats/';
 const sprite = new CatSprite(dom.sprite);
@@ -71,12 +70,9 @@ export function pickAnim(t: number): AnimName | Frame | HeadTurn {
       if (e < 2400) return d < 0 ? 'lieF_L' : 'lieF_R';
       return cat.sleepKind;
     }
-    case 'drag': { // несут быстро — боком, мордой вперёд; медленно или стоят — анфас
-      const f = carryFacing(swing, t);
-      return f > 0 ? 'carryR' : f < 0 ? 'carryL' : 'carryF';
-    }
-    case 'trash':   // в Корзину уходит спиной к нам, из неё выпрыгивает, как в прыжке
-    case 'fall': if (cat.state === 'trash' && cat.trashIn) return 'carryB';
+    case 'drag': return 'carryF';
+    case 'trash':   // в Корзину летит висящим за шкирку, из неё выпрыгивает, как в прыжке
+    case 'fall': if (cat.state === 'trash' && cat.trashIn) return 'carryF';
       return cat.vy < 0 ? { row: ANIM.jumpB.row, col: 1 } : { row: ANIM[dirAnim('jump', d)].row, col: 2 };
     case 'jump': {
       const j = cat.jump;
