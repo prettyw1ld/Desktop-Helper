@@ -252,18 +252,24 @@ export function parsePacks(files: { name: string; text: string }[]): PackSet {
 /** Папка пакетов рядом с policy.json. */
 export const packsDir = (policyFile: string): string => path.join(path.dirname(policyFile), 'packs');
 
-export function readPacks(dir: string): PackSet {
+/** Пакеты из папки. distrust — файлы и папки, которые мог поправить не администратор: их пропускаем. */
+export function readPacks(dir: string, distrust: ReadonlyMap<string, string> = new Map()): PackSet {
   let names: string[];
   try { names = fs.readdirSync(dir).filter((n) => n.toLowerCase().endsWith('.json')); } catch { return { packs: [], problems: [] }; }
+  if (distrust.has(dir)) return { packs: [], problems: [`packs folder not trusted: ${distrust.get(dir)}`] };
   const files: { name: string; text: string }[] = [];
+  const skipped: string[] = [];
   for (const name of names) {
     try {
       const full = path.join(dir, name);
+      const bad = distrust.get(full);
+      if (bad) { skipped.push(`${name}: not trusted: ${bad}`); continue; }
       if (fs.statSync(full).size > 256 * 1024) continue; // пакет — это текст, а не архив
       files.push({ name, text: fs.readFileSync(full, 'utf8') });
     } catch { /* недоступный файл пропускаем */ }
   }
-  return parsePacks(files);
+  const set = parsePacks(files);
+  return { packs: set.packs, problems: [...skipped, ...set.problems] };
 }
 
 /** Добавка к системной подсказке ИИ: правила организации, по пакету. */

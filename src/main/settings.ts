@@ -15,6 +15,7 @@ import { ROOT, VOSK_MODEL } from './paths';
 import { packsDir, readPacks, type Pack } from './packs';
 import { tighten, type Payload, type Tunable } from './remote-config';
 import { ALL_FEATURES, allowedOrigin, enforce, LOCKED, policyFile, readPolicy, type Policy } from './policy';
+import { checkPaths, policyPaths } from './policy-acl';
 
 export const DEFAULTS: Settings = {
   lang: '',
@@ -135,12 +136,16 @@ function splitKey(c: { provider?: string; apiKey?: string } & Partial<Record<Sec
 const teamHasAi = (): boolean => !!team.provider || !!team.apiKey || KEYED.some((p) => !!team[PROVIDER_KEY[p]]);
 
 export function load(): Settings {
-  policy = readPolicy();
+  const pfile = policyFile();
+  // кто может менять политику и пакеты: только система и администраторы (иначе файл не читаем)
+  const distrust = fs.existsSync(path.dirname(pfile)) ? checkPaths(policyPaths(pfile)) : new Map<string, string>();
+  for (const why of distrust.values()) console.error('policy acl:', why);
+  policy = readPolicy(distrust);
   setMasks(parseMasks(privacy().masks));
   if (policy?.problem) console.error('policy:', policy.problem);
   packList = [];
   if (policy) {
-    const set = readPacks(packsDir(policyFile()));
+    const set = readPacks(packsDir(pfile), distrust);
     packList = set.packs;
     for (const p of set.problems) console.error('pack:', p);
   }

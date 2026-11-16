@@ -156,19 +156,28 @@ function readReg(): Record<string, unknown> | null {
   }
 }
 
-/** Политика этого компьютера или null, если её нет (обычный Пушик). Групповая политика главнее файла. */
-export function readPolicy(): Policy | null {
+/**
+ * Политика этого компьютера или null, если её нет (обычный Пушик). Групповая политика главнее файла.
+ * distrust — файлы, которые мог положить или поправить не администратор (см. policy-acl.ts): такой
+ * policy.json не читается. Если кроме него ничего нет, политика считается испорченной: ИИ выключен.
+ */
+export function readPolicy(distrust: ReadonlyMap<string, string> = new Map()): Policy | null {
   let fileRaw: unknown;
-  let broken = false;
+  let broken = '';
   const file = policyFile();
   if (fs.existsSync(file)) {
-    try { fileRaw = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')); } catch { broken = true; }
+    const bad = distrust.get(file) || distrust.get(path.dirname(file));
+    if (bad) broken = `policy file not trusted: ${bad}`;
+    else {
+      try { fileRaw = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')); } catch { broken = 'policy file is not valid JSON'; }
+    }
   }
   const reg = readReg();
-  if (broken && !reg) return parsePolicy(null);
+  if (broken && !reg) return { ...parsePolicy(null), problem: broken };
   if (fileRaw === undefined && !reg) return null;
   const base = fileRaw && typeof fileRaw === 'object' ? fileRaw as Record<string, unknown> : {};
-  return parsePolicy(reg ? { ...base, ...reg } : fileRaw);
+  const p = parsePolicy(reg ? { ...base, ...reg } : fileRaw);
+  return broken && !p.problem ? { ...p, problem: broken } : p;
 }
 
 /** Поля настроек, которыми в корпоративном режиме управляет только политика. */
