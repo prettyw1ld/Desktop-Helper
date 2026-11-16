@@ -70,7 +70,7 @@ const BASE = {
 // XBASE: для каждой такой строки нарисованная строка, чьи лапы (FEET) она повторяет,
 // или { feet } — нижний край кадра, если поза своя (кот висит за шкирку).
 const XROW = 66;
-const XBASE: (number | { feet: number })[] = [0, 19, 6, 6, 1, 0, 0, 0, 1, 20, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, { feet: 56 }, 0, 0, { feet: 45 }, { feet: 45 }, { feet: 45 }, { feet: 45 }];
+const XBASE: (number | { feet: number })[] = [0, 19, 6, 6, 1, 0, 0, 0, 1, 20, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, { feet: 56 }, 0, 0, { feet: 45 }, { feet: 45 }, { feet: 45 }, { feet: 45 }, { feet: 56 }];
 XBASE.forEach((r, i) => { FEET[XROW + i] = typeof r === 'number' ? FEET[r] ?? 48 : r.feet; });
 const x = (row: number, frames: number[], fps?: number, extra: Partial<Anim> = {}): Anim => ({ row: XROW + row, frames, fps, ...extra });
 const blinkSeq = (open: number, closed: number, n = 18): number[] => [...Array(n).fill(open), closed, open, open, closed];
@@ -100,6 +100,8 @@ const EXTRA = {
   // лежит мордой к курсору: хвост то налево, то вверх, то направо, раз моргает; удар передней лапой
   lieWatchL: x(25, seq(14), 5), lieWatchR: x(26, seq(14), 5),
   lieSwipeL: x(27, seq(6), 10), lieSwipeR: x(28, seq(6), 10),
+  // несут за шкирку (позы Дамира, design/cats/carry.png): анфас с поджатыми лапами и морганием, спиной, боком
+  carryF: x(29, blinkSeq(0, 4), 6), carryB: x(29, [8], 1), carryR: x(29, [9], 1), carryL: x(29, [10], 1),
 } satisfies Record<string, Anim>;
 
 export const ANIM = { ...BASE, ...EXTRA };

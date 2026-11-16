@@ -141,7 +141,7 @@ test('a happy jump is not shown while the cat is carried or falling', async () =
   dom.cat.classList.add('happy');
   cat.happyAnim = 'hind';
   setState('drag');
-  assert.equal(pickAnim(now()), 'scruffF');
+  assert.equal(pickAnim(now()), 'carryF');
   setState('idle', 5000);
   assert.equal(pickAnim(now()), 'hind');
   dom.cat.classList.remove('happy');
