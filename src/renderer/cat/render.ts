@@ -72,8 +72,10 @@ export function pickAnim(t: number): AnimName | Frame | HeadTurn {
     }
     case 'drag': return 'carryF';
     case 'trash':   // в Корзину летит висящим за шкирку, из неё выпрыгивает, как в прыжке
-    case 'fall': if (cat.state === 'trash' && cat.trashIn) return 'carryF';
+      if (cat.trashIn) return 'carryF';
       return cat.vy < 0 ? { row: ANIM.jumpB.row, col: 1 } : { row: ANIM[dirAnim('jump', d)].row, col: 2 };
+    // падает передом к нам: лапы вниз, готов приземлиться, хвост болтается
+    case 'fall': return 'scruffF';
     case 'jump': {
       const j = cat.jump;
       if (!j) return 'sitF';
@@ -96,7 +98,9 @@ export function pickAnim(t: number): AnimName | Frame | HeadTurn {
       if (watchingCursor(t)) return watchPose(t);
       if (t - cat.since > 2500 && cat.wantsAttention) return 'hind';
       // только что шёл или прыгал: секунду стоит, потом садится в свою позу
-      if (['walk', 'jump', 'fall'].includes(cat.prev) && t - cat.since < LIFE.settle) return dirAnim('stand', d);
+      // после падения приземлился передом: и стоит передом
+      if (cat.prev === 'fall' && t - cat.since < LIFE.settle) return 'standF';
+      if (['walk', 'jump'].includes(cat.prev) && t - cat.since < LIFE.settle) return dirAnim('stand', d);
       return cat.idlePose;
     }
   }

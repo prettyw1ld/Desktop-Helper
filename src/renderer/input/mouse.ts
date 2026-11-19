@@ -1,6 +1,7 @@
 // Мышь: клики сквозь окно, перенос кота за шкирку, клики, двойные клики и поглаживание кота.
+// Левая кнопка дразнит кота (злится или батонится), окно с делами открывает только правая.
 import { cat, CAT_H, CAT_W, floorY, setState, size, startFall, SCRUFF_Y } from '../cat/cat';
-import { pet, petMore, happy, showPose } from '../cat/poses';
+import { pet, petMore, happy, poked } from '../cat/poses';
 import { swing, swingPickUp } from '../cat/swing';
 import { dropIntoTrash, trashDragStart } from '../cat/trash';
 import { api } from '../core/api';
@@ -105,9 +106,26 @@ function drop(): void {
   startFall();
 }
 
-// много быстрых тыков подряд злят кота
-let clicks: number[] = [];
+// Во время подсказки клик по коту ничего не ломает, но всегда даёт выход: повторить или закончить.
+function guideMenu(): void {
+  if (guide.busy) return;
+  if (guide.kind === 'ai' && repeatAiStep()) return;
+  const acts = (guide.kind === 'ai' && guide.last ? aiStepActions() : null)
+    ?? (guide.kind === 'script' ? currentStepActions() : null)
+    ?? [[T('g.stop'), () => endGuide(true), true]];
+  say(guide.last?.say || T('g.stopAsk'), Infinity, { actions: acts, guide: true });
+}
 
+// Спал или шёл: сначала просыпается и останавливается.
+function stopAndWake(): void {
+  if (cat.state === 'sleep') {
+    setState('idle', 4000);
+    say(T('say.notSleeping'), 2000);
+  }
+  if (cat.state === 'walk') { cat.climb = null; setState('idle', 6000); }
+}
+
+// Левая кнопка: тренажёр мышки, подсказка, иначе кот злится или ложится батоном. Окно не открывает.
 function onCatClick(): void {
   if (trainer.step === 'click') {
     happy(800);
@@ -117,30 +135,27 @@ function onCatClick(): void {
   }
   if (trainer.step === 'dbl') return; // ждём двойной клик
   if (trainer.step === 'drag') { say(T('tr.oops'), 2500); return; }
-  clicks = clicks.filter((c) => now() - c < 3000);
-  clicks.push(now());
-  if (clicks.length >= 6) {
-    clicks = [];
-    closePanels();
-    showPose('angry', 2500, T('say.angry'));
-    Sound.hiss();
-    return;
-  }
-  // во время подсказки клик по коту ничего не ломает, но всегда даёт выход: повторить или закончить
-  if (guide.active) {
-    if (guide.busy) return;
-    if (guide.kind === 'ai' && repeatAiStep()) return;
-    const acts = (guide.kind === 'ai' && guide.last ? aiStepActions() : null)
-      ?? (guide.kind === 'script' ? currentStepActions() : null)
-      ?? [[T('g.stop'), () => endGuide(true), true]];
-    say(guide.last?.say || T('g.stopAsk'), Infinity, { actions: acts, guide: true });
-    return;
-  }
-  if (cat.state === 'sleep') {
-    setState('idle', 4000);
-    say(T('say.notSleeping'), 2000);
-  }
-  if (cat.state === 'walk') { cat.climb = null; setState('idle', 6000); }
+  if (trainer.step) return;
+  if (guide.active) { guideMenu(); return; }
+  const wasSleeping = cat.state === 'sleep';
+  stopAndWake();
+  if (wasSleeping) return;
+  // ждём, не двойной ли это щелчок (тогда гладят, а не тыкают)
+  clearTimeout(pokeTimer);
+  pokeTimer = setTimeout(() => {
+    if (press || guide.active || trainer.step || NO_PET.includes(cat.state)) return; // уже несут или занят
+    hideBubble();
+    poked();
+  }, DBL_MS);
+}
+const DBL_MS = 280;
+let pokeTimer: ReturnType<typeof setTimeout> | undefined;
+
+// Правая кнопка: окно с делами (повторный щелчок закрывает его).
+function onCatMenu(): void {
+  if (trainer.step) return;
+  if (guide.active) { guideMenu(); return; }
+  stopAndWake();
   hideBubble();
   Sound.meow();
   if (openPanel() === 'help') closePanels();
@@ -163,8 +178,14 @@ export function initMouse(): void {
     press = null;
     if (wasDrag) drop(); else onCatClick();
   });
+  dom.cat.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (press || (e.target as Element).closest('.bubble')) return;
+    onCatMenu();
+  });
   dom.cat.addEventListener('dblclick', (e) => {
     if ((e.target as Element).closest('.bubble') || guide.active) return;
+    clearTimeout(pokeTimer);
     if (trainer.step === 'dbl') {
       pet();
       trainer.step = 'drag';

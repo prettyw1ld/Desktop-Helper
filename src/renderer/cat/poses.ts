@@ -8,14 +8,15 @@ import { cat, setState } from './cat';
 import { ANIM, dirAnim, type AnimName } from './sprites';
 
 // Позы с понятными именами для остального кода.
-export type PoseName = AnimName | 'happy' | 'wave' | 'coffee' | 'angry' | 'headpat' | 'blush';
+export type PoseName = AnimName | 'happy' | 'wave' | 'coffee' | 'angry' | 'loaf' | 'headpat' | 'blush';
 const POSE_ALIAS: Partial<Record<PoseName, AnimName>> = {
   happy: 'hind', wave: 'meowStand', coffee: 'eatF', headpat: 'meowSit', blush: 'lickSit',
 };
 
 /** Поза на ms миллисекунд, с репликой text. */
 export function showPose(name: PoseName, ms = 4000, text = ''): void {
-  const a = name === 'angry' ? dirAnim('hiss', cat.dir) : POSE_ALIAS[name] ?? name;
+  // злится — шипит боком; батон — ложится мордой к нам, лапки поджаты, моргает
+  const a = name === 'angry' ? dirAnim('hiss', cat.dir) : name === 'loaf' ? dirAnim('blinkLie', cat.dir) : POSE_ALIAS[name] ?? name;
   cat.act = a in ANIM ? a as AnimName : 'sitF';
   setState('act', ms);
   if (text) say(text, ms);
@@ -48,6 +49,18 @@ export function celebrate(): void {
   happy(1800);
   for (let i = 0; i < 8; i++) setTimeout(() => (i % 4 === 2 ? spawnFx('heart') : spawnFx('h', pick(['⭐', '🎉', '✨']))), i * 140);
   setTimeout(() => Sound.purr(1.5), 500);
+}
+
+/** Кота ткнули левой кнопкой: он то злится и шипит, то ложится батоном мордой к нам. */
+export function poked(): void {
+  cat.watchUntil = 0;
+  if (Math.random() < 0.5) {
+    showPose('angry', 2200, T('say.angry'));
+    Sound.hiss();
+  } else {
+    showPose('loaf', 4500);
+    Sound.purr(1.2);
+  }
 }
 
 /** Розовые сердечки, как нарисованные в кадре heartsSitF (кот радуется, что его гладят). */

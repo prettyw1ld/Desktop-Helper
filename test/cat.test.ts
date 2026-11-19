@@ -146,3 +146,48 @@ test('a happy jump is not shown while the cat is carried or falling', async () =
   assert.equal(pickAnim(now()), 'hind');
   dom.cat.classList.remove('happy');
 });
+
+test('the cat falls facing us and stands facing us after landing', async () => {
+  const { startFall, setState } = await import('../src/renderer/cat/cat');
+  const { pickAnim } = await import('../src/renderer/cat/render');
+  cat.dir = -1;
+  cat.meowUntil = 0;
+  startFall();
+  assert.equal(pickAnim(now()), 'scruffF');
+  cat.vy = -300; // отскок от пола
+  assert.equal(pickAnim(now()), 'scruffF');
+  setState('idle', 5000);
+  assert.equal(pickAnim(now()), 'standF');
+});
+
+test('a left click pokes the cat (angry or loaf) and never opens the menu; the right button opens it', async () => {
+  const { openPanel, closePanels } = await import('../src/renderer/ui/panels');
+  const { setState } = await import('../src/renderer/cat/cat');
+  const seen = new Set<string>();
+  for (const r of [0.1, 0.9]) {
+    setState('idle', 5000);
+    const rnd = mock.method(Math, 'random', () => r);
+    mouse(dom.cat, 'mousedown', 230, 430);
+    mouse(document, 'mouseup', 230, 430);
+    mock.timers.tick(400);
+    rnd.mock.restore();
+    assert.equal(openPanel(), null);
+    assert.equal(cat.state, 'act');
+    seen.add(cat.act);
+  }
+  assert.deepEqual([...seen].sort(), ['blinkLieL', 'hissL']);
+  // двойной щелчок гладит, а не тычет
+  setState('idle', 5000);
+  mouse(dom.cat, 'mousedown', 230, 430);
+  mouse(document, 'mouseup', 230, 430);
+  dom.cat.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+  mock.timers.tick(400);
+  assert.notEqual(cat.act, 'hissL');
+  assert.notEqual(cat.act, 'blinkLieL');
+  // правая кнопка открывает окно и закрывает его повторно
+  dom.cat.dispatchEvent(new MouseEvent('contextmenu', { button: 2, bubbles: true, cancelable: true }));
+  assert.equal(openPanel(), 'help');
+  dom.cat.dispatchEvent(new MouseEvent('contextmenu', { button: 2, bubbles: true, cancelable: true }));
+  assert.equal(openPanel(), null);
+  closePanels();
+});
