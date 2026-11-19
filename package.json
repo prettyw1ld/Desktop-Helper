@@ -40,6 +40,8 @@
     "mac": {
       "target": "dmg",
       "icon": "assets/icon.png",
+      "identity": null,
+      "artifactName": "Pushik-${version}-${arch}.${ext}",
       "category": "public.app-category.utilities",
       "extendInfo": {
         "NSMicrophoneUsageDescription": "Пушик слушает, что ты хочешь сделать, когда ты нажимаешь на микрофон.",
@@ -48,7 +50,8 @@
     },
     "win": {
       "target": "nsis",
-      "icon": "assets/icon.png"
+      "icon": "assets/icon.png",
+      "artifactName": "Pushik-Setup-${version}.${ext}"
     },
     "extraResources": [
       {
@@ -59,6 +62,7 @@
         ]
       }
     ],
+    "afterPack": "tools/after-pack.cjs",
     "asarUnpack": [
       "assets/mac/**"
     ],
