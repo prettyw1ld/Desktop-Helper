@@ -1,7 +1,7 @@
 {
   "name": "pushik",
   "productName": "Пушик",
-  "version": "0.9.0",
+  "version": "0.9.0-toxic.1",
   "description": "Кот Пуш: десктопный питомец-помощник, который гуляет по рабочему столу",
   "main": "build/main.js",
   "scripts": {
