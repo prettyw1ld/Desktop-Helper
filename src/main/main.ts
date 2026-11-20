@@ -22,7 +22,9 @@ ipc.register();
 settings.onChange((s, prev) => {
   autostart.apply(s.autostart);
   I18N.setLang(s.lang);
-  if (prev.lang !== s.lang || prev.autostart !== s.autostart || settings.hasAi(prev) !== settings.hasAi(s)) tray.rebuildMenu();
+  I18N.setCatName(s.catName);
+  if (prev.catName !== s.catName || prev.lang !== s.lang) tray.refreshTitle();
+  if (prev.catName !== s.catName || prev.lang !== s.lang || prev.autostart !== s.autostart || settings.hasAi(prev) !== settings.hasAi(s)) tray.rebuildMenu();
   if (prev.catColor !== s.catColor) tray.refreshIcon();
   if (prev.calendarUrl !== s.calendarUrl || prev.calendarBefore !== s.calendarBefore) watchers.startCalendar();
   if (prev.windows !== s.windows) watchers.startWindowsWatch();
@@ -32,6 +34,7 @@ function onReady(): void {
   if (process.platform === 'darwin') app.dock?.hide();
   const s = settings.load();
   I18N.setLang(s.lang);
+  I18N.setCatName(s.catName);
   // Сверяем автозапуск с настройкой при каждом старте: путь к приложению мог поменяться
   // (обновление, перенос папки), а старые версии записывали его только при сохранении настроек.
   autostart.apply(s.autostart);

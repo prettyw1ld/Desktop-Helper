@@ -1,4 +1,6 @@
 // Тексты Пушика на русском и английском. Общие для окна кота и главного процесса.
+// Имя кота подставляется само: {cat}, а для русских падежей {catGen} (Пушика), {catDat} (Пушику), {catIns} (Пушиком).
+import { catVars } from './cat-name';
 
 type Lang = 'ru' | 'en';
 type Dict = Record<string, string | string[]>;
@@ -6,19 +8,20 @@ type Dict = Record<string, string | string[]>;
 const STR: Record<Lang, Dict> = {
   ru: {
     // меню и панели
-    'menu.chat': 'Спросить Пуша',
+    'menu.chat': 'Спросить {catGen}',
     'menu.settings': 'Настройки',
     'chat.reset': 'Начать заново', 'close': 'Закрыть',
-    'chat.ph': 'Напиши Пушу…', 'chat.thinking': 'Пуш думает…', 'chat.showing': 'Сейчас покажу на экране: {goal} 🐾',
-    'chat.hello': 'Мяу! Я Пуш. Могу ответить на вопрос, помочь с текстом, посмотреть твой календарь или поставить напоминание: «напомни через 20 минут позвонить маме».',
+    'chat.ph': 'Напиши {catDat}…', 'chat.thinking': '{cat} думает…', 'chat.showing': 'Сейчас покажу на экране: {goal} 🐾',
+    'chat.hello': 'Мяу! Я {cat}. Могу ответить на вопрос, помочь с текстом, посмотреть твой календарь или поставить напоминание: «напомни через 20 минут позвонить маме».',
     'chat.fresh': 'Начнём с чистого листа! Мяу.',
     'rem.title': 'Напоминания', 'rem.ph': 'О чём напомнить?', 'rem.min': 'мин', 'rem.add': 'Добавить',
-    'rem.hour': '1 час', 'rem.empty': 'Пока ничего. Пуш скучает 🐾', 'rem.cancel': 'Отменить',
+    'rem.hour': '1 час', 'rem.empty': 'Пока ничего. {cat} скучает 🐾', 'rem.cancel': 'Отменить',
     'rem.saved': 'Запомнил! Напомню через {min} мин 👌',
     'cal.title': 'Календарь', 'cal.none': 'Сегодня и завтра встреч нет 🎉', 'cal.off': 'Календарь не подключён. Вставь iCal-адрес в настройках ⚙',
     'cal.error': 'Не получилось загрузить календарь: {err}', 'cal.today': 'Сегодня', 'cal.tomorrow': 'Завтра', 'cal.allDay': 'весь день',
     'cal.soon': '📅 Через {min} мин: {title}', 'cal.now': '📅 Начинается: {title}',
-    'set.title': 'Настройки', 'set.name': 'Как тебя зовут', 'set.namePh': 'Например, Дамир',
+    'set.title': 'Настройки', 'set.name': 'Как тебя зовут', 'set.namePh': 'Например, Дамир', 'set.catName': 'Как зовут кота', 'set.catNamePh': 'Пушик',
+    'wake.hardName': 'Имя «{cat}» мне трудно расслышать, поэтому на него я не откликаюсь. Можно выбрать другое имя в настройках 🐾',
     'set.keySaved': 'Ключ сохранён ✓ (оставь поле пустым, чтобы не менять)',
     'set.uiScale': 'Размер окон', 'set.size': 'Размер кота',
     'set.sound': 'Звуки (мяу и мурчание)', 'set.glass': 'Прозрачная рамка у окон',
@@ -53,11 +56,11 @@ const STR: Record<Lang, Dict> = {
     'act.birdWatching': ['Птичка! 🐦'], 'act.pouncing': ['Поймаю! 🐾', 'Тыц!', ''],
     'act.knocking': ['Ой. Оно само упало 😼', 'Тыц.'],
     'greet.night': 'Не спится{name}? Я с тобой 🌙', 'greet.morning': 'Доброе утро{name}! Мяу ☀️',
-    'greet.day': 'Привет{name}! Я Пуш. Нажми на меня правой кнопкой мышки 🐾', 'greet.evening': 'Добрый вечер{name}! Мур 🌆',
+    'greet.day': 'Привет{name}! Я {cat}. Нажми на меня правой кнопкой мышки 🐾', 'greet.evening': 'Добрый вечер{name}! Мур 🌆',
     // главный процесс
-    'tray.call': 'Позвать Пуша', 'tray.chat': 'Чат с Пушем',
+    'tray.call': 'Позвать {catGen}', 'tray.chat': 'Чат с {catIns}', 'tray.title': '{cat}',
     'tray.settings': 'Настройки', 'tray.log': 'Журнал подсказок', 'tray.toggle': 'Спрятать / показать', 'tray.quit': 'Выход',
-    'notif.focus': 'Пуш: фокус-сессия закончилась', 'notif.reminder': 'Пуш напоминает', 'notif.calendar': 'Пуш: скоро встреча',
+    'notif.focus': '{cat}: фокус-сессия закончилась', 'notif.reminder': '{cat} напоминает', 'notif.calendar': '{cat}: скоро встреча',
     'rem.default': 'Напоминание',
     'err.noKey': 'Мяу! ИИ пока не подключён, поэтому свободно болтать я не умею. Зато помогу по «Урокам» 🐾',
     'err.ask': 'Мяу, я задумался и не смог ответить. Спроси ещё раз, пожалуйста 🐾',
@@ -120,6 +123,12 @@ const STR: Record<Lang, Dict> = {
     'mic.loading': 'Включаю уши… 🐾', 'mic.noModel': 'Голос пока не настроен. Нажми на кнопку или напиши словами.',
     'set.color': 'Окрас кота', 'set.theme': 'Цвет окошек', 'set.tCream': 'Кремовый', 'set.tMint': 'Мятный', 'set.tSky': 'Голубой', 'set.tPink': 'Розовый', 'set.tLilac': 'Сиреневый', 'set.cWhite': 'Белый', 'set.cGinger': 'Рыжий', 'set.cBlack': 'Чёрный',
     'set.speak': 'Читать подсказки вслух',
+    'set.wake': 'Откликаться на имя: скажи «{cat}» и попроси, что нужно',
+    'set.wakeHint': 'Кот всё время слушает микрофон и ждёт своё имя. Слушает только сам, звук никуда не отправляется.',
+    'wake.badge': 'Я слушаю. Позови меня: «{cat}»',
+    'wake.yes': 'Мяу? Слушаю тебя 🐾',
+    'wake.nothing': 'Я ничего не расслышал. Позови ещё раз: «{cat}» 🐾',
+    'wake.noMic': 'Не получилось включить микрофон, поэтому на имя я пока не откликаюсь. Нажми на меня, и я помогу.',
     'tray.help': 'Помоги мне', 'tray.trainer': 'Тренировка мышки',
     'err.screen': 'Я не вижу экран. Попроси помощника разрешить «Запись экрана» для Пушика в настройках системы.',
     'err.emptySelection': 'Тут пусто: ни кнопки, ни текста. Обведи кнопку или строку, и я объясню.',
@@ -176,23 +185,30 @@ const STR: Record<Lang, Dict> = {
     'mic.loading': 'Turning my ears on… 🐾', 'mic.noModel': 'Voice is not set up yet. Press a button or type in words.',
     'set.color': 'Cat colour', 'set.theme': 'Window colour', 'set.tCream': 'Cream', 'set.tMint': 'Mint', 'set.tSky': 'Sky blue', 'set.tPink': 'Pink', 'set.tLilac': 'Lilac', 'set.cWhite': 'White', 'set.cGinger': 'Ginger', 'set.cBlack': 'Black',
     'set.speak': 'Read hints aloud',
+    'set.wake': 'Answer to my name: say «{cat}» and ask what you need',
+    'set.wakeHint': 'The cat keeps listening to the microphone for its name. It listens on its own, the sound is not sent anywhere.',
+    'wake.badge': 'I am listening. Call me: «{cat}»',
+    'wake.yes': 'Meow? I am listening 🐾',
+    'wake.nothing': 'I did not catch that. Call me again: «{cat}» 🐾',
+    'wake.noMic': 'I could not turn on the microphone, so I do not answer to my name for now. Click me and I will help.',
     'tray.help': 'Help me', 'tray.trainer': 'Mouse practice',
     'err.screen': 'I cannot see the screen. Ask your helper to allow "Screen Recording" for Pushik in system settings.',
     'err.emptySelection': 'Nothing here: no button and no text. Circle a button or a line and I will explain it.',
     'err.look': 'Meow, I could not see the screen. Press again and I will try once more', 'err.stt': 'Purr, I did not hear that. Say it again a bit louder or type it',
-    'menu.chat': 'Ask Push',
+    'menu.chat': 'Ask {cat}',
     'menu.settings': 'Settings',
     'chat.reset': 'Start over', 'close': 'Close',
-    'chat.ph': 'Write to Push…', 'chat.thinking': 'Push is thinking…', 'chat.showing': 'Let me show you on the screen: {goal} 🐾',
-    'chat.hello': 'Meow! I am Push. I can answer questions, help with text, check your calendar or set a reminder: "remind me in 20 minutes to call mom".',
+    'chat.ph': 'Write to {cat}…', 'chat.thinking': '{cat} is thinking…', 'chat.showing': 'Let me show you on the screen: {goal} 🐾',
+    'chat.hello': 'Meow! I am {cat}. I can answer questions, help with text, check your calendar or set a reminder: "remind me in 20 minutes to call mom".',
     'chat.fresh': 'Fresh start! Meow.',
     'rem.title': 'Reminders', 'rem.ph': 'What should I remind you about?', 'rem.min': 'min', 'rem.add': 'Add',
-    'rem.hour': '1 hour', 'rem.empty': 'Nothing yet. Push is bored 🐾', 'rem.cancel': 'Cancel',
+    'rem.hour': '1 hour', 'rem.empty': 'Nothing yet. {cat} is bored 🐾', 'rem.cancel': 'Cancel',
     'rem.saved': 'Got it! I will remind you in {min} min 👌',
     'cal.title': 'Calendar', 'cal.none': 'No meetings today or tomorrow 🎉', 'cal.off': 'Calendar is not connected. Paste the iCal address in settings ⚙',
     'cal.error': 'Could not load the calendar: {err}', 'cal.today': 'Today', 'cal.tomorrow': 'Tomorrow', 'cal.allDay': 'all day',
     'cal.soon': '📅 In {min} min: {title}', 'cal.now': '📅 Starting now: {title}',
-    'set.title': 'Settings', 'set.name': 'Your name', 'set.namePh': 'For example, Damir',
+    'set.title': 'Settings', 'set.name': 'Your name', 'set.namePh': 'For example, Damir', 'set.catName': 'Cat name', 'set.catNamePh': 'Pushik',
+    'wake.hardName': 'The name «{cat}» is hard for me to hear, so I do not answer to it. You can pick another name in settings 🐾',
     'set.ai': 'AI helper', 'set.aiModel': 'Model', 'set.aiKey': 'Key for this model',
     'set.pGroq': 'Groq · Qwen 3.8 (free)', 'set.pDeepseek': 'DeepSeek Flash', 'set.pQwen': 'Qwen Flash (Alibaba)',
     'set.pTeam': '{name} (from team.json)', 'set.aiKeyPh': 'Paste the key',
@@ -226,10 +242,10 @@ const STR: Record<Lang, Dict> = {
     'act.birdWatching': ['A bird! 🐦'], 'act.pouncing': ['Got you! 🐾', 'Tap!', ''],
     'act.knocking': ['Oops. It fell by itself 😼', 'Tap.'],
     'greet.night': 'Can\'t sleep{name}? I am here 🌙', 'greet.morning': 'Good morning{name}! Meow ☀️',
-    'greet.day': 'Hi{name}! I am Push. Right-click me 🐾', 'greet.evening': 'Good evening{name}! Purr 🌆',
-    'tray.call': 'Call Push', 'tray.chat': 'Chat with Push',
+    'greet.day': 'Hi{name}! I am {cat}. Right-click me 🐾', 'greet.evening': 'Good evening{name}! Purr 🌆',
+    'tray.call': 'Call {cat}', 'tray.chat': 'Chat with {cat}', 'tray.title': '{cat}',
     'tray.settings': 'Settings', 'tray.log': 'Hint log', 'tray.toggle': 'Hide / show', 'tray.quit': 'Quit',
-    'notif.focus': 'Push: focus session is over', 'notif.reminder': 'Push reminds you', 'notif.calendar': 'Push: meeting soon',
+    'notif.focus': '{cat}: focus session is over', 'notif.reminder': '{cat} reminds you', 'notif.calendar': '{cat}: meeting soon',
     'rem.default': 'Reminder',
     'err.noKey': 'Meow! AI is not connected yet, so I cannot chat freely. But I can help with the Lessons 🐾',
     'err.ask': 'Meow, I got lost in thought and could not answer. Please ask again 🐾',
@@ -241,6 +257,7 @@ const STR: Record<Lang, Dict> = {
 };
 
 let lang: Lang = 'ru';
+let catName = '';
 
 function fill(s: string, vars?: Record<string, unknown>): string {
   return vars ? s.replace(/\{(\w+)\}/g, (_, k: string) => (k in vars ? String(vars[k]) : `{${k}}`)) : s;
@@ -249,12 +266,14 @@ function fill(s: string, vars?: Record<string, unknown>): string {
 export const I18N = {
   langs: Object.keys(STR) as Lang[],
   setLang(l: string | undefined): void { lang = l === 'en' ? 'en' : 'ru'; },
+  /** Имя кота, которое дал человек (пусто — по умолчанию). */
+  setCatName(name: string | undefined): void { catName = name ?? ''; },
   get lang(): Lang { return lang; },
   // t('key', {var}) → строка; у списков реплик берётся случайная
   t(key: string, vars?: Record<string, unknown>): string {
     let s = STR[lang][key] ?? STR.ru[key] ?? key;
     if (Array.isArray(s)) s = s[Math.floor(Math.random() * s.length)] ?? '';
-    return fill(s, vars);
+    return fill(s, s.includes('{cat') ? { ...catVars(catName, lang), ...vars } : vars);
   },
   // одна и та же строка на всех языках (например, название урока)
   all(key: string): string[] {

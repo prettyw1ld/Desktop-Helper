@@ -24,12 +24,16 @@ function loadLib(): Promise<NonNullable<Window['Vosk']>> {
 }
 
 // Модель грузится один раз и потом лежит в IndexedDB: следующий запуск быстрее.
-function model(): Promise<Model> {
+export function model(): Promise<Model> {
   modelPromise ??= loadLib().then((V) => V.createModel(MODEL)).catch((e: unknown) => { modelPromise = null; throw e; });
   return modelPromise;
 }
 
 export interface Listening { stop(): void; result: Promise<string> }
+
+// Сколько сейчас идёт записей с кнопки микрофона: пока человек диктует, на имя «Пушик» не откликаемся.
+let recording = 0;
+export const micInUse = (): boolean => recording > 0;
 
 /**
  * Слушает микрофон, пока человек не замолчит на 1.8 с после фразы, не нажмёт «стоп» или не пройдёт maxMs.
@@ -41,6 +45,7 @@ export async function listen({ onPartial, maxMs = 12000, grammar }: { onPartial?
     audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
   });
   const ctx = new AudioContext();
+  recording++;
   const rec = grammar ? new m.KaldiRecognizer(ctx.sampleRate, JSON.stringify(grammar)) : new m.KaldiRecognizer(ctx.sampleRate);
   const parts: string[] = [];
   let partial = '';
@@ -75,6 +80,7 @@ export async function listen({ onPartial, maxMs = 12000, grammar }: { onPartial?
   function done(): void {
     if (doneOnce) return;
     doneOnce = true;
+    recording--;
     clearInterval(timer);
     try { node.disconnect(); src.disconnect(); } catch { /* уже */ }
     stream.getTracks().forEach((tr) => tr.stop());

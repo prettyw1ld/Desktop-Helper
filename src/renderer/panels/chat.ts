@@ -18,6 +18,30 @@ export function addMsg(cls: string, text: string): HTMLElement {
   return d;
 }
 
+/** Спросить кота в чате: написали в поле или сказали голосом после «Пушик». */
+export async function askCat(text: string): Promise<void> {
+  addMsg('me', text);
+  // «Покажи, как…» узнаём сами и сразу ведём по экрану: ИИ не всегда слушается и пишет шаги текстом
+  // «как это сделать?» без самой задачи: пусть ИИ вспомнит задачу из прошлых сообщений
+  if (isHowTo(text) && !vagueGoal(goalFromHowTo(text))) {
+    const goal = goalFromHowTo(text);
+    addMsg('from-cat', T('chat.showing', { goal }));
+    setTimeout(() => routeGoal(goal), 700);
+    return;
+  }
+  const typing = addMsg('from-cat typing', T('chat.thinking'));
+  dom.cat.classList.add('thinking');
+  const res = await api.chat(text);
+  dom.cat.classList.remove('thinking');
+  typing.remove();
+  if (isError(res)) { addMsg('err', res.error); return; }
+  addMsg('from-cat', res.reply);
+  // «Как сделать…»: не простыня текста, а показ лапкой на экране, шаг за шагом (готовый урок, если есть)
+  if (res.show) { const goal = res.show; setTimeout(() => routeGoal(goal), 700); return; }
+  happy(800);
+  if (res.actions.length) void refreshReminders();
+}
+
 export function initChat(): void {
   const input = $<HTMLInputElement>('#chat-input');
   registerPanel('chat', { show: () => setTimeout(() => input.focus(), 50) });
@@ -26,26 +50,7 @@ export function initChat(): void {
     const text = input.value.trim();
     if (!text) return;
     input.value = '';
-    addMsg('me', text);
-    // «Покажи, как…» узнаём сами и сразу ведём по экрану: ИИ не всегда слушается и пишет шаги текстом
-    // «как это сделать?» без самой задачи: пусть ИИ вспомнит задачу из прошлых сообщений
-    if (isHowTo(text) && !vagueGoal(goalFromHowTo(text))) {
-      const goal = goalFromHowTo(text);
-      addMsg('from-cat', T('chat.showing', { goal }));
-      setTimeout(() => routeGoal(goal), 700);
-      return;
-    }
-    const typing = addMsg('from-cat typing', T('chat.thinking'));
-    dom.cat.classList.add('thinking');
-    const res = await api.chat(text);
-    dom.cat.classList.remove('thinking');
-    typing.remove();
-    if (isError(res)) { addMsg('err', res.error); return; }
-    addMsg('from-cat', res.reply);
-    // «Как сделать…»: не простыня текста, а показ лапкой на экране, шаг за шагом (готовый урок, если есть)
-    if (res.show) { const goal = res.show; setTimeout(() => routeGoal(goal), 700); return; }
-    happy(800);
-    if (res.actions.length) void refreshReminders();
+    await askCat(text);
   });
   $('[data-reset]').addEventListener('click', async () => {
     await api.resetChat();

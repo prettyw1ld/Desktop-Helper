@@ -24,6 +24,7 @@ export interface Settings {
   calendarUrl: string;       // секретный iCal-адрес Google Календаря
   calendarBefore: number;    // за сколько минут предупреждать о встрече
   userName: string;
+  catName: string;           // как зовут кота; пусто = Пушик (Pushik)
   size: number;              // размер кота
   uiScale: number;           // масштаб окон и подсказок, 0.7–1.4
   windows: boolean;          // гулять по краям окон
@@ -50,6 +51,7 @@ export interface Settings {
   trustedRemote: string[];   // программы удалённого доступа, про которые человек сказал «это свои»
   shotConsent: boolean;      // человек разрешил отправлять снимок экрана ИИ
   glass: boolean;            // полупрозрачная рамка у окон (текст всё равно на сплошном фоне)
+  wakeWord: boolean;         // кот слушает микрофон и откликается на «Пушик» (распознаёт сам, без интернета)
 }
 
 export type SecretKey = 'apiKey' | 'calendarUrl' | 'sttKey' | 'groqKey' | 'deepseekKey' | 'qwenKey';
@@ -261,6 +263,8 @@ export interface PushikApi {
   guideUnwatch(): void;
   transcribe(audio: ArrayBuffer, mime: string): Promise<{ text: string } | ErrorReply>;
   askMic(): Promise<boolean>;
+  /** Какие слова ждать, когда кота зовут по имени (их знает офлайн-модель). */
+  nameWords(name: string): Promise<string[]>;
   addSkill(name: string): Promise<Skill[]>;
   locate(q: LocateQuery): Promise<LocateResult>;
   openUri(uri: string): Promise<boolean>;

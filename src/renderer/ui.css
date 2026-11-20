@@ -194,6 +194,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 /* ---------- Настройки ---------- */
 #panel-settings { width: calc(400px * var(--u)); }
 #ui-scale-value { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 500; }
+.wake-row .sub { font-size: calc(14px * var(--u)); margin: 0 0 calc(6px * var(--u)) calc(34px * var(--u)); }
 details.more { border-top: 2px dashed var(--soft-line); padding-top: calc(10px * var(--u)); }
 details.more summary { cursor: pointer; font-weight: 600; font-size: calc(16px * var(--u)); color: var(--muted); }
 details.more label { margin-top: calc(10px * var(--u)); }

@@ -10,9 +10,11 @@ import { applyI18n, I18N, T } from '../core/i18n';
 import { setSettings, settings } from '../core/settings';
 import { isKeyed, PROVIDER_KEY, UI_THEMES, type Provider, type Settings, type UiTheme } from '../../shared/types';
 import { Sound } from '../core/sound';
+import { cleanCatName } from '../../shared/cat-name';
 import { bubbleShown, placeBubble, say } from '../ui/bubble';
 import { refreshIcons } from '../ui/icons';
 import { closePanels, registerPanel, relayoutPanel } from '../ui/panels';
+import { syncWake } from '../app/wake';
 
 const form = () => $<HTMLFormElement>('#settings-form');
 const field = <T extends HTMLInputElement | HTMLSelectElement = HTMLInputElement>(name: string): T =>
@@ -43,6 +45,7 @@ export function setTheme(theme: string): void {
 /** Применить текущие настройки ко всему окну. */
 export function applySettings(): void {
   I18N.setLang(settings.lang);
+  I18N.setCatName(settings.catName);
   applyI18n(document);
   refreshIcons();
   applyWindowScale(settings.uiScale);
@@ -52,12 +55,13 @@ export function applySettings(): void {
   Sound.set(settings.sound, settings.volume);
   document.documentElement.classList.toggle('glass', settings.glass);
   refreshPlatforms();
+  syncWake();
 }
 
-const TEXT_FIELDS = ['userName', 'size', 'uiScale'] as const;
+const TEXT_FIELDS = ['userName', 'catName', 'size', 'uiScale'] as const;
 const catColorField = () => form().elements.namedItem('catColor') as RadioNodeList;
 const themeField = () => form().elements.namedItem('theme') as RadioNodeList;
-const CHECK_FIELDS = ['speak', 'sound', 'autostart', 'glass'] as const;
+const CHECK_FIELDS = ['speak', 'sound', 'autostart', 'glass', 'wakeWord'] as const;
 
 // ---------- Модель ИИ ----------
 const providerField = () => field<HTMLSelectElement>('provider');
@@ -103,6 +107,8 @@ async function fillSettings(): Promise<void> {
   themeField().value = settings.theme || 'cream';
   field('uiScale').value = String(settings.uiScale || 1);
   for (const k of CHECK_FIELDS) field(k).checked = !!settings[k];
+  // без офлайн-модели голоса откликаться на имя нечем
+  $('#wake-row').classList.toggle('hidden', !settings.hasVosk);
   fillProvider();
   applyWindowScale(settings.uiScale);
 }
@@ -128,6 +134,7 @@ export function initSettings(): void {
     const ai = aiChanges();
     setSettings(await api.saveSettings({
       userName: field('userName').value.trim(),
+      catName: cleanCatName(field('catName').value),
       catColor: (catColorField().value || settings.catColor) as typeof settings.catColor,
       theme: (themeField().value || settings.theme || 'cream') as UiTheme,
       size: Number(field('size').value) || 1,
@@ -136,6 +143,7 @@ export function initSettings(): void {
       sound: field('sound').checked,
       autostart: field('autostart').checked,
       glass: field('glass').checked,
+      wakeWord: field('wakeWord').checked,
       ...ai,
     }));
     applySettings();

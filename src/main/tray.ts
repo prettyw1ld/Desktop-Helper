@@ -55,10 +55,15 @@ export function refreshIcon(): void {
   ui.state.tray?.setImage(trayImage());
 }
 
+/** Подпись у значка — имя кота. */
+export function refreshTitle(): void {
+  ui.state.tray?.setToolTip(T('tray.title'));
+}
+
 export function createTray(): Tray {
   const tray = new Tray(trayImage());
   ui.state.tray = tray;
-  tray.setToolTip('Пушик');
+  refreshTitle();
   rebuildMenu();
   tray.on('click', toggleVisible);
   return tray;

@@ -1,5 +1,6 @@
 // Помощник для новичка: снимок экрана → модель с зрением → куда показать лапкой.
 // Снимок живёт только в памяти и на диск не пишется.
+import { catNameFor } from '../../shared/cat-name';
 import { desktopCapturer, nativeImage, screen, type BrowserWindow, type Display, type NativeImage } from 'electron';
 import type { LookMode, LookRequest, LookResult, LookStatus, Rect, Settings } from '../../shared/types';
 import { aiError, fetchAI, fetchAIRetry, readError } from './http';
@@ -93,10 +94,10 @@ interface StepAnswer {
   elementId?: unknown;
 }
 
-export function systemPrompt(lang: string, platform: NodeJS.Platform): string {
+export function systemPrompt(lang: string, platform: NodeJS.Platform, catName = ''): string {
   const os = platform === 'darwin' ? 'macOS' : platform === 'win32' ? 'Windows' : 'Linux';
   return [
-    `You are Pushik, a kind pixel cat who lives on the desktop (${os}) and teaches a complete computer beginner`,
+    `You are ${catNameFor(catName, lang)}, a kind pixel cat who lives on the desktop (${os}) and teaches a complete computer beginner`,
     '(for example a 68-year-old grandmother) to do things on the computer BY THEMSELVES.',
     'You get a screenshot of the screen and the person\'s goal. You never click for them: you point with your paw.',
     'Rules for "say":',
@@ -660,7 +661,7 @@ export async function look(req: LookRequest & { settings: Settings; overlay: Bro
   const view = inspect ? contextView(shot, selection, ctx) : null;
   const facts = formatContext(ctx);
   const msCtx = Date.now() - tCtx;
-  const system = inspect ? INSPECT_SYSTEM : systemPrompt(settings.lang, process.platform);
+  const system = inspect ? INSPECT_SYSTEM : systemPrompt(settings.lang, process.platform, settings.catName);
   const size = image.getSize();
   const r = resolve(settings);
   const coords = THOUSANDTHS_MODELS.test(boxModelFor(r, settings))
