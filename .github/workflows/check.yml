@@ -1,0 +1,24 @@
+name: check
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # Без скриптов установки: тестам не нужны ни бинарник Electron, ни офлайн-модель голоса.
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
+      - run: npm test
