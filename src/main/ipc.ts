@@ -61,6 +61,8 @@ function onGlobalClick(): void {
   ipcMain.handle('idle:get', () => { try { return powerMonitor.getSystemIdleTime(); } catch { return null; } });
   ipcMain.handle('settings:get', () => settings.publicView());
   ipcMain.handle('settings:save', (_e, s: Partial<Settings>) => {
+    // микрофон слушает постоянно только по явному «да»
+    if (s && 'wakeWord' in s) s.wakeWord = s.wakeWord === true;
     const res = settings.save(s);
     ui.send('settings-changed', res);
     return res;

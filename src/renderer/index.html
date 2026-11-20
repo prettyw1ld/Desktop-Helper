@@ -11,6 +11,8 @@
 <body>
   <div id="cat" class="cat hit">
     <div id="focus-badge" class="badge hidden"></div>
+    <!-- Уши включены: кот ждёт своё имя «Пушик». Клики проходят сквозь значок. -->
+    <div id="ear" class="ear hidden" role="status"></div>
     <div id="bubble" class="bubble hidden"><div id="bubble-text"></div><div id="bubble-actions" class="bubble-actions"></div></div>
     <div id="body" class="body">
       <canvas id="sprite" class="sprite"></canvas>
@@ -106,6 +108,10 @@
       <label class="check"><input name="sound" type="checkbox" /> <span data-i18n="set.sound"></span></label>
       <label class="check"><input name="autostart" type="checkbox" /> <span data-i18n="set.autostart"></span></label>
       <label class="check"><input name="glass" type="checkbox" /> <span data-i18n="set.glass"></span></label>
+      <div id="wake-row" class="wake-row hidden">
+        <label class="check"><input name="wakeWord" type="checkbox" /> <span data-i18n="set.wake"></span></label>
+        <div class="sub" data-i18n="set.wakeHint"></div>
+      </div>
       <details class="more" id="ai-settings">
         <summary data-i18n="set.ai"></summary>
         <label><span data-i18n="set.aiModel"></span>

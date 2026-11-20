@@ -48,6 +48,7 @@ const DEFAULTS: Settings = {
   trustedRemote: [],
   shotConsent: false,
   glass: true,
+  wakeWord: false,           // микрофон всё время слушает: только если человек сам включил
 };
 
 const SECRETS: SecretKey[] = ['apiKey', 'calendarUrl', 'sttKey', 'groqKey', 'deepseekKey', 'qwenKey'];

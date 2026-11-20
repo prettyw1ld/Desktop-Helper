@@ -44,7 +44,7 @@
       "artifactName": "Pushik-${version}-${arch}.${ext}",
       "category": "public.app-category.utilities",
       "extendInfo": {
-        "NSMicrophoneUsageDescription": "Пушик слушает, что ты хочешь сделать, когда ты нажимаешь на микрофон.",
+        "NSMicrophoneUsageDescription": "Пушик слушает, что ты хочешь сделать, когда ты нажимаешь на микрофон или зовёшь его по имени.",
         "NSScreenCaptureUsageDescription": "Пушик смотрит на экран, чтобы показать лапкой, куда нажать."
       }
     },

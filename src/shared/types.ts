@@ -50,6 +50,7 @@ export interface Settings {
   trustedRemote: string[];   // программы удалённого доступа, про которые человек сказал «это свои»
   shotConsent: boolean;      // человек разрешил отправлять снимок экрана ИИ
   glass: boolean;            // полупрозрачная рамка у окон (текст всё равно на сплошном фоне)
+  wakeWord: boolean;         // кот слушает микрофон и откликается на «Пушик» (распознаёт сам, без интернета)
 }
 
 export type SecretKey = 'apiKey' | 'calendarUrl' | 'sttKey' | 'groqKey' | 'deepseekKey' | 'qwenKey';
