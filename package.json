@@ -73,7 +73,7 @@
   },
   "author": "prettyw1ld",
   "license": "MIT",
-  "repository": "https://github.com/prettyw1ld/Desktop-Helper",
+  "repository": "https://github.com/prettyw1ld/Pushik",
   "dependencies": {
     "node-ical": "^0.27.3",
     "vosk-browser": "^0.0.8"

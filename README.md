@@ -30,7 +30,7 @@ Windows и macOS.
 
 ## Установка
 
-1. Открой [последнюю версию](https://github.com/prettyw1ld/Desktop-Helper/releases/latest).
+1. Открой [последнюю версию](https://github.com/prettyw1ld/Pushik/releases/latest).
 2. В разделе Assets скачай установщик:
    - Windows — `Pushik-Setup-….exe`;
    - Mac с чипом M (Apple Silicon) — `Pushik-…-arm64.dmg`;
@@ -93,8 +93,8 @@ Windows и macOS.
 Нужен [Node.js](https://nodejs.org) 22.18 или новее. На Mac для сборки помощника `src/native/locator.swift` нужны Command Line Tools.
 
 ```bash
-git clone https://github.com/prettyw1ld/Desktop-Helper.git
-cd Desktop-Helper
+git clone https://github.com/prettyw1ld/Pushik.git
+cd Pushik
 npm install         # также скачивает офлайн-модель голоса (~40 МБ) в assets/vosk/
 npm start           # собрать в build/ и запустить
 ```
