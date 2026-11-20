@@ -1,0 +1,82 @@
+# Сборка установщиков по тегу vX.Y.Z (или vX.Y.Z-что-то) и черновик релиза с ними.
+# Без пуша тега: Actions → release → Run workflow, выбрать ветку и вписать тег.
+# Черновик потом проверяешь на странице Releases и жмёшь Publish.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Тег релиза, например v0.9.0 (создастся на выбранной ветке)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Build the accessibility helper for both Mac chips
+        run: |
+          mkdir -p assets/mac
+          xcrun swiftc src/native/locator.swift -O -target arm64-apple-macos11 -o assets/mac/locator-arm64
+          xcrun swiftc src/native/locator.swift -O -target x86_64-apple-macos11 -o assets/mac/locator-x64
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npx electron-builder --mac --arm64 --x64 --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac
+          path: dist/*.dmg
+          if-no-files-found: error
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npx electron-builder --win --x64 --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*.exe
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.tag != ''
+    needs: [mac, windows]
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          target_commitish: ${{ github.sha }}
+          draft: true
+          prerelease: ${{ contains(env.TAG, '-') }}
+          make_latest: ${{ !contains(env.TAG, '-') }}
+          name: Пушик ${{ env.TAG }}
+          generate_release_notes: true
+          files: out/*
