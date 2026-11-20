@@ -7,7 +7,7 @@ import * as stt from './ai/stt';
 import * as locate from './system/locate';
 import { ROOT, VOSK_MODEL } from './paths';
 
-export const DEFAULTS: Settings = {
+const DEFAULTS: Settings = {
   lang: '',
   provider: 'claude',
   aiChosen: false,

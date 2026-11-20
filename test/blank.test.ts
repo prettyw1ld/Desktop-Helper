@@ -31,7 +31,7 @@ test('a plain area counts as blank, a line of text does not', () => {
 
 test('a soft gradient is blank only when the system finds nothing there', () => {
   // плавный фон с редкой рамкой: краёв мало
-  const soft = edgeShare(bitmap(400, 200, (x, y) => (x === 200 ? 0 : 100 + Math.floor(x / 10))), 400, 200);
+  const soft = edgeShare(bitmap(400, 200, (x) => (x === 200 ? 0 : 100 + Math.floor(x / 10))), 400, 200);
   assert.ok(soft >= 0.003 && soft < 0.01, `few edges (${soft})`);
   assert.equal(isBlank(soft, null), true);
   assert.equal(isBlank(soft, ctx('')), true, 'an element without a name does not count');

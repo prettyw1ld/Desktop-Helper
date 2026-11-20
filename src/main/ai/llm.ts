@@ -37,7 +37,7 @@ export const cleanReply = (txt: unknown): string => String(txt || '')
   .replace(/\*\*(.+?)\*\*/g, '$1').replace(/^#+\s*/gm, '').trim();
 
 // ---------- Инструменты чата ----------
-export type ToolInput = Record<string, unknown>;
+type ToolInput = Record<string, unknown>;
 export type ChatTools = Record<string, (input: ToolInput) => unknown>;
 
 interface ToolDef { name: string; description: string; schema: Record<string, unknown> }
@@ -243,7 +243,7 @@ function howToGoal(text: string, history: ChatMessage[]): string {
   return prev ? goalFromHowTo(prev.content) : '';
 }
 
-export type AskOptions = Settings & { history: ChatMessage[]; text: string; tools: ChatTools };
+type AskOptions = Settings & { history: ChatMessage[]; text: string; tools: ChatTools };
 
 /** Вызовы инструментов живут внутри одного запроса; в историю попадает только текст. */
 export async function ask(opts: AskOptions): Promise<AskOutput & { history: ChatMessage[] }> {

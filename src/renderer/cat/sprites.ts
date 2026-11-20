@@ -6,10 +6,10 @@ import type { CatColor } from '../../shared/types';
 import { FRONT_HEAD, TURNED_HEAD } from './head-spans';
 
 const SIZE = 64;
-export const COLORS: CatColor[] = ['ginger', 'white', 'black'];
+const COLORS: CatColor[] = ['ginger', 'white', 'black'];
 
 /** Анимация: строка листа, кадры, скорость; once — проиграть один раз и замереть на последнем кадре. */
-export interface Anim { row: number; frames: number[]; fps?: number; once?: boolean }
+interface Anim { row: number; frames: number[]; fps?: number; once?: boolean }
 
 // Нижний край лап в каждой строке (px внутри кадра 64×64), чтобы кот стоял на полу ровно.
 const FEET: number[] = [48, 53, 55, 53, 48, 48, 46, 49, 60, 54, 48, 48, 48, 47, 48, 46, 53, 48, 48, 48, 48, 48, 48, 53, 51, 48,

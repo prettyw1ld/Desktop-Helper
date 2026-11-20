@@ -23,14 +23,13 @@ import { initHelp } from './panels/help';
 import { initLessons } from './panels/lessons';
 import { initReminders } from './panels/reminders';
 import { applySettings, initSettings } from './panels/settings';
-import { initBubble, say } from './ui/bubble';
+import { say } from './ui/bubble';
 import { initIcons } from './ui/icons';
 import { initPanels } from './ui/panels';
 import { initYarn } from './ui/ring';
 
 async function start(): Promise<void> {
   initIcons();
-  initBubble();
   initYarn();
   initTrash();
   initPanels();

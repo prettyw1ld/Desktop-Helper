@@ -15,7 +15,7 @@ export const aiError = (message: string, extra: Partial<AiError> = {}): AiError 
 
 const netFetch: Fetch | null = typeof net?.fetch === 'function' ? net.fetch.bind(net) : null;
 
-export const isNetErr = (e: unknown): boolean => {
+const isNetErr = (e: unknown): boolean => {
   if (!(e instanceof Error) || e.name === 'AbortError' || e.name === 'TimeoutError') return false;
   const cause = (e as Error & { cause?: { code?: string } }).cause;
   return /fetch failed|net::|ECONN|ENOTFOUND|ETIMEDOUT|EAI_AGAIN|socket|network/i.test(`${e.message} ${cause?.code ?? ''}`);

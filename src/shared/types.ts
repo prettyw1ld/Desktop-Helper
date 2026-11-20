@@ -5,7 +5,7 @@ export type CatColor = 'white' | 'ginger' | 'black';
 export type UiTheme = 'cream' | 'mint' | 'sky' | 'pink' | 'lilac';
 export const UI_THEMES: UiTheme[] = ['cream', 'mint', 'sky', 'pink', 'lilac'];
 export type Provider = 'claude' | 'groq' | 'deepseek' | 'qwen' | 'openrouter' | 'openai' | 'ollama';
-export type VoiceMode = 'offline' | 'whisper';
+type VoiceMode = 'offline' | 'whisper';
 
 export interface Skill { name: string; at: number }
 
@@ -96,7 +96,7 @@ export interface CalendarEvent {
   location: string;
 }
 export interface CalendarList { connected: boolean; error: string; events: CalendarEvent[] }
-export interface CalendarSoon extends CalendarEvent { min: number; text: string }
+interface CalendarSoon extends CalendarEvent { min: number; text: string }
 
 // ---------- Помощник с ИИ ----------
 export type LookMode = 'start' | 'check' | 'confused' | 'inspect' | 'practice' | 'more';
@@ -137,7 +137,7 @@ export interface LookResult {
 export interface ChatResult { reply: string; actions: string[]; show?: string }
 
 // ---------- Поиск кнопок через «доступность» ----------
-export type LocateOp = 'find' | 'top' | 'window' | 'drives' | 'volume' | 'list' | 'named' | 'inside' | 'shot' | 'grid' | 'context';
+type LocateOp = 'find' | 'top' | 'window' | 'drives' | 'volume' | 'list' | 'named' | 'inside' | 'shot' | 'grid' | 'context';
 
 export interface LocateQuery {
   op: LocateOp;
@@ -188,7 +188,7 @@ export interface LocateWindow {
   close?: Rect | null;
 }
 
-export interface Drive { letter: string; label: string }
+interface Drive { letter: string; label: string }
 
 export interface LocateResult {
   items?: LocateItem[];
@@ -255,7 +255,6 @@ export interface PushikApi {
   hide(): void;
   watchClicks(on: boolean, key?: 'trash' | 'guide'): void;
   setFocusable(on: boolean): void;
-  simplifyExplanation(text: string): Promise<{ text: string } | ErrorReply>;
   guideLook(req: LookRequest): Promise<LookResult | ErrorReply>;
   /** focus — место у кнопки из подсказки: там замечаем и небольшие перемены (закрылось меню). */
   guideWatch(masks: Rect[], focus?: Rect | null): void;

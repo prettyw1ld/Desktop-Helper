@@ -1,11 +1,9 @@
 // Облачко над котом: реплики, подсказки и кнопки под ними.
-// Подсказку можно «свернуть в лапку»: облачко прячется, рядом с котом остаётся кнопка-лапка.
 import { cat, CAT_H, CAT_W, H, size, W } from '../cat/cat';
 import { dom, el, isHidden } from '../core/dom';
 import { clamp, now, timer } from '../core/util';
 import { guide } from '../guide/state';
 import { pickSpot, targetZones, type Zone } from './bubble-spot';
-import { icon } from './icons';
 import { ringBox } from './ring';
 
 /** Кнопка в облачке: [надпись, действие, главная?]. */
@@ -22,8 +20,6 @@ export interface SayOptions {
 
 const { bubble, bubbleText, bubbleActions } = dom;
 const hideTimer = timer();
-let paw: HTMLButtonElement | null = null;
-let folded = false;
 
 // что облачку подсказки закрывать нельзя, кроме кнопки в рамке (например, открывшееся меню)
 let avoid: Zone[] = [];
@@ -53,16 +49,12 @@ export function say(text: string, ms = 4000, opts: SayOptions = {}): void {
   bubble.classList.remove('hidden', 'below');
   bubble.scrollTop = 0;
   cat.meowUntil = now() + 800;
-  setFolded(false);
-  bubble.querySelector('.paw-collapse')?.remove();
-  if (opts.guide) bubble.append(collapseButton());
   placeBubble();
   if (Number.isFinite(ms)) hideTimer.set(hideBubble, ms); else hideTimer.clear();
 }
 
 export function hideBubble(): void {
   hideTimer.clear();
-  setFolded(false);
   bubble.classList.add('hidden');
   bubbleActions.replaceChildren();
 }
@@ -97,41 +89,4 @@ export function placeBubble(): void {
   bubble.style.marginLeft = '0px';
   bubble.style.translate = `${Math.round(dx)}px ${Math.round(dy)}px`;
   bubble.classList.toggle('detached', Math.abs(dy) > 1 || Math.abs(dx) > width / 2);
-}
-
-// ---------- Свернуть в лапку ----------
-function setFolded(on: boolean): void {
-  folded = on;
-  paw?.classList.toggle('hidden', !on);
-}
-
-function collapseButton(): HTMLButtonElement {
-  const b = el('button', 'paw-collapse', 'Свернуть в лапку');
-  b.type = 'button';
-  b.addEventListener('click', (e) => {
-    e.stopPropagation();
-    hideTimer.clear();
-    bubble.classList.add('hidden');
-    setFolded(true);
-  });
-  return b;
-}
-
-export function initBubble(): void {
-  paw = el('button', 'hit hidden');
-  paw.id = 'hint-paw';
-  paw.type = 'button';
-  paw.title = 'Повторить подсказку';
-  paw.setAttribute('aria-label', 'Повторить подсказку');
-  paw.innerHTML = icon('paw');
-  // лапка лежит на коте: её клики не должны трогать кота
-  for (const event of ['mousedown', 'mouseup', 'dblclick']) paw.addEventListener(event, (e) => e.stopPropagation());
-  paw.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (!folded) return;
-    setFolded(false);
-    bubble.classList.remove('hidden');
-    placeBubble();
-  });
-  dom.cat.append(paw);
 }

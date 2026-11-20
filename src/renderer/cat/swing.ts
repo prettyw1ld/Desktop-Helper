@@ -12,7 +12,7 @@ export const SWING = {
   maxDv: 2500,       // один кадр рывка не больше: дрожащая мышь не должна закручивать кота
 };
 
-export interface Swing { angle: number; vel: number; x: number | null; v: number }
+interface Swing { angle: number; vel: number; x: number | null; v: number }
 
 export const newSwing = (): Swing => ({ angle: 0, vel: 0, x: null, v: 0 });
 

@@ -13,7 +13,7 @@ import { guide } from './state';
 import { endTrainer } from './trainer';
 
 // «📞 Позвонить по видео» → «Позвонить по видео»
-export const goalOf = (label: string): string => label.replace(/^[^\p{L}\p{N}]+/u, '').trim();
+const goalOf = (label: string): string => label.replace(/^[^\p{L}\p{N}]+/u, '').trim();
 
 export function routeGoal(text: string): void {
   if (/помо[гщ].*(файл|проводник|finder)|help with files/i.test(text)) { void startFileLesson('files-learn'); return; }
@@ -31,7 +31,7 @@ export function routeGoal(text: string): void {
 }
 
 /** «Я запутался»: с ИИ — по снимку экрана, без него — по названию окна сверху. */
-export function imLost(): void {
+function imLost(): void {
   if (settings.aiReady) { imLostAI(); return; }
   closePanels();
   endTrainer();

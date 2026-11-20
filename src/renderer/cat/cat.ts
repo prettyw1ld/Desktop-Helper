@@ -12,7 +12,7 @@ import { dirAnim, type AnimName, type Dir } from './sprites';
  */
 export type CatState = 'idle' | 'walk' | 'sleep' | 'act' | 'drag' | 'fall' | 'jump' | 'busy' | 'perch' | 'intro' | 'outro' | 'trash';
 
-export interface Jump {
+interface Jump {
   t0: number;
   dur: number;
   x0: number;

@@ -9,7 +9,7 @@ import { registerPanel, showPanel, isPanel } from '../ui/panels';
 import { initMic, micState, refreshMic } from './mic';
 
 /** Без ИИ «Объясни, что это» не сработает, поэтому на её месте — вход в уроки. */
-export function firstButton(): HTMLElement {
+function firstButton(): HTMLElement {
   const ai = settings.aiReady;
   const b = $('#inspect-element');
   b.dataset.mode = ai ? 'inspect' : 'lessons';

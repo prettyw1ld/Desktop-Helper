@@ -19,7 +19,7 @@ function subtract(segs: [number, number][], a: number, b: number): [number, numb
   return out;
 }
 
-export function computePlatforms(): void {
+function computePlatforms(): void {
   const out: Platform[] = [];
   const minY = CAT_H * size() + 4;
   const maxY = H() - 80;
@@ -52,6 +52,6 @@ export const windowAt = (x: number, y: number): boolean => winList.some(([, wx, 
   && x >= wx && x <= wx + ww && y >= wy && y <= wy + wh);
 
 export const allPlatforms =(): readonly Platform[] => platforms;
-export const platUnder = (id: number, x: number): Platform | undefined => platforms.find((p) => p.id === id && x >= p.x1 && x <= p.x2);
+const platUnder = (id: number, x: number): Platform | undefined => platforms.find((p) => p.id === id && x >= p.x1 && x <= p.x2);
 export const currentPlat = (): Platform | null => (cat.plat ? platUnder(cat.plat, cx()) ?? null : null);
 export const groundY = (): number => { const p = currentPlat(); return p ? p.y - CAT_H : floorY(); };

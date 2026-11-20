@@ -906,7 +906,7 @@ function macAsk(q: LocateQuery, timeout = 8000): Promise<LocateResult> {
 export const supported = (): boolean => process.platform === 'win32' || process.platform === 'darwin';
 
 /** Экранный прямоугольник → координаты окна кота; null, если он на другом мониторе. */
-export type ToOverlay = (r: Rect, keep?: boolean) => Rect | null;
+type ToOverlay = (r: Rect, keep?: boolean) => Rect | null;
 
 export async function ask(q: LocateQuery, toOverlay: ToOverlay = (r) => r): Promise<LocateResult> {
   if (!supported()) return { error: 'unsupported' };

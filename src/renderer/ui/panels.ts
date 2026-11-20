@@ -8,8 +8,8 @@ import { guide, trainer } from '../guide/state';
 import { hideBubble } from './bubble';
 import { icon } from './icons';
 
-export type PanelName = 'help' | 'lessons' | 'chat' | 'reminders' | 'settings';
-export const PANELS: PanelName[] = ['help', 'lessons', 'chat', 'reminders', 'settings'];
+type PanelName = 'help' | 'lessons' | 'chat' | 'reminders' | 'settings';
+const PANELS: PanelName[] = ['help', 'lessons', 'chat', 'reminders', 'settings'];
 export const isPanel = (s: string): s is PanelName => (PANELS as string[]).includes(s);
 
 interface PanelHooks { show?: () => void; close?: () => void }
@@ -72,7 +72,7 @@ export function closePanels(): void {
 }
 
 /** Панель над котом, а если сверху не влезает — сбоку. */
-export function placePanel(panel: HTMLElement): void {
+function placePanel(panel: HTMLElement): void {
   const pw = panel.offsetWidth;
   const ph = panel.offsetHeight;
   const top0 = visTop() + 30 * size();
