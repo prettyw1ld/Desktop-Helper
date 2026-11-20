@@ -18,7 +18,6 @@ const api: PushikApi = {
   hide: () => ipcRenderer.send('app:hide'),
   watchClicks: (on, key = 'trash') => ipcRenderer.send('clicks:watch', on, key),
   setFocusable: (on) => ipcRenderer.send('win:focusable', on),
-  simplifyExplanation: (text) => ipcRenderer.invoke('guide:simplify', text),
   guideLook: (req) => ipcRenderer.invoke('guide:look', req),
   guideWatch: (masks, focus) => ipcRenderer.send('guide:watch', masks, focus),
   guideUnwatch: () => ipcRenderer.send('guide:unwatch'),

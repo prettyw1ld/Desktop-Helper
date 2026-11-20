@@ -65,7 +65,6 @@ export function mockApi(): PushikApi {
         { id: '2', title: 'Обед с командой', start: at(13, 0), end: at(14, 0), allDay: false, location: '' },
       ].filter((e) => e.end > Date.now()),
     }),
-    simplifyExplanation: async (text) => ({ text }),
     guideLook: async ({ mode }) => {
       await new Promise((r) => setTimeout(r, 700));
       if (mode === 'inspect') {

@@ -58,7 +58,7 @@ export function windowView(shot: Shot, selection: Rect | undefined, win: Electro
 }
 
 /** Красная рамка толщиной 4 px чуть снаружи прямоугольника (с белой окантовкой, чтобы видно на любом фоне). */
-export function drawFrame(image: NativeImage, r: Electron.Rectangle): NativeImage {
+function drawFrame(image: NativeImage, r: Electron.Rectangle): NativeImage {
   const { width: W, height: H } = image.getSize();
   const px = Buffer.from(image.toBitmap()); // BGRA
   const set = (x: number, y: number, red: boolean) => {

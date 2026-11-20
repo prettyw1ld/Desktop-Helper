@@ -27,7 +27,7 @@ export function edgeShare(bitmap: Buffer, w: number, h: number): number {
 }
 
 /** Система (UI Automation) нашла под выделением что-то с названием. */
-export function hasElements(ctx: InspectContext | null): boolean {
+function hasElements(ctx: InspectContext | null): boolean {
   if (!ctx) return false;
   return !!ctx.element?.name?.trim() || ctx.nearby.some((n) => !!n.name?.trim());
 }

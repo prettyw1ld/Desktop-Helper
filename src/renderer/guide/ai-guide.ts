@@ -117,7 +117,7 @@ function showChange(text: string, back: () => void): void {
 }
 
 /** «Шаг 2 из 5», если ИИ продумал путь заранее. */
-export function stepLabel(): string {
+function stepLabel(): string {
   const n = guide.plan.length;
   const i = guide.stepIndex;
   return n >= 2 && i >= 1 && i <= n ? T('g.stepOf', { i, n }) : '';

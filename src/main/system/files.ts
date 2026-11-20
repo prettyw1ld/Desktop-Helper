@@ -5,7 +5,7 @@ import path from 'node:path';
 import type { FilePlace, FilesRequest, FilesResult } from '../../shared/types';
 
 /** То, что нужно от Electron. Отдельно, чтобы тесты могли подставить заглушки. */
-export interface FileDeps {
+interface FileDeps {
   app: Pick<Electron.App, 'getPath'>;
   shell: Pick<Electron.Shell, 'openPath' | 'openExternal'>;
   dialog: Pick<Electron.Dialog, 'showOpenDialog'>;

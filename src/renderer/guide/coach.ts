@@ -141,7 +141,7 @@ export async function check(cond: Cond | undefined, step?: Step): Promise<boolea
 }
 
 // ---------- Подсказка шага ----------
-export function coachStepActions(step: Step): Action[] {
+function coachStepActions(step: Step): Action[] {
   const sc = coach.sc;
   const fileLesson = !!sc?.fileLesson;
   const mainLabel = fileLesson && step.wait?.manual

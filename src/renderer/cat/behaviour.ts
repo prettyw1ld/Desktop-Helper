@@ -80,7 +80,7 @@ function roll(weights: Record<Choice, number>): Choice {
   return 'idle';
 }
 
-export function decideNext(): void {
+function decideNext(): void {
   if (busyWithPerson()) { setState(cat.state === 'perch' ? 'perch' : 'busy'); return; }
   if (openPanel()) { setState('busy'); return; }
   const weights = mouseMoving(4000) ? CHOICES_MOUSE : CHOICES;

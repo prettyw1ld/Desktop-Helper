@@ -5,7 +5,7 @@ import type { LookResult } from '../../shared/types';
  * ai — подсказки ИИ по снимку экрана; script — готовый урок (coach.ts);
  * lost — «Я запутался» без ИИ; inspect — «Объясни, что это».
  */
-export type GuideKind = 'ai' | 'script' | 'lost' | 'inspect';
+type GuideKind = 'ai' | 'script' | 'lost' | 'inspect';
 
 export const guide = {
   active: false,
@@ -23,7 +23,7 @@ export const guide = {
 };
 
 /** Тренажёр мыши: click → dbl → drag → landing. */
-export type TrainerStep = 'click' | 'dbl' | 'drag' | 'landing';
+type TrainerStep = 'click' | 'dbl' | 'drag' | 'landing';
 export const trainer = { step: null as TrainerStep | null };
 
 export const busyWithPerson = (): boolean => guide.active || !!trainer.step;

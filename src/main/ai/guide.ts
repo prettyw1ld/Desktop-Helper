@@ -182,7 +182,7 @@ function primarySource(sources: Electron.DesktopCapturerSource[], display: Displ
 // overlay: окно кота. На время снимка его исключаем из захвата: человек кота видит, а ИИ нет.
 // Раньше прятали прозрачностью, и на Windows прозрачное окно после этого уходило под браузер.
 // Защиту сразу снимаем, чтобы кот был виден в записи экрана.
-export async function capture(overlay: BrowserWindow | null, width = SHOT_W): Promise<Shot> {
+async function capture(overlay: BrowserWindow | null, width = SHOT_W): Promise<Shot> {
   const display = screen.getPrimaryDisplay();
   const { width: dw, height: dh } = display.size;
   const w = Math.min(width, dw);

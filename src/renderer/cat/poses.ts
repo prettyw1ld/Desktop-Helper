@@ -8,7 +8,7 @@ import { cat, setState } from './cat';
 import { ANIM, dirAnim, type AnimName } from './sprites';
 
 // Позы с понятными именами для остального кода.
-export type PoseName = AnimName | 'happy' | 'wave' | 'coffee' | 'angry' | 'loaf' | 'headpat' | 'blush';
+type PoseName = AnimName | 'happy' | 'wave' | 'coffee' | 'angry' | 'loaf' | 'headpat' | 'blush';
 const POSE_ALIAS: Partial<Record<PoseName, AnimName>> = {
   happy: 'hind', wave: 'meowStand', coffee: 'eatF', headpat: 'meowSit', blush: 'lickSit',
 };
@@ -23,7 +23,7 @@ export function showPose(name: PoseName, ms = 4000, text = ''): void {
 }
 
 /** Значок, который всплывает над котом и тает. kind: h — звёздочка и т.п., heart — розовое пиксельное сердечко. */
-export function spawnFx(kind: string, ch = ''): void {
+function spawnFx(kind: string, ch = ''): void {
   const s = el('span', kind, ch);
   s.style.left = `${75 + rand(-20, 20)}px`;
   s.style.top = `${rand(10, 30)}px`;
@@ -64,7 +64,7 @@ export function poked(): void {
 }
 
 /** Розовые сердечки, как нарисованные в кадре heartsSitF (кот радуется, что его гладят). */
-export function hearts(n = 5, every = 150): void {
+function hearts(n = 5, every = 150): void {
   for (let i = 0; i < n; i++) setTimeout(() => spawnFx('heart'), i * every);
 }
 

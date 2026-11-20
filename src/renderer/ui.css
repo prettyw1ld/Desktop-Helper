@@ -53,12 +53,12 @@ html, body { font-family: var(--font); color: var(--ink); }
 
 /* ---------- Карточки: панели и подсказки ----------
    border — это рамка (может просвечивать), фон рисуется только под содержимым (padding-box). */
-.panel, .bubble.guide, .teach-panel {
+.panel, .bubble.guide {
   border: var(--rim) solid var(--shell);
   background: var(--paper) padding-box;
   box-shadow: var(--shadow);
 }
-html.glass .panel, html.glass .bubble.guide, html.glass .teach-panel {
+html.glass .panel, html.glass .bubble.guide {
   /* блик по верхнему краю рамки: «стекло» без размытия, которое в прозрачном окне всё равно не работает */
   box-shadow: var(--shadow), inset 0 0 0 1px rgba(255, 255, 255, .6);
 }
@@ -94,7 +94,7 @@ html.glass .panel, html.glass .bubble.guide, html.glass .teach-panel {
 
 /* ---------- Кнопки ----------
    Главная — оранжевая «нажимная» с тёмной кромкой снизу. Вторичная — бумажная с обводкой. */
-.big, .primary, .ghost, .bubble-actions button, .teach-panel button {
+.big, .primary, .ghost, .bubble-actions button {
   display: inline-flex; align-items: center; justify-content: center; gap: calc(10px * var(--u));
   min-height: calc(50px * var(--u)); padding: calc(10px * var(--u)) calc(18px * var(--u));
   border: 2px solid var(--line); border-radius: calc(14px * var(--u));
@@ -102,15 +102,15 @@ html.glass .panel, html.glass .bubble.guide, html.glass .teach-panel {
   box-shadow: 0 3px 0 var(--line);
   transition: background .12s, box-shadow .08s, translate .08s;
 }
-.big:hover, .ghost:hover, .bubble-actions button:hover, .teach-panel button:hover { background: var(--accent-soft); }
-.big:active, .primary:active, .ghost:active, .bubble-actions button:active, .teach-panel button:active, .ask .go:active {
+.big:hover, .ghost:hover, .bubble-actions button:hover { background: var(--accent-soft); }
+.big:active, .primary:active, .ghost:active, .bubble-actions button:active, .ask .go:active {
   translate: 0 2px; box-shadow: 0 1px 0 var(--line);
 }
 .big { width: 100%; min-height: calc(58px * var(--u)); font-size: calc(20px * var(--u)); }
-#inspect-element, #mic, .primary, .bubble-actions button.primary, .teach-panel button.primary {
+#inspect-element, #mic, .primary, .bubble-actions button.primary {
   background: var(--accent); color: var(--accent-ink); box-shadow: 0 4px 0 var(--line);
 }
-#inspect-element:hover, #mic:hover, .primary:hover, .bubble-actions button.primary:hover, .teach-panel button.primary:hover { background: var(--accent-hover); }
+#inspect-element:hover, #mic:hover, .primary:hover, .bubble-actions button.primary:hover { background: var(--accent-hover); }
 #inspect-element:active, #mic:active, .primary:active, .bubble-actions button.primary:active { box-shadow: 0 1px 0 var(--line); }
 #mic.rec { background: var(--danger); color: #fff; animation: rec-pulse 1.4s ease-in-out infinite; }
 @keyframes rec-pulse { 50% { box-shadow: 0 4px 0 var(--line), 0 0 0 calc(8px * var(--u)) rgba(180, 71, 27, 0); } 0%, 100% { box-shadow: 0 4px 0 var(--line), 0 0 0 0 rgba(180, 71, 27, .35); } }
@@ -122,7 +122,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 }
 
 /* ---------- Поля ---------- */
-.panel input:not([type=range]):not([type=checkbox]), .panel select, .panel textarea, .teach-panel input {
+.panel input:not([type=range]):not([type=checkbox]), .panel select, .panel textarea {
   width: 100%; min-height: calc(50px * var(--u)); padding: calc(10px * var(--u)) calc(14px * var(--u));
   border: 2px solid var(--field-line); border-radius: calc(12px * var(--u)); background: var(--field);
   font: calc(18px * var(--u))/1.3 var(--font); color: var(--ink); outline: none;
@@ -137,7 +137,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .panel label.check input { width: calc(22px * var(--u)); height: calc(22px * var(--u)); margin: 0; }
 .row { display: flex; gap: calc(10px * var(--u)); align-items: center; }
 .col { display: flex; flex-direction: column; gap: calc(12px * var(--u)); }
-.grow { flex: 1; }
 
 /* ---------- «Чем помочь?» ---------- */
 .ask { display: flex; gap: calc(10px * var(--u)); }
@@ -256,9 +255,6 @@ details.more label { margin-top: calc(10px * var(--u)); }
 .bubble.danger .bubble-actions button.primary { background: var(--danger); color: #fff; }
 .bubble.trash-say { position: absolute; left: 0; top: 0; bottom: auto; transform: none; z-index: 8; pointer-events: none; }
 .bubble.trash-say::after { display: none; }
-.paw-collapse { display: block; margin: calc(12px * var(--u)) 0 calc(-6px * var(--u)) auto; min-height: 40px; padding: 6px 12px; border: 0; border-radius: 10px; background: none; color: var(--muted); font: 500 calc(15px * var(--u)) var(--font); text-decoration: underline; text-underline-offset: 3px; }
-.paw-collapse:hover { background: var(--paper-2); color: var(--ink); }
-#hint-paw { position: absolute; left: 65%; top: 18%; z-index: 20; width: 52px; height: 52px; display: grid; place-items: center; border: var(--edge) solid var(--line); border-radius: 50%; background: var(--accent); color: var(--ink); box-shadow: 0 4px 0 var(--line), 0 10px 24px rgba(43, 29, 20, .3); cursor: pointer; pointer-events: auto; }
 .inspect-explanation .bubble-actions button { flex-basis: 100%; }
 .inspect-explanation .replay { margin-left: 6px; padding: 2px 4px; border: 0; background: none; box-shadow: none; font-size: 18px; line-height: 1; vertical-align: middle; }
 
@@ -282,16 +278,9 @@ details.more label { margin-top: calc(10px * var(--u)); }
 .inspect-picker .inspect-tip { position: absolute; top: 22px; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 32px); padding: 14px 20px; border: var(--edge) solid var(--line); border-radius: 16px; background: var(--paper); box-shadow: 0 4px 0 var(--line), 0 12px 28px rgba(43, 29, 20, .25); font: 500 19px/1.4 var(--font); pointer-events: none; }
 .inspect-picker .inspect-box { position: absolute; border: 3px solid var(--target); border-radius: 8px; background: rgba(232, 119, 26, .12); pointer-events: none; }
 
-/* ---------- Окно «Кот учится у тебя» ---------- */
-.teach-panel { position: fixed; z-index: 5000; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 400px; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); overflow: auto; padding: 24px; border-radius: 26px; font: 18px/1.45 var(--font); }
-.teach-panel h2 { margin: 0 0 12px; font-size: 24px; }
-.teach-panel p { margin: 0 0 16px; }
-.teach-panel button { width: 100%; margin-top: 12px; }
-.teach-panel .teach-goals { display: grid; gap: 6px; }
-
 /* Высокая контрастность Windows: отдаём цвета системе. */
 @media (forced-colors: active) {
-  .panel, .bubble, .teach-panel { border-color: CanvasText; background: Canvas; box-shadow: none; }
+  .panel, .bubble { border-color: CanvasText; background: Canvas; box-shadow: none; }
   .big, .primary, .ghost, .bubble-actions button, .les-row, .les-go { border-color: ButtonText; box-shadow: none; }
 }
 @media (prefers-reduced-motion: reduce) {

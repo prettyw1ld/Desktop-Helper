@@ -31,7 +31,7 @@ async function trust(app: string): Promise<void> {
   say(T('scam.trusted', { app }), 5000);
 }
 
-export function remoteAppStarted(app: string): void {
+function remoteAppStarted(app: string): void {
   leaveTrash();
   if (guide.active) endGuide(false);
   guide.active = true;

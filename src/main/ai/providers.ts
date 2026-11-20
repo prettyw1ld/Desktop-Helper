@@ -1,7 +1,7 @@
 // Куда идти за ответом: готовые настройки сервисов ИИ и мелочи их запросов. Без Electron, чтобы проверять тестами.
 import type { Settings } from '../../shared/types';
 
-export interface Preset {
+interface Preset {
   url: string;     // адрес OpenAI-совместимого API
   model: string;   // чат
   vision: string;  // снимок экрана: подсказки и «Объясни, что это»
@@ -19,7 +19,7 @@ export const OPENAI_PRESETS = {
   openrouter: { url: 'https://openrouter.ai/api/v1', model: 'meta-llama/llama-3.3-70b-instruct:free', vision: 'qwen/qwen2.5-vl-72b-instruct:free' },
 } satisfies Record<string, Preset>;
 
-export type PresetName = keyof typeof OPENAI_PRESETS;
+type PresetName = keyof typeof OPENAI_PRESETS;
 const isPreset = (p: string): p is PresetName => p in OPENAI_PRESETS;
 
 export type Resolved = { kind: 'claude' | 'ollama' } | { kind: 'openai'; url: string; model: string; vision: string };

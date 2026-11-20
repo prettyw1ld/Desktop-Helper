@@ -2,7 +2,7 @@
 // и место рядом с ней, где обычно открывается меню или список (под кнопкой, а внизу экрана — над ней).
 import type { Rect } from '../../shared/types';
 
-export interface Spot { x: number; y: number }
+interface Spot { x: number; y: number }
 
 const MENU_W = 320; // примерно меню «Файл», «Вид», «Пуск»
 const MENU_H = 380;

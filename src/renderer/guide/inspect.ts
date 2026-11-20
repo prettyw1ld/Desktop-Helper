@@ -26,7 +26,7 @@ function removePicker(): void {
   setIgnore(true);
 }
 
-export function stopInspect(): void {
+function stopInspect(): void {
   cancelPointGaze();
   dom.bubble.classList.remove('inspect-explanation');
   epoch++;
