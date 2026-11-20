@@ -1,9 +1,10 @@
-// Позвать кота голосом: «Пушик!» — кот откликается, слушает просьбу и отвечает в чате
-// (или ведёт по экрану, как на написанную просьбу). Включается в настройках.
+// Позвать кота голосом: «Пушик!» (или имя, которое дал человек) — кот откликается, слушает просьбу
+// и отвечает в чате (или ведёт по экрану, как на написанную просьбу). Выключается в настройках.
 // Пока уши включены, над котом виден значок микрофона: человек всегда видит, что его слушают.
 import { $ } from '../core/dom';
 import { T } from '../core/i18n';
 import { settings } from '../core/settings';
+import { catNameFor } from '../../shared/cat-name';
 import { micInUse } from '../core/voice';
 import { startEar, type Ear, type EarHooks } from '../core/wake';
 import { api } from '../core/api';
@@ -18,6 +19,7 @@ import { showPanel } from '../ui/panels';
 export const ears = { start: startEar };
 
 let ear: Ear | null = null;
+let earName = '';      // на какое имя сейчас откликаемся
 let starting = false;
 let busy = false;      // слушаем просьбу или ждём ответ на неё
 let failed = false;    // микрофон не дали: не пытаемся снова, пока человек не выключит и не включит
@@ -78,11 +80,22 @@ const hooks: EarHooks = {
   },
 };
 
+const currentName = (): string => catNameFor(settings.catName, settings.lang);
+
 async function startWake(): Promise<void> {
   starting = true;
+  const name = currentName();
   try {
+    const words = await api.nameWords(name);
+    if (!words.length) {
+      // имя, которое модель не расслышит (ни его, ни похожих слов): честно говорим и не включаем микрофон
+      failed = true;
+      say(T('wake.hardName'), 8000);
+      return;
+    }
     await api.askMic();
-    ear = await ears.start(hooks);
+    ear = await ears.start(hooks, name, words);
+    earName = name;
   } catch {
     ear = null;
     failed = true;
@@ -90,7 +103,7 @@ async function startWake(): Promise<void> {
   } finally {
     starting = false;
   }
-  if (!wanted()) stopWake(); // пока включались, уши выключили в настройках
+  if (ear && (!wanted() || earName !== currentName())) { stopWake(); syncWake(); return; } // пока включались, настройки поменяли
   showBadge();
 }
 
@@ -102,9 +115,14 @@ function stopWake(): void {
   showBadge();
 }
 
+let failedName = '';
+
 /** Включить или выключить уши по настройкам. Зовётся при каждом применении настроек. */
 export function syncWake(): void {
-  if (!settings.wakeWord) failed = false;
+  // кота переименовали: слушаем новое имя
+  if (ear && earName !== currentName()) stopWake();
+  if (!settings.wakeWord || failedName !== currentName()) failed = false;
+  failedName = currentName();
   if (wanted() && !ear && !starting && !failed) void startWake();
   else if (!wanted() && ear) stopWake();
   else showBadge();

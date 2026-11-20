@@ -6,6 +6,8 @@ import { errorDetails, type AiError } from './ai/http';
 import * as guide from './ai/guide';
 import { ask, type ChatMessage, type ChatTools } from './ai/llm';
 import * as stt from './ai/stt';
+import { wordsForName } from './ai/vosk-words';
+import { cleanCatName } from '../shared/cat-name';
 import * as clicks from './system/clicks';
 import { createFileActions } from './system/files';
 import * as locate from './system/locate';
@@ -63,6 +65,7 @@ function onGlobalClick(): void {
   ipcMain.handle('settings:save', (_e, s: Partial<Settings>) => {
     // микрофон слушает постоянно только по явному «да»
     if (s && 'wakeWord' in s) s.wakeWord = s.wakeWord === true;
+    if (s && 'catName' in s) s.catName = cleanCatName(s.catName);
     const res = settings.save(s);
     ui.send('settings-changed', res);
     return res;
@@ -153,6 +156,9 @@ function registerVoice(): void {
       return { error: T((err as AiError).network ? 'err.net' : 'err.stt') };
     }
   });
+  // слова для отклика на имя: принимаем только строку разумной длины
+  ipcMain.handle('voice:name-words', (_e, name: unknown) =>
+    (typeof name === 'string' && name.length <= 100 ? wordsForName(cleanCatName(name)) : []));
   ipcMain.handle('mic:ask', async () => {
     if (process.platform !== 'darwin') return true;
     try { return await systemPreferences.askForMediaAccess('microphone'); } catch { return false; }

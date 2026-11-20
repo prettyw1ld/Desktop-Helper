@@ -2,6 +2,7 @@
 // build/renderer/index.html?color=ginger&onboarded&ai&lang=en&platform=darwin
 // window.__emit('windows', [[1, 200, 300, 500, 300]]) подсовывает окна.
 import type { LocateItem, LookResult, PublicSettings, PushikApi, PushikEvent, PushikEvents, Reminder } from '../../shared/types';
+import { nameWords } from '../../shared/cat-name';
 import { DEFAULT_SETTINGS } from './settings';
 
 declare global {
@@ -98,6 +99,7 @@ export function mockApi(): PushikApi {
     openDrive: async () => true,
     transcribe: async () => ({ text: 'Хочу позвонить по видео' }),
     askMic: async () => true,
+    nameWords: async (name) => nameWords(name, []),
     addSkill: async (name) => {
       s.skills = [...s.skills.filter((x) => x.name !== name), { name, at: Date.now() }];
       return s.skills;

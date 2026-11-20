@@ -1,22 +1,24 @@
 /* «Пушик!», как «Привет, Сири»: кот слушает микрофон и ждёт своё имя, а потом просьбу.
    Всё распознаётся здесь же, той же офлайн-моделью Vosk, что и кнопка микрофона: звук никуда не уходит.
-   Слова «пушик» в маленькой модели нет, она слышит его как «пушок», «пушки», «пушкин»…
-   Поэтому ждём эти слова: распознаватель с коротким списком слов почти не путает их с обычной речью. */
+   Ждём короткий список слов (nameWords в shared/cat-name.ts): само имя, если модель его знает, или похожие
+   на слух слова («пушик» модель слышит как «пушок», «пушки»…). С таким списком она почти не путает имя с обычной речью. */
 import type { KaldiRecognizer } from 'vosk-browser';
 import type { RecognizerMessage } from 'vosk-browser/dist/interfaces';
+import { DECOY_WORDS, soundsLike, tailLike } from '../../shared/cat-name';
 import { model } from './voice';
 
-/** Как модель слышит «Пушик». */
-export const NAME_WORDS = ['пушок', 'пушки', 'пушкин', 'пушка', 'пушку', 'пушке'];
-const NAME_RE = new RegExp(`(^|\\s)(${NAME_WORDS.join('|')})(?=\\s|$)`);
-
-/** Есть ли в услышанном имя кота. */
-export const heardName = (text: string): boolean => NAME_RE.test(text.toLowerCase());
+/** Есть ли в услышанном имя кота (одно из слов, которые ждём). */
+export const heardName = (text: string, words: string[]): boolean =>
+  text.toLowerCase().split(/\s+/).some((w) => words.includes(w));
 
 /** Просьба без имени в начале и без «[unk]»: «пущу открой почту» → «открой почту». */
-export function stripName(text: string): string {
-  return text.toLowerCase().replace(/\[unk\]/g, ' ').replace(/\s+/g, ' ').trim()
-    .replace(/^((с?пу[шщ]\S*)\s*)+/, '').trim();
+export function stripName(text: string, name: string, words: string[] = []): string {
+  const tokens = text.toLowerCase().replace(/\[unk\]/g, ' ').split(/\s+/).filter(Boolean);
+  // имя модель иногда слышит другим словом («спущусь» вместо «Пушик») или дослышивает его хвост («пик» от «Барсик»)
+  const isName = (w: string): boolean =>
+    words.includes(w) || soundsLike(w, name) || soundsLike(w.replace(/^с/, ''), name) || tailLike(w, name);
+  while (tokens.length && isName(tokens[0]!)) tokens.shift();
+  return tokens.join(' ');
 }
 
 const RATE = 16000;        // модели хватает 16 кГц, так распознавателю меньше работы
@@ -45,7 +47,7 @@ const textOf = (msg: RecognizerMessage, key: 'text' | 'partial'): string => {
 };
 
 /** Включить уши. Бросает ошибку, если нет модели или микрофона (NotFoundError, NotAllowedError). */
-export async function startEar(h: EarHooks): Promise<Ear> {
+export async function startEar(h: EarHooks, name: string, words: string[]): Promise<Ear> {
   const m = await model();
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
@@ -65,9 +67,10 @@ export async function startEar(h: EarHooks): Promise<Ear> {
 
   function listenForName(): void {
     phrase = null;
-    const r = new m.KaldiRecognizer(rate, JSON.stringify([...NAME_WORDS, '[unk]']));
+    const grammar = [...words, ...DECOY_WORDS.filter((w) => !words.includes(w)), '[unk]'];
+    const r = new m.KaldiRecognizer(rate, JSON.stringify(grammar));
     const check = (text: string): void => {
-      if (stopped || rec !== r || !heardName(text)) return;
+      if (stopped || rec !== r || !heardName(text, words)) return;
       if (h.onName()) startPhrase(); else { drop(r); listenForName(); } // занят: начинаем слушать имя заново
     };
     r.on('partialresult', (msg) => check(textOf(msg, 'partial')));
@@ -79,7 +82,7 @@ export async function startEar(h: EarHooks): Promise<Ear> {
     drop(rec);
     const r = new m.KaldiRecognizer(rate);
     const p = { parts: [] as string[], partial: '', t0: performance.now(), lastVoice: 0, ending: false };
-    const said = (): string => stripName([...p.parts, p.partial].join(' '));
+    const said = (): string => stripName([...p.parts, p.partial].join(' '), name, words);
     r.on('result', (msg) => {
       if (rec !== r) return;
       const t = textOf(msg, 'text');
@@ -112,7 +115,7 @@ export async function startEar(h: EarHooks): Promise<Ear> {
   function endPhrase(r: KaldiRecognizer): void {
     if (rec !== r || !phrase) return;
     clearInterval(timer);
-    const text = stripName([...phrase.parts, phrase.partial].join(' '));
+    const text = stripName([...phrase.parts, phrase.partial].join(' '), name, words);
     drop(r);
     listenForName();
     if (!stopped) h.onPhrase(text);

@@ -1,5 +1,6 @@
 // Чат Пуша: Claude (Messages API), любой сервис, совместимый с OpenAI (Groq, DeepSeek, Qwen, OpenRouter,
 // LM Studio…), или локальная Ollama. Claude и Ollama ещё умеют вызывать инструменты (напоминания).
+import { catNameFor } from '../../shared/cat-name';
 import type { Settings } from '../../shared/types';
 import { aiError, fetchAI, fetchAIRetry, readError } from './http';
 import { extraFor, fallbackModel, resolve } from './providers';
@@ -77,11 +78,12 @@ const TOOLS: ToolDef[] = [
   },
 ];
 
-export function systemPrompt({ userName, lang }: { userName?: string; lang?: string }): string {
+export function systemPrompt({ userName, catName, lang }: { userName?: string; catName?: string; lang?: string }): string {
+  const cat = catNameFor(catName, lang ?? 'ru');
   const locale = lang === 'en' ? 'en-US' : 'ru-RU';
   const now = new Date().toLocaleString(locale, { dateStyle: 'full', timeStyle: 'short' });
   const ru = [
-    'Ты Пушик, добрый пиксельный кот.',
+    `Ты кот ${cat}, добрый пиксельный кот. Так тебя назвал человек: это твоё имя.`,
     'Ты живёшь на рабочем столе и помогаешь человеку, который только знакомится с компьютером.',
     'Объясняй очень просто, без компьютерных терминов, по одному действию за раз. Описывай, где что на экране и как выглядит.',
     'Никогда не проси пароли, номера карт и коды из СМС. Если что-то похоже на обман, предупреди.',
@@ -96,7 +98,7 @@ export function systemPrompt({ userName, lang }: { userName?: string; lang?: str
     `Сейчас: ${now}.`,
   ];
   const en = [
-    'You are Pushik, a kind pixel cat.',
+    `You are ${cat}, a kind pixel cat. The person gave you this name.`,
     'You live on the desktop and help a person who is just getting to know the computer.',
     'Explain very simply, without computer jargon, one action at a time. Never ask for passwords, card numbers or SMS codes.',
     'Answer briefly and kindly, in English unless the user writes in another language.',

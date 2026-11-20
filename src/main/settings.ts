@@ -22,6 +22,7 @@ const DEFAULTS: Settings = {
   calendarUrl: '',
   calendarBefore: 10,
   userName: '',
+  catName: '',
   size: 1,
   uiScale: 1,
   windows: true,

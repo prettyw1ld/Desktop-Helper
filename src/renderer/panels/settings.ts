@@ -10,6 +10,7 @@ import { applyI18n, I18N, T } from '../core/i18n';
 import { setSettings, settings } from '../core/settings';
 import { isKeyed, PROVIDER_KEY, UI_THEMES, type Provider, type Settings, type UiTheme } from '../../shared/types';
 import { Sound } from '../core/sound';
+import { cleanCatName } from '../../shared/cat-name';
 import { bubbleShown, placeBubble, say } from '../ui/bubble';
 import { refreshIcons } from '../ui/icons';
 import { closePanels, registerPanel, relayoutPanel } from '../ui/panels';
@@ -44,6 +45,7 @@ export function setTheme(theme: string): void {
 /** Применить текущие настройки ко всему окну. */
 export function applySettings(): void {
   I18N.setLang(settings.lang);
+  I18N.setCatName(settings.catName);
   applyI18n(document);
   refreshIcons();
   applyWindowScale(settings.uiScale);
@@ -56,7 +58,7 @@ export function applySettings(): void {
   syncWake();
 }
 
-const TEXT_FIELDS = ['userName', 'size', 'uiScale'] as const;
+const TEXT_FIELDS = ['userName', 'catName', 'size', 'uiScale'] as const;
 const catColorField = () => form().elements.namedItem('catColor') as RadioNodeList;
 const themeField = () => form().elements.namedItem('theme') as RadioNodeList;
 const CHECK_FIELDS = ['speak', 'sound', 'autostart', 'glass', 'wakeWord'] as const;
@@ -132,6 +134,7 @@ export function initSettings(): void {
     const ai = aiChanges();
     setSettings(await api.saveSettings({
       userName: field('userName').value.trim(),
+      catName: cleanCatName(field('catName').value),
       catColor: (catColorField().value || settings.catColor) as typeof settings.catColor,
       theme: (themeField().value || settings.theme || 'cream') as UiTheme,
       size: Number(field('size').value) || 1,
