@@ -10,6 +10,7 @@ const api: PushikApi = {
   saveSettings: (s) => ipcRenderer.invoke('settings:save', s),
   chat: (text) => ipcRenderer.invoke('chat:send', text),
   resetChat: () => ipcRenderer.invoke('chat:reset'),
+  voiceAsk: (text) => ipcRenderer.invoke('voice:ask', text),
   addReminder: (minutes, text, kind) => ipcRenderer.invoke('reminders:add', { minutes, text, kind }),
   listReminders: () => ipcRenderer.invoke('reminders:list'),
   cancelReminder: (id) => ipcRenderer.invoke('reminders:cancel', id),

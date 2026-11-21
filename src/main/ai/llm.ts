@@ -78,7 +78,7 @@ const TOOLS: ToolDef[] = [
   },
 ];
 
-export function systemPrompt({ userName, catName, lang }: { userName?: string; catName?: string; lang?: string }): string {
+export function systemPrompt({ userName, catName, lang, bubble }: { userName?: string; catName?: string; lang?: string; bubble?: boolean }): string {
   const cat = catNameFor(catName, lang ?? 'ru');
   const locale = lang === 'en' ? 'en-US' : 'ru-RU';
   const now = new Date().toLocaleString(locale, { dateStyle: 'full', timeStyle: 'short' });
@@ -95,6 +95,7 @@ export function systemPrompt({ userName, catName, lang }: { userName?: string; c
     `${SHOW_MARK} <цель коротко, своими словами человека, с подробностями>, например: ${SHOW_MARK} Поставить таймер на 5 минут в приложении Часы.`,
     'Напоминания ставь сам инструментом, а не показом.',
     userName ? `Пользователя зовут ${userName}.` : '',
+    bubble ? 'Тебя позвали голосом, ответ появится в облачке над котом: одно-три коротких предложения, без списков.' : '',
     `Сейчас: ${now}.`,
   ];
   const en = [
@@ -109,6 +110,7 @@ export function systemPrompt({ userName, catName, lang }: { userName?: string; c
     `${SHOW_MARK} <the goal, short, with details>, e.g. ${SHOW_MARK} Set a 5 minute timer in the Clock app.`,
     'Set reminders yourself with the tool, not by showing.',
     userName ? `The user's name is ${userName}.` : '',
+    bubble ? 'You were called by voice and the answer appears in a speech bubble over the cat: one to three short sentences, no lists.' : '',
     `Now: ${now}.`,
   ];
   return (lang === 'en' ? en : ru).filter(Boolean).join(' ');
@@ -245,7 +247,7 @@ function howToGoal(text: string, history: ChatMessage[]): string {
   return prev ? goalFromHowTo(prev.content) : '';
 }
 
-type AskOptions = Settings & { history: ChatMessage[]; text: string; tools: ChatTools };
+type AskOptions = Settings & { history: ChatMessage[]; text: string; tools: ChatTools; bubble?: boolean };
 
 /** Вызовы инструментов живут внутри одного запроса; в историю попадает только текст. */
 export async function ask(opts: AskOptions): Promise<AskOutput & { history: ChatMessage[] }> {

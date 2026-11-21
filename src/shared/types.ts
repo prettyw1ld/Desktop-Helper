@@ -249,6 +249,8 @@ export interface PushikApi {
   saveSettings(s: Partial<Settings>): Promise<PublicSettings>;
   chat(text: string): Promise<ChatResult | ErrorReply>;
   resetChat(): Promise<boolean>;
+  /** Просьба голосом после имени: ответ для облачка, отдельно от чата. */
+  voiceAsk(text: string): Promise<ChatResult | ErrorReply>;
   addReminder(minutes: number, text: string, kind: ReminderKind): Promise<Reminder>;
   listReminders(): Promise<Reminder[]>;
   cancelReminder(id: string): Promise<boolean>;

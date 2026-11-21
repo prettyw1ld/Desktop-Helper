@@ -3,7 +3,8 @@
 import './setup';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { ears, syncWake } from '../src/renderer/app/wake';
+import { ears, lead, listening, readMs, syncWake } from '../src/renderer/app/wake';
+import { cat } from '../src/renderer/cat/cat';
 import { api } from '../src/renderer/core/api';
 import { dom, isHidden, $ } from '../src/renderer/core/dom';
 import { setSettings, settings } from '../src/renderer/core/settings';
@@ -12,7 +13,7 @@ import { nameWords } from '../src/shared/cat-name';
 import type { EarHooks } from '../src/renderer/core/wake';
 import { hideBubble } from '../src/renderer/ui/bubble';
 import { applySettings } from '../src/renderer/panels/settings';
-import { closePanels, openPanel } from '../src/renderer/ui/panels';
+import { closePanels, openPanel, showPanel } from '../src/renderer/ui/panels';
 import { resetDesk, settle } from './helpers';
 
 const PUSHIK = nameWords('Пушик', []);
@@ -55,7 +56,6 @@ function fakeEars(fail?: Error) {
   return log;
 }
 
-const badge = () => $('#ear');
 const bubbleText = () => dom.bubbleText.textContent ?? '';
 
 function setup(over: Partial<typeof settings> = {}): void {
@@ -68,51 +68,84 @@ function setup(over: Partial<typeof settings> = {}): void {
   hideBubble();
 }
 
-test('wake word: off by default, turning it on shows the listening badge, turning it off stops the microphone', async () => {
+test('wake word: off by default, turning it on opens the microphone, turning it off stops it', async () => {
   const ear = fakeEars();
   setup();
   assert.equal(ear.started, 0, 'microphone is not opened without consent');
-  assert.ok(isHidden(badge()));
+  assert.ok(!listening());
+  assert.equal(document.querySelector('#ear'), null, 'no microphone badge over the cat');
 
   setSettings({ ...settings, wakeWord: true });
   syncWake();
   await settle();
   assert.equal(ear.started, 1);
-  assert.ok(!isHidden(badge()), 'the person sees that the cat is listening');
+  assert.ok(listening());
 
   setSettings({ ...settings, wakeWord: false });
   syncWake();
   assert.equal(ear.stopped, 1);
-  assert.ok(isHidden(badge()));
+  assert.ok(!listening());
 });
 
-test('«Пушик, …»: the cat answers, shows what it hears and asks the chat', async () => {
+test('«Пушик, …»: the cat perks up, listens, thinks and answers in its own bubble, not in the chat', async () => {
   const ear = fakeEars();
   setup({ wakeWord: true });
   await settle();
   const asked: string[] = [];
-  api.chat = async (t) => { asked.push(t); return { reply: 'Сейчас расскажу', actions: [] }; };
+  let answer: (r: { reply: string; actions: never[] }) => void = () => {};
+  api.voiceAsk = (t) => { asked.push(t); return new Promise((r) => { answer = r; }); };
+  api.chat = async () => { throw new Error('the chat is not used for voice'); };
+  const chatBefore = $('#chat-log').textContent;
 
   assert.equal(ear.hooks!.onName(), true);
+  assert.equal(cat.state, 'act');
+  assert.equal(cat.act, 'surpriseF', 'perks up with «!»');
+  await new Promise((r) => setTimeout(r, 750));
+  assert.equal(cat.act, 'earTwitchF', 'sits facing the person and twitches its ears while listening');
   assert.match(bubbleText(), /Слушаю/);
-  assert.ok(badge().classList.contains('hearing'));
   assert.equal(ear.hooks!.onName(), false, 'a second «Пушик» while listening is ignored');
 
   ear.hooks!.onPartial('какая сегодня');
   assert.match(bubbleText(), /какая сегодня/);
   ear.hooks!.onPhrase('какая сегодня погода');
   await settle();
-
   assert.deepEqual(asked, ['какая сегодня погода']);
-  assert.equal(openPanel(), 'chat');
-  const log = $('#chat-log').textContent ?? '';
-  assert.match(log, /какая сегодня погода/);
-  assert.match(log, /Сейчас расскажу/);
-  assert.ok(!badge().classList.contains('hearing'));
+  assert.ok(dom.cat.classList.contains('thinking'), 'thinks «…» while the answer is on its way');
+  assert.equal(cat.state, 'busy', 'stays in place while thinking');
+
+  answer({ reply: 'Сегодня солнечно, мур!', actions: [] });
+  await settle();
+  assert.ok(!dom.cat.classList.contains('thinking'));
+  assert.equal(bubbleText(), 'Сегодня солнечно, мур!');
+  assert.equal(openPanel(), null, 'the chat window does not open');
+  assert.equal($('#chat-log').textContent, chatBefore, 'nothing is added to the chat');
+
   assert.equal(ear.hooks!.onName(), true, 'after the answer the cat can be called again');
   ear.hooks!.onPhrase('');
   assert.match(bubbleText(), /ничего не расслышал/);
-  assert.equal(openPanel(), 'chat');
+});
+
+test('voice «how to» request leads on the screen; an open window closes so the bubble is visible', async () => {
+  const ear = fakeEars();
+  setup({ wakeWord: true });
+  await settle();
+  api.voiceAsk = async (t) => ({ reply: '', actions: [], show: t });
+  const led: string[] = [];
+  lead.goal = (g) => { led.push(g); };
+  showPanel('settings');
+  assert.equal(ear.hooks!.onName(), true);
+  assert.equal(openPanel(), null);
+  ear.hooks!.onPhrase('как отправить фото');
+  await settle();
+  assert.match(bubbleText(), /покажу на экране: как отправить фото/);
+  await new Promise((r) => setTimeout(r, 750));
+  assert.deepEqual(led, ['как отправить фото']);
+});
+
+test('long answers stay longer in the bubble, but not forever', () => {
+  assert.equal(readMs('Да'), 5000);
+  assert.ok(readMs('а'.repeat(150)) > readMs('а'.repeat(50)));
+  assert.equal(readMs('а'.repeat(2000)), 20000);
 });
 
 test('no microphone: the cat says so once and does not retry until the setting is turned on again', async () => {
@@ -121,7 +154,7 @@ test('no microphone: the cat says so once and does not retry until the setting i
   await settle();
   assert.equal(ear.started, 1);
   assert.match(bubbleText(), /микрофон/);
-  assert.ok(isHidden(badge()));
+  assert.ok(!listening());
   syncWake();
   await settle();
   assert.equal(ear.started, 1);
@@ -139,7 +172,7 @@ test('without the offline voice model the microphone stays off', async () => {
   setup({ wakeWord: true, hasVosk: false });
   await settle();
   assert.equal(ear.started, 0);
-  assert.ok(isHidden(badge()));
+  assert.ok(!listening());
 });
 
 test('wake word is off by default and answers to a new name after renaming', async () => {
@@ -158,11 +191,11 @@ test('wake word is off by default and answers to a new name after renaming', asy
   assert.equal(ear.stopped, 1, 'stopped listening for the old name');
   assert.equal(ear.name, 'Барсик');
   assert.deepEqual(ear.words, ['барсик']);
-  assert.match(badge().title, /Барсик/);
+  assert.match($('[data-i18n="set.wake"]').textContent ?? '', /Барсик/, 'the setting names the new name');
 
   setSettings({ ...settings, catName: 'Тыгыдык' });
   applySettings();
   await settle();
-  assert.ok(isHidden(badge()), 'a name the model cannot hear: the microphone stays off');
+  assert.ok(!listening(), 'a name the model cannot hear: the microphone stays off');
   assert.match(bubbleText(), /трудно расслышать/);
 });
