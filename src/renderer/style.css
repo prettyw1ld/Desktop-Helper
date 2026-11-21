@@ -139,13 +139,3 @@ button { font: inherit; cursor: pointer; }
   background: var(--yellow); border: 2px solid var(--ink); border-radius: 999px;
   padding: 1px 8px; font-weight: 800; font-size: 12px; font-variant-numeric: tabular-nums;
 }
-/* уши включены: значок микрофона над котом. Пока кот слушает просьбу, значок горит и «дышит». */
-.ear {
-  position: absolute; z-index: 2; pointer-events: none;
-  top: calc(140px * (1 - var(--k)) - 6px); left: calc(75px * (1 - var(--k)) - 6px);
-  width: 26px; height: 26px; display: grid; place-items: center;
-  background: var(--paper); color: var(--ink); border: 2px solid var(--ink); border-radius: 999px;
-}
-.ear svg { width: 16px; height: 16px; }
-.ear.hearing { background: #ff6b6b; color: #fff; animation: ear-pulse 1s ease-in-out infinite; }
-@keyframes ear-pulse { 50% { transform: scale(1.18); } }

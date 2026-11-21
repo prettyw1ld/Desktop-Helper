@@ -51,6 +51,9 @@ export function mockApi(): PushikApi {
       ? { reply: `Сейчас покажу на экране: ${t}`, actions: [], show: t }
       : { reply: `Мяу! (тестовый режим) Ты написал: ${t}`, actions: [] }),
     resetChat: async () => true,
+    voiceAsk: async (t) => (/^(как|покажи)/i.test(t)
+      ? { reply: `Сейчас покажу на экране: ${t}`, actions: [], show: t }
+      : { reply: `Мур! (тестовый режим) Ты сказал: ${t}`, actions: [] }),
     addReminder: async (minutes, text, kind) => {
       const r = { id: String(Math.random()), at: Date.now() + minutes * 60000, text, kind };
       list.push(r);

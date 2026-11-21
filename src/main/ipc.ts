@@ -184,6 +184,8 @@ function registerSkills(): void {
 // ---------- Чат ----------
 // История чата живёт только в памяти, пока запущено приложение.
 let chatHistory: ChatMessage[] = [];
+// разговор голосом («Пушик, …») идёт отдельно от чата: ответ в облачке, свои короткие воспоминания
+let voiceHistory: ChatMessage[] = [];
 
 function chatTools(locale: string): ChatTools {
   return {
@@ -217,6 +219,19 @@ function chatTools(locale: string): ChatTools {
 
 function registerChat(): void {
   ipcMain.handle('chat:reset', () => { chatHistory = []; return true; });
+  ipcMain.handle('voice:ask', async (_e, text: unknown): Promise<ChatResult | ErrorReply> => {
+    if (typeof text !== 'string' || !text.trim() || text.length > 2000) return { error: T('err.ask') };
+    const s = settings.get();
+    if (noAi()) return { error: T('err.noKey') };
+    const locale = s.lang === 'en' ? 'en-US' : 'ru-RU';
+    try {
+      const { reply, history, actions, show } = await ask({ ...settings.forAi(s), history: voiceHistory, text: text.trim(), tools: chatTools(locale), bubble: true });
+      voiceHistory = history.slice(-10);
+      return show ? { reply, actions, show } : { reply, actions };
+    } catch (err) {
+      return aiFailure(err, 'voice:ask', 'err.ask');
+    }
+  });
   ipcMain.handle('chat:send', async (_e, text: string): Promise<ChatResult | ErrorReply> => {
     const s = settings.get();
     if (noAi()) return { error: T('err.noKey') };
